@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -56,8 +57,30 @@ boring-registry upload -type=s3 -s3-bucket=my-bucket terraform/modules
 	}
 }
 
+func (c *Config) printConfig() {
+	c.rootConfig.UI.Output("==> Boring Registry upload configuration:")
+	c.rootConfig.UI.Output("")
+	c.rootConfig.UI.Output(fmt.Sprintf("    Registry: %s", c.rootConfig.Type))
+
+	if c.rootConfig.Type == "s3" {
+		c.rootConfig.UI.Output(fmt.Sprintf("    Bucket: %s", c.rootConfig.S3Bucket))
+		if c.rootConfig.S3Prefix != "" {
+			c.rootConfig.UI.Output(fmt.Sprintf("    Prefix: %s", c.rootConfig.S3Prefix))
+		} else {
+			c.rootConfig.UI.Output("    Prefix: /")
+		}
+	}
+
+	c.rootConfig.UI.Output("")
+	c.rootConfig.UI.Output("==> Boring Registry upload started! Log data will stream below:")
+	c.rootConfig.UI.Output("")
+	c.rootConfig.UI.Output("")
+}
+
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
+	c.printConfig()
+
 	if len(args) < 1 {
 		return errors.New("create requires at least 1 args")
 	}
@@ -72,6 +95,8 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 			if err != nil {
 				return err
 			}
+
+			// id := fmt.Sprintf("%s/%s/%s/%s", spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version)
 
 			body, err := archive(filepath.Dir(path))
 			if err != nil {

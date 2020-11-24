@@ -5,6 +5,7 @@ import (
 	"flag"
 
 	"github.com/TierMobility/boring-registry/internal/cmd/help"
+	"github.com/TierMobility/boring-registry/internal/cmd/ui"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log"
 	"github.com/peterbourgon/ff/v3"
@@ -19,6 +20,8 @@ type Config struct {
 	S3Bucket string
 	S3Prefix string
 	S3Region string
+
+	UI *ui.UI
 
 	Logger   log.Logger
 	Service  module.Service
@@ -52,19 +55,3 @@ func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 }
 
 func (c *Config) Exec(ctx context.Context, args []string) error { return flag.ErrHelp }
-
-func (c *Config) Info(v string) string {
-	return help.Info(v, c.NoColor)
-}
-
-func (c *Config) Error(v string) string {
-	return help.Error(v, c.NoColor)
-}
-
-func (c *Config) Warn(v string) string {
-	return help.Warn(v, c.NoColor)
-}
-
-func (c *Config) Success(v string) string {
-	return help.Success(v, c.NoColor)
-}

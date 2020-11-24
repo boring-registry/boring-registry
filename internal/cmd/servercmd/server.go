@@ -7,14 +7,19 @@ import (
 	"io"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
+	"github.com/go-kit/kit/log/level"
 	"github.com/go-kit/kit/transport"
 	httptransport "github.com/go-kit/kit/transport/http"
+	"github.com/oklog/run"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -69,43 +74,72 @@ boring-registry server -type=s3 -s3-bucket=my-bucket`),
 }
 
 func (c *Config) printConfig() {
-	fmt.Println(c.rootConfig.Info("==> Boring Registry server configuration:"))
-	fmt.Println()
-	fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Listen Address: %s", c.ListenAddress)))
-	fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Registry: %s", c.rootConfig.Type)))
+	c.rootConfig.UI.Output("==> Boring Registry server configuration:")
+	c.rootConfig.UI.Output("")
+	c.rootConfig.UI.Output(fmt.Sprintf("    Listen Address: %s", c.ListenAddress))
+	c.rootConfig.UI.Output(fmt.Sprintf("    Registry: %s", c.rootConfig.Type))
 
 	if c.rootConfig.Type == "s3" {
-		fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Bucket: %s", c.rootConfig.S3Bucket)))
+		c.rootConfig.UI.Output(fmt.Sprintf("    Bucket: %s", c.rootConfig.S3Bucket))
 		if c.rootConfig.S3Prefix != "" {
-			fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Prefix: %s", c.rootConfig.S3Prefix)))
+			c.rootConfig.UI.Output(fmt.Sprintf("    Prefix: %s", c.rootConfig.S3Prefix))
 		} else {
-			fmt.Println(c.rootConfig.Info("    Prefix: /"))
+			c.rootConfig.UI.Output("    Prefix: /")
 		}
 	}
 
-	fmt.Println()
-	fmt.Println(c.rootConfig.Info("==> Boring Registry server started! Log data will stream below:"))
+	c.rootConfig.UI.Output("")
+	c.rootConfig.UI.Output("==> Boring Registry server started! Log data will stream below:")
+	c.rootConfig.UI.Output("")
+	c.rootConfig.UI.Output("")
 }
 
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
 	c.printConfig()
 
-	go func(addr string) {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
-		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-		http.ListenAndServe(addr, mux)
-	}(c.TelemetryListenAddress)
+	var g run.Group
+
+	telemetryMux := http.NewServeMux()
+	telemetryMux.Handle("/metrics", promhttp.Handler())
+	telemetryMux.HandleFunc("/debug/pprof/", pprof.Index)
+	telemetryMux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	telemetryMux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	telemetryMux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	telemetryMux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	telemetryMux.Handle("/debug/pprof/block", pprof.Handler("block"))
+	telemetryMux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	telemetryMux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	telemetryMux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+	telemetryMux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+
+	telemetrySrv := &http.Server{
+		Addr:         c.TelemetryListenAddress,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		Handler:      telemetryMux,
+	}
+
+	g.Add(func() error {
+		if err := telemetrySrv.ListenAndServe(); err != nil {
+			if err == http.ErrServerClosed {
+				level.Info(c.rootConfig.Logger).Log(
+					"msg", "shutting down telemetry server gracefully",
+				)
+			} else {
+				return err
+			}
+		}
+
+		return nil
+	}, func(err error) {
+		if err := telemetrySrv.Close(); err != nil {
+			level.Error(c.rootConfig.Logger).Log(
+				"msg", "failed to shutdown telemetry server cleanly",
+				"err", err,
+			)
+		}
+	})
 
 	mux := http.NewServeMux()
 
@@ -124,13 +158,19 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		w.Write([]byte(fmt.Sprintf(`{"modules.v1": "%s/modules"}`, prefix)))
 	})
 
+	var apiKeys []string
+
+	if c.APIKey != "" {
+		apiKeys = strings.Split(c.APIKey, ",")
+	}
+
 	mux.Handle(
 		fmt.Sprintf(`%s/`, prefix),
 		http.StripPrefix(
 			prefix,
 			module.MakeHandler(
 				c.rootConfig.Service,
-				module.AuthMiddleware(strings.Split(c.APIKey, ",")...),
+				module.AuthMiddleware(apiKeys...),
 				opts...,
 			),
 		),
@@ -143,5 +183,42 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		Handler:      mux,
 	}
 
-	return srv.ListenAndServe()
+	g.Add(func() error {
+		if err := srv.ListenAndServe(); err != nil {
+			if err == http.ErrServerClosed {
+				level.Info(c.rootConfig.Logger).Log(
+					"msg", "shutting down server gracefully",
+				)
+			} else {
+				return err
+			}
+		}
+
+		return nil
+	}, func(err error) {
+		if err := srv.Close(); err != nil {
+			level.Error(c.rootConfig.Logger).Log(
+				"msg", "failed to shutdown telemetry server cleanly",
+				"err", err,
+			)
+		}
+	})
+
+	g.Add(func() error {
+		sigint := make(chan os.Signal, 1)
+		signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+		<-sigint
+
+		if err := srv.Shutdown(ctx); err != nil {
+			return err
+		}
+
+		return telemetrySrv.Shutdown(ctx)
+	}, func(err error) {
+		level.Info(c.rootConfig.Logger).Log(
+			"msg", "shutting down server",
+		)
+	})
+
+	return g.Run()
 }

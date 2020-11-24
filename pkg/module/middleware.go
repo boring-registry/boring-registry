@@ -74,6 +74,7 @@ func AuthMiddleware(keys ...string) endpoint.Middleware {
 			if len(keys) < 1 {
 				return next(ctx, request)
 			}
+			panic(fmt.Sprintf("Keys: %#v", keys))
 
 			found := false
 

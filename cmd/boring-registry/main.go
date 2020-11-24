@@ -8,6 +8,7 @@ import (
 
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/internal/cmd/servercmd"
+	"github.com/TierMobility/boring-registry/internal/cmd/ui"
 	"github.com/TierMobility/boring-registry/internal/cmd/uploadcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log"
@@ -35,6 +36,10 @@ func main() {
 	if err := root.Parse(os.Args[1:]); err != nil {
 		abort(err)
 	}
+
+	ctx := context.Background()
+	ui := ui.NewUI(ctx, ui.WithColors(!config.NoColor), ui.WithOutput(os.Stdout))
+	config.UI = ui
 
 	var logger log.Logger
 	{
@@ -77,7 +82,7 @@ func main() {
 	}
 	config.Service = service
 
-	if err := root.Run(context.Background()); err != nil {
+	if err := root.Run(ctx); err != nil {
 		if err != flag.ErrHelp {
 			abort(err)
 		}

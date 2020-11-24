@@ -17,45 +17,6 @@ var (
 	reHeader = regexp.MustCompile(`^(USAGE|EXAMPLE USAGE|FLAGS|SUBCOMMANDS|VERSION)$`)
 )
 
-func Info(v string, noColor bool) string {
-	return output(v, "blue", noColor)
-}
-
-func Warn(v string, noColor bool) string {
-	return output(v, "yellow", noColor)
-}
-
-func Success(v string, noColor bool) string {
-	return output(v, "green", noColor)
-}
-
-func Error(v string, noColor bool) string {
-	return output(v, "red", noColor)
-}
-
-func output(v, color string, noColor bool) string {
-	var buf bytes.Buffer
-	d := glint.New()
-
-	d.SetRenderer(&glint.TerminalRenderer{
-		Output: &buf,
-		Rows:   100,
-		Cols:   300,
-	})
-
-	var style glint.Component
-
-	if noColor {
-		style = glint.Style(glint.Text(v))
-	} else {
-		style = glint.Style(glint.Text(v), glint.Color(color))
-	}
-
-	d.Append(style)
-	d.RenderFrame()
-	return buf.String()
-}
-
 func Format(v string) string {
 	var buf bytes.Buffer
 	d := glint.New()
