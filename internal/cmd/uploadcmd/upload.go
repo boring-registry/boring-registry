@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -39,9 +40,10 @@ func New(rootConfig *rootcmd.Config, out io.Writer) *ffcli.Command {
 
 	return &ffcli.Command{
 		Name:       "upload",
+		UsageFunc:  help.UsageFunc,
 		ShortUsage: "upload [flags] <dir>",
 		ShortHelp:  "uploads terraform modules to a registry",
-		LongHelp: help.FormatHelp(`Upload modules to a registry.
+		LongHelp: help.Format(`Upload modules to a registry.
 
 The upload command expects some configuration, such as which registry type to use and which local directory to work in.
 The default registry type is "s3" and is currently the only registry type available.
@@ -49,9 +51,7 @@ For more options see the available options below.
 
 EXAMPLE USAGE
 
-boring-registry upload \
-  -registry=s3 \
-  -registry.s3.bucket=my-bucket terraform/modules
+boring-registry upload -type=s3 -s3.bucket=my-bucket terraform/modules
 		`),
 		FlagSet: fs,
 		Exec:    cfg.Exec,
@@ -95,10 +95,12 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 					return err
 				}
 			} else {
-				level.Info(c.rootConfig.Logger).Log(
+				level.Debug(c.rootConfig.Logger).Log(
 					"msg", "successfully uploaded module",
 					"module", res,
 				)
+
+				fmt.Println(help.Success(fmt.Sprintf("Successfully uploaded module: %s", res.DownloadURL)))
 			}
 		}
 		return nil

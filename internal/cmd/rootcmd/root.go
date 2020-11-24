@@ -4,18 +4,19 @@ import (
 	"context"
 	"flag"
 
+	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log"
+	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
 type Config struct {
-	Debug                  bool
-	RegistryType           string
-	RegistryS3Bucket       string
-	RegistryS3Prefix       string
-	RegistryS3Region       string
-	TelemetryListenAddress string
+	Debug    bool
+	Type     string
+	S3Bucket string
+	S3Prefix string
+	S3Region string
 
 	Logger   log.Logger
 	Service  module.Service
@@ -28,7 +29,11 @@ func New() (*ffcli.Command, *Config) {
 	cfg.RegisterFlags(fs)
 
 	return &ffcli.Command{
-		Name:       "boring-registry",
+		Name:      "boring-registry",
+		UsageFunc: help.UsageFunc,
+		Options: []ff.Option{
+			ff.WithEnvVarPrefix("BORING_REGISTRY"),
+		},
 		ShortUsage: "boring-registry [flags] <subcommand> [flags] [<arg>...]",
 		FlagSet:    fs,
 		Exec:       cfg.Exec,
@@ -37,11 +42,10 @@ func New() (*ffcli.Command, *Config) {
 
 func (c *Config) RegisterFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Debug, "debug", false, "log debug output")
-	fs.StringVar(&c.RegistryType, "registry", "s3", "registry type")
-	fs.StringVar(&c.RegistryS3Bucket, "registry.s3.bucket", "", "s3 bucket to use for the s3 registry")
-	fs.StringVar(&c.RegistryS3Prefix, "registry.s3.prefix", "", "s3 prefix to use for the s3 registry")
-	fs.StringVar(&c.RegistryS3Prefix, "registry.s3.region", "", "s3 region to use for the s3 registry")
-	fs.StringVar(&c.TelemetryListenAddress, "telemetry-listen-address", ":7801", "listen address for telemetry")
+	fs.StringVar(&c.Type, "type", "s3", "registry type")
+	fs.StringVar(&c.S3Bucket, "s3.bucket", "", "s3 bucket to use for the S3 registry")
+	fs.StringVar(&c.S3Prefix, "s3.prefix", "", "s3 prefix to use for the S3 registry")
+	fs.StringVar(&c.S3Prefix, "s3.region", "", "s3 region to use for the S3 registry")
 }
 
 func (c *Config) Exec(ctx context.Context, args []string) error { return flag.ErrHelp }

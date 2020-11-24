@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"net/http"
-	"net/http/pprof"
 	"os"
 
+	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/internal/cmd/servercmd"
 	"github.com/TierMobility/boring-registry/internal/cmd/uploadcmd"
@@ -14,7 +14,6 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/peterbourgon/ff/v3/ffcli"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -60,43 +59,33 @@ func main() {
 	logger = log.With(logger, "hostname", hostname)
 	config.Logger = logger
 
-	go func(addr string) {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
-		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-		http.ListenAndServe(addr, mux)
-	}(config.TelemetryListenAddress)
-
-	switch config.RegistryType {
+	switch config.Type {
 	case "s3":
-		registry, err := module.NewS3Registry(config.RegistryS3Bucket,
-			module.WithS3RegistryBucketPrefix(config.RegistryS3Prefix),
-			module.WithS3RegistryBucketRegion(config.RegistryS3Region),
+		registry, err := module.NewS3Registry(config.S3Bucket,
+			module.WithS3RegistryBucketPrefix(config.S3Prefix),
+			module.WithS3RegistryBucketRegion(config.S3Region),
 		)
 		if err != nil {
 			abort(logger, err)
 		}
 		config.Registry = registry
 	default:
-		abort(logger, fmt.Errorf("invalid registry type '%s'", config.RegistryType))
+		fmt.Println(help.Error(fmt.Sprintf("Invalid registry type '%s'", config.Type)))
+		os.Exit(1)
 	}
 
 	service := module.NewService(config.Registry)
 	{
-		service = module.LoggingMiddleware(logger)(service)
+		service = module.LoggingMiddleware(config.Logger)(service)
 	}
 	config.Service = service
 
-	abort(logger, root.Run(context.Background()))
+	if err := root.Run(context.Background()); err != nil {
+		if err != flag.ErrHelp {
+			fmt.Println(help.Error(fmt.Sprintf("Failed to run: '%s'", err)))
+			os.Exit(1)
+		}
+	}
 }
 
 func abort(logger log.Logger, err error) {

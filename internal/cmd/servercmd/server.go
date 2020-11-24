@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/go-kit/kit/transport"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/peterbourgon/ff/v3/ffcli"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -32,7 +34,8 @@ type Config struct {
 	rootConfig *rootcmd.Config
 	out        io.Writer
 
-	ListenAddress string
+	ListenAddress          string
+	TelemetryListenAddress string
 }
 
 func New(rootConfig *rootcmd.Config, out io.Writer) *ffcli.Command {
@@ -43,12 +46,15 @@ func New(rootConfig *rootcmd.Config, out io.Writer) *ffcli.Command {
 
 	fs := flag.NewFlagSet("boring-registry server", flag.ExitOnError)
 	fs.StringVar(&cfg.ListenAddress, "listen-address", ":5601", "listen address for the registry api")
+	fs.StringVar(&cfg.TelemetryListenAddress, "telemetry-listen-address", ":7801", "listen address for telemetry")
+
 	rootConfig.RegisterFlags(fs)
 
 	return &ffcli.Command{
 		Name:      "server",
+		UsageFunc: help.UsageFunc,
 		ShortHelp: "run the registry api server",
-		LongHelp: help.FormatHelp(`Run the registry API server.
+		LongHelp: help.Format(`Run the registry API server.
 
 The server command expects some configuration, such as which registry type to use.
 The default registry type is "s3" and is currently the only registry type available.
@@ -56,10 +62,7 @@ For more options see the available options below.
 
 EXAMPLE USAGE
 
-boring-registry server \
-  -registry=s3 \
-  -registry.s3.bucket=my-bucket
-`),
+boring-registry server -type=s3 -s3.bucket=my-bucket`),
 		ShortUsage: "server [flags]",
 		FlagSet:    fs,
 		Exec:       cfg.Exec,
@@ -69,6 +72,22 @@ boring-registry server \
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
 	level.Info(c.rootConfig.Logger).Log("msg", "starting server")
+
+	go func(addr string) {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+		http.ListenAndServe(addr, mux)
+	}(c.TelemetryListenAddress)
 
 	mux := http.NewServeMux()
 
