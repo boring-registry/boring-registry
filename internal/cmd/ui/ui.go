@@ -8,9 +8,11 @@ import (
 	"github.com/mitchellh/go-glint"
 )
 
+type Style string
+
 const (
-	BoldStyle  = "bold"
-	ErrorStyle = "error"
+	BoldStyle  Style = "bold"
+	ErrorStyle Style = "error"
 )
 
 type UI struct {
@@ -37,6 +39,9 @@ func (ui *UI) Output(v string, options ...OutputOption) {
 	switch config.style {
 	case BoldStyle:
 		styles = append(styles, glint.Bold())
+	case ErrorStyle:
+		styles = append(styles, glint.Bold())
+		styles = append(styles, glint.Color("red"))
 	}
 
 	ui.gc.Append(
@@ -47,11 +52,11 @@ func (ui *UI) Output(v string, options ...OutputOption) {
 	)
 }
 
-type config struct{ style string }
+type config struct{ style Style }
 
 type OutputOption func(*config)
 
-func WithStyle(style string) OutputOption {
+func WithStyle(style Style) OutputOption {
 	return func(cfg *config) {
 		cfg.style = style
 	}

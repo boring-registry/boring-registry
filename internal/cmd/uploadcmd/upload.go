@@ -14,6 +14,7 @@ import (
 
 	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
+	"github.com/TierMobility/boring-registry/internal/cmd/ui"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/pkg/errors"
@@ -80,6 +81,8 @@ func (c *Config) printConfig() {
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
 	c.printConfig()
+
+	c.rootConfig.UI.Output("WARNING", ui.WithStyle(ui.ErrorStyle))
 
 	if len(args) < 1 {
 		return errors.New("create requires at least 1 args")
