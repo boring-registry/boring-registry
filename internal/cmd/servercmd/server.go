@@ -7,15 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/pprof"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/go-kit/kit/transport"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -34,6 +31,7 @@ type Config struct {
 	rootConfig *rootcmd.Config
 	out        io.Writer
 
+	APIKey                 string
 	ListenAddress          string
 	TelemetryListenAddress string
 }
@@ -46,6 +44,7 @@ func New(rootConfig *rootcmd.Config, out io.Writer) *ffcli.Command {
 
 	fs := flag.NewFlagSet("boring-registry server", flag.ExitOnError)
 	fs.StringVar(&cfg.ListenAddress, "listen-address", ":5601", "listen address for the registry api")
+	fs.StringVar(&cfg.APIKey, "api-key", "", "comma-delimited list of api keys")
 	fs.StringVar(&cfg.TelemetryListenAddress, "telemetry-listen-address", ":7801", "listen address for telemetry")
 
 	rootConfig.RegisterFlags(fs)
@@ -62,16 +61,35 @@ For more options see the available options below.
 
 EXAMPLE USAGE
 
-boring-registry server -type=s3 -s3.bucket=my-bucket`),
+boring-registry server -type=s3 -s3-bucket=my-bucket`),
 		ShortUsage: "server [flags]",
 		FlagSet:    fs,
 		Exec:       cfg.Exec,
 	}
 }
 
+func (c *Config) printConfig() {
+	fmt.Println(c.rootConfig.Info("==> Boring Registry server configuration:"))
+	fmt.Println()
+	fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Listen Address: %s", c.ListenAddress)))
+	fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Registry: %s", c.rootConfig.Type)))
+
+	if c.rootConfig.Type == "s3" {
+		fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Bucket: %s", c.rootConfig.S3Bucket)))
+		if c.rootConfig.S3Prefix != "" {
+			fmt.Println(c.rootConfig.Info(fmt.Sprintf("    Prefix: %s", c.rootConfig.S3Prefix)))
+		} else {
+			fmt.Println(c.rootConfig.Info("    Prefix: /"))
+		}
+	}
+
+	fmt.Println()
+	fmt.Println(c.rootConfig.Info("==> Boring Registry server started! Log data will stream below:"))
+}
+
 // Exec function for this command.
 func (c *Config) Exec(ctx context.Context, args []string) error {
-	level.Info(c.rootConfig.Logger).Log("msg", "starting server")
+	c.printConfig()
 
 	go func(addr string) {
 		mux := http.NewServeMux()
@@ -112,7 +130,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 			prefix,
 			module.MakeHandler(
 				c.rootConfig.Service,
-				module.AuthMiddleware(collectAPIKeys(c.rootConfig.Logger, os.Environ())...),
+				module.AuthMiddleware(strings.Split(c.APIKey, ",")...),
 				opts...,
 			),
 		),
@@ -126,30 +144,4 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	}
 
 	return srv.ListenAndServe()
-}
-
-func collectAPIKeys(logger log.Logger, in []string) []string {
-	var keys []string
-
-	for _, e := range in {
-		parts := strings.SplitN(e, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key, value := parts[0], parts[1]
-
-		if strings.HasPrefix(key, "REGISTRY_API_KEY_") {
-			level.Debug(logger).Log(
-				"msg", fmt.Sprintf("loading API key from env %s", key),
-			)
-			keys = append(keys, value)
-		}
-	}
-
-	if len(keys) < 1 {
-		level.Warn(logger).Log("msg", "no API key defined, consider setting one or multiple using env variables (REGISTRY_API_KEY_<key>=<value>)")
-	}
-
-	return keys
 }

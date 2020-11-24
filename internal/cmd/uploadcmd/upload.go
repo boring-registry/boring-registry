@@ -6,7 +6,6 @@ import (
 	"compress/gzip"
 	"context"
 	"flag"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,7 +14,6 @@ import (
 	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
-	"github.com/go-kit/kit/log/level"
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"github.com/pkg/errors"
 )
@@ -51,7 +49,7 @@ For more options see the available options below.
 
 EXAMPLE USAGE
 
-boring-registry upload -type=s3 -s3.bucket=my-bucket terraform/modules
+boring-registry upload -type=s3 -s3-bucket=my-bucket terraform/modules
 		`),
 		FlagSet: fs,
 		Exec:    cfg.Exec,
@@ -63,10 +61,6 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	if len(args) < 1 {
 		return errors.New("create requires at least 1 args")
 	}
-
-	level.Info(c.rootConfig.Logger).Log(
-		"msg", "starting uploader",
-	)
 
 	err := filepath.Walk(args[0], func(path string, fi os.FileInfo, err error) error {
 		if fi == nil {
@@ -84,24 +78,17 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 				return err
 			}
 
-			res, err := c.rootConfig.Registry.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, body)
-			if err != nil {
-				if errors.Cause(err) == module.ErrAlreadyExists {
-					level.Debug(c.rootConfig.Logger).Log(
-						"msg", "skipping already existing module",
-						"err", err,
-					)
-				} else {
-					return err
-				}
-			} else {
-				level.Debug(c.rootConfig.Logger).Log(
-					"msg", "successfully uploaded module",
-					"module", res,
-				)
-
-				fmt.Println(help.Success(fmt.Sprintf("Successfully uploaded module: %s", res.DownloadURL)))
+			if _, err := c.rootConfig.Registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+				// fmt.Println(help.Info(fmt.Sprintf("Skipping already uploaded module: %s", res.DownloadURL)))
+				return nil
 			}
+
+			_, err = c.rootConfig.Registry.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, body)
+			if err != nil {
+				return err
+			}
+
+			// fmt.Println(help.Success(fmt.Sprintf("Successfully uploaded module: %s", res.DownloadURL)))
 		}
 		return nil
 	})

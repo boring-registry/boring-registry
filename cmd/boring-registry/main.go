@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/internal/cmd/servercmd"
 	"github.com/TierMobility/boring-registry/internal/cmd/uploadcmd"
@@ -34,8 +33,7 @@ func main() {
 	}
 
 	if err := root.Parse(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "error during parse: %v\n", err)
-		os.Exit(1)
+		abort(err)
 	}
 
 	var logger log.Logger
@@ -54,7 +52,7 @@ func main() {
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		abort(logger, err)
+		abort(err)
 	}
 	logger = log.With(logger, "hostname", hostname)
 	config.Logger = logger
@@ -66,12 +64,11 @@ func main() {
 			module.WithS3RegistryBucketRegion(config.S3Region),
 		)
 		if err != nil {
-			abort(logger, err)
+			abort(err)
 		}
 		config.Registry = registry
 	default:
-		fmt.Println(help.Error(fmt.Sprintf("Invalid registry type '%s'", config.Type)))
-		os.Exit(1)
+		abort(fmt.Errorf("Invalid registry type '%s'", config.Type))
 	}
 
 	service := module.NewService(config.Registry)
@@ -82,17 +79,16 @@ func main() {
 
 	if err := root.Run(context.Background()); err != nil {
 		if err != flag.ErrHelp {
-			fmt.Println(help.Error(fmt.Sprintf("Failed to run: '%s'", err)))
-			os.Exit(1)
+			abort(err)
 		}
 	}
 }
 
-func abort(logger log.Logger, err error) {
+func abort(err error) {
 	if err == nil {
 		return
 	}
 
-	level.Error(logger).Log("err", err)
+	// fmt.Println(help.Error(fmt.Sprintf("Error: '%s'", err)))
 	os.Exit(1)
 }
