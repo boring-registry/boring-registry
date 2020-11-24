@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log/level"
@@ -39,8 +40,21 @@ func New(rootConfig *rootcmd.Config, out io.Writer) *ffcli.Command {
 	return &ffcli.Command{
 		Name:       "upload",
 		ShortUsage: "upload [flags] <dir>",
-		FlagSet:    fs,
-		Exec:       cfg.Exec,
+		ShortHelp:  "uploads terraform modules to a registry",
+		LongHelp: help.FormatHelp(`Upload modules to a registry.
+
+The upload command expects some configuration, such as which registry type to use and which local directory to work in.
+The default registry type is "s3" and is currently the only registry type available.
+For more options see the available options below.
+
+EXAMPLE USAGE
+
+boring-registry upload \
+  -registry=s3 \
+  -registry.s3.bucket=my-bucket terraform/modules
+		`),
+		FlagSet: fs,
+		Exec:    cfg.Exec,
 	}
 }
 

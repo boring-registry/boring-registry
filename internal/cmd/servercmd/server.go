@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TierMobility/boring-registry/internal/cmd/help"
 	"github.com/TierMobility/boring-registry/internal/cmd/rootcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log"
@@ -45,7 +46,20 @@ func New(rootConfig *rootcmd.Config, out io.Writer) *ffcli.Command {
 	rootConfig.RegisterFlags(fs)
 
 	return &ffcli.Command{
-		Name:       "server",
+		Name:      "server",
+		ShortHelp: "run the registry api server",
+		LongHelp: help.FormatHelp(`Run the registry API server.
+
+The server command expects some configuration, such as which registry type to use.
+The default registry type is "s3" and is currently the only registry type available.
+For more options see the available options below.
+
+EXAMPLE USAGE
+
+boring-registry server \
+  -registry=s3 \
+  -registry.s3.bucket=my-bucket
+`),
 		ShortUsage: "server [flags]",
 		FlagSet:    fs,
 		Exec:       cfg.Exec,

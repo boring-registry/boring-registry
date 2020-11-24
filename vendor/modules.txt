@@ -50,6 +50,8 @@ github.com/aws/aws-sdk-go/service/sts/stsiface
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
+# github.com/containerd/console v1.0.1
+github.com/containerd/console
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/go-kit/kit v0.10.0
@@ -67,6 +69,8 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
+# github.com/gookit/color v1.3.1
+github.com/gookit/color
 # github.com/gorilla/mux v1.8.0
 ## explicit
 github.com/gorilla/mux
@@ -93,6 +97,17 @@ github.com/hashicorp/hcl/json/token
 github.com/jmespath/go-jmespath
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/mitchellh/go-glint v0.0.0-20201119015200-53f6eb3bf4d2
+## explicit
+github.com/mitchellh/go-glint
+github.com/mitchellh/go-glint/flex
+github.com/mitchellh/go-glint/internal/layout
+# github.com/mitchellh/go-testing-interface v1.14.1
+github.com/mitchellh/go-testing-interface
+# github.com/mitchellh/go-wordwrap v1.0.1
+github.com/mitchellh/go-wordwrap
+# github.com/morikuni/aec v1.0.0
+github.com/morikuni/aec
 # github.com/peterbourgon/ff/v3 v3.0.0
 ## explicit
 github.com/peterbourgon/ff/v3
@@ -120,6 +135,8 @@ github.com/prometheus/procfs/internal/util
 # github.com/stretchr/testify v1.6.1
 ## explicit
 github.com/stretchr/testify/assert
+# golang.org/x/crypto v0.0.0-20200820211705-5c72a883971a
+golang.org/x/crypto/ssh/terminal
 # golang.org/x/sys v0.0.0-20201015000850-e3ed0017c211
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
