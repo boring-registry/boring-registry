@@ -60,48 +60,62 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 }
 
 func decodeListRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	var req listRequest
-
-	if v, ok := ctx.Value(varNamespace).(string); ok {
-		req.namespace = v
+	namespace, ok := ctx.Value(varNamespace).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "namespace")
 	}
 
-	if v, ok := ctx.Value(varName).(string); ok {
-		req.name = v
+	name, ok := ctx.Value(varName).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "name")
 	}
 
-	if v, ok := ctx.Value(varProvider).(string); ok {
-		req.provider = v
+	provider, ok := ctx.Value(varProvider).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "provider")
 	}
 
-	return req, nil
+	return listRequest{
+		namespace: namespace,
+		name:      name,
+		provider:  provider,
+	}, nil
 }
 
 func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	var req downloadRequest
-
-	if v, ok := ctx.Value(varNamespace).(string); ok {
-		req.namespace = v
+	namespace, ok := ctx.Value(varNamespace).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "namespace")
 	}
 
-	if v, ok := ctx.Value(varName).(string); ok {
-		req.name = v
+	name, ok := ctx.Value(varName).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "name")
 	}
 
-	if v, ok := ctx.Value(varProvider).(string); ok {
-		req.provider = v
+	provider, ok := ctx.Value(varProvider).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "provider")
 	}
 
-	if v, ok := ctx.Value(varVersion).(string); ok {
-		req.version = v
+	version, ok := ctx.Value(varVersion).(string)
+	if !ok {
+		return nil, errors.Wrap(ErrVarMissing, "version")
 	}
 
-	return req, nil
+	return downloadRequest{
+		namespace: namespace,
+		name:      name,
+		provider:  provider,
+		version:   version,
+	}, nil
 }
 
 // ErrorEncoder translates domain specific errors to HTTP status codes.
 func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	switch errors.Cause(err) {
+	case ErrVarMissing:
+		w.WriteHeader(http.StatusBadRequest)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

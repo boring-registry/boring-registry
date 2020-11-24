@@ -6,78 +6,100 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
-	"strings"
 	"testing"
 
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
-var moduleData = `
-resource "aws_s3_bucket" "mod" {
-	name = "foo"
+func testModuleData(files map[string]string) *bytes.Buffer {
+	buf := new(bytes.Buffer)
+
+	gw := gzip.NewWriter(buf)
+	defer gw.Close()
+
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	for name, moduleData := range files {
+		hdr := &tar.Header{
+			Name: name,
+			Mode: 0644,
+			Size: int64(len(moduleData)),
+		}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			panic(err)
+		}
+
+		if _, err := tw.Write([]byte(moduleData)); err != nil {
+			panic(err)
+		}
+	}
+
+	return buf
 }
-`
 
-func TestService(t *testing.T) {
+func TestService_GetModule(t *testing.T) {
 	assert := assert.New(t)
-	t.Parallel()
 
-	var (
-		namespace = "tier"
-		name      = "s3"
-		provider  = "aws"
-		version   = "1.0.0"
-	)
-
-	var (
-		ctx      = context.Background()
-		registry = NewInmemRegistry()
-		svc      = NewService(registry)
-		fs       = afero.NewMemMapFs()
-		buf      = new(bytes.Buffer)
-		gw       = gzip.NewWriter(buf)
-		tw       = tar.NewWriter(gw)
-	)
-
-	assert.NoError(afero.WriteFile(fs, "main.tf", []byte(moduleData), 0644))
-
-	file, err := fs.Open("main.tf")
-	assert.NoError(err)
-
-	stat, err := file.Stat()
-	assert.NoError(err)
-
-	header, err := tar.FileInfoHeader(stat, file.Name())
-	assert.NoError(err)
-
-	assert.NoError(tw.WriteHeader(header))
-
-	if _, err := io.Copy(tw, strings.NewReader(moduleData)); err != nil {
-		panic(err)
+	testCases := []struct {
+		name        string
+		module      Module
+		data        io.Reader
+		expectError bool
+	}{
+		{
+			name: "valid get",
+			module: Module{
+				Namespace: "tier",
+				Name:      "s3",
+				Provider:  "aws",
+				Version:   "1.0.0",
+			},
+			data: testModuleData(map[string]string{
+				"main.tf": `name = "foo"`,
+			}),
+		},
+		{
+			name: "invalid get",
+			module: Module{
+				Namespace: "tier",
+				Name:      "s3",
+				Provider:  "aws",
+			},
+			data: testModuleData(map[string]string{
+				"main.tf": `name = "foo"`,
+			}),
+			expectError: true,
+		},
 	}
 
-	assert.NoError(gw.Close())
-	assert.NoError(tw.Close())
-	assert.NoError(file.Close())
+	for _, tc := range testCases {
+		tc := tc
 
-	file, err = fs.Open("main.tf")
-	assert.NoError(err)
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				ctx      = context.Background()
+				registry = NewInmemRegistry()
+				svc      = NewService(registry)
+			)
 
-	module, err := registry.UploadModule(ctx, namespace, name, provider, version, file)
-	assert.NoError(err)
-	assert.NoError(file.Close())
+			_, err := registry.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, tc.data)
+			switch tc.expectError {
+			case true:
+				assert.Error(err)
+			case false:
+				assert.NoError(err)
+			}
 
-	module2, err := svc.GetModule(ctx, namespace, name, provider, version)
-	assert.NoError(err)
-
-	expected := Module{
-		Namespace: namespace,
-		Name:      name,
-		Provider:  provider,
-		Version:   version,
+			module, err := svc.GetModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version)
+			switch tc.expectError {
+			case true:
+				assert.Error(err)
+			case false:
+				assert.NoError(err)
+				assert.Equal(tc.module, module)
+			}
+		})
 	}
-
-	assert.Equal(expected, module)
-	assert.Equal(module, module2)
 }
