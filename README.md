@@ -29,6 +29,5 @@ boring-registry upload -type=s3 -s3.bucket=terraform-registry-test <DIR>
 The boring-registry does not rely on any configuration files. Instead, everything can be configured using flags or environment variables.
 Note: Flags have higher priority than environment variables. Environment variables are always prefixed with `BORING_REGISTRY`.
 
-Example:
-
+**Example:**
 To enable debug logging you can either pass the flag: `-debug` or set the environment variable: `BORING_REGISTRY_DEBUG`.
