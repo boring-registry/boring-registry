@@ -23,4 +23,3 @@ To upload modules to the registry you need to specify which registry to use (cur
 ```bash
 boring-registry upload -type=s3 -s3.bucket=terraform-registry-test <DIR> 
 ```
-
