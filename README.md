@@ -30,4 +30,4 @@ The boring-registry does not rely on any configuration files. Instead, everythin
 **Important Note**: Flags have higher priority than environment variables. Environment variables are always prefixed with `BORING_REGISTRY`.
 
 **Example:**
-To enable debug logging you can either pass the flag: `-debug` or set the environment variable: `BORING_REGISTRY_DEBUG`.
+To enable debug logging you can either pass the flag: `-debug` or set the environment variable: `BORING_REGISTRY_DEBUG=true`.
