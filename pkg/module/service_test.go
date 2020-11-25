@@ -27,13 +27,8 @@ func testModuleData(files map[string]string) *bytes.Buffer {
 			Size: int64(len(moduleData)),
 		}
 
-		if err := tw.WriteHeader(hdr); err != nil {
-			panic(err)
-		}
-
-		if _, err := tw.Write([]byte(moduleData)); err != nil {
-			panic(err)
-		}
+		tw.WriteHeader(hdr)
+		tw.Write([]byte(moduleData))
 	}
 
 	return buf
