@@ -12,16 +12,20 @@ The registry supports two modes:
 
 To run the server you need to specify which registry to use (currently only S3 is supported):
 
-**Example:**
+**Example using the S3 registry:**
 ```bash
-boring-registry server -type=s3 -s3.bucket=terraform-registry-test
+$ boring-registry server \
+  -type=s3 \
+  -s3.bucket=terraform-registry-test
 ```
 
 To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
 
-**Example:**
+**Example using the S3 registry:**
 ```bash
-boring-registry upload -type=s3 -s3.bucket=terraform-registry-test <DIR> 
+$ boring-registry upload \
+  -type=s3 \
+  -s3.bucket=terraform-registry-test terraform/modules
 ```
 
 ## Configuration
