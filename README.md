@@ -38,3 +38,4 @@ The project is in its very early stages and there is a lot of things we want to 
 
 * Module maintenance - The CLI should be able to inspect/view, modify and delete existing modules.
 * Migration helpers - We want the CLI to be able to provide some automation when migrating to the boring-registry. This is currently a manual task and is quite time consuming.
+* Extensive metrics - We want to add proper metrics for the server component so we can monitor the internal health of the Boring Registry.
