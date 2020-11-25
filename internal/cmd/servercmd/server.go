@@ -135,7 +135,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	}, func(err error) {
 		if err := telemetrySrv.Close(); err != nil {
 			level.Error(c.rootConfig.Logger).Log(
-				"msg", "failed to shutdown telemetry server cleanly",
+				"msg", "failed to shutdown telemetry server gracefully",
 				"err", err,
 			)
 		}
