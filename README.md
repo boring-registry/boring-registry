@@ -117,7 +117,7 @@ FLAGS
   -type s3         registry type
 
 VERSION
-boring-registry v0.1.0-dev
+boring-registry v0.1.0
 ```
 
 ### Server help output 
@@ -148,7 +148,7 @@ FLAGS
   -type s3                         registry type
 
 VERSION
-boring-registry v0.1.0-dev
+boring-registry v0.1.0
 ```
 
 ### Upload help output
@@ -177,7 +177,7 @@ FLAGS
   -type s3         registry type
 
 VERSION
-boring-registry v0.1.0-dev
+boring-registry v0.1.0
 ```
 
 # Roadmap
