@@ -31,3 +31,10 @@ The boring-registry does not rely on any configuration files. Instead, everythin
 
 **Example:**
 To enable debug logging you can either pass the flag: `-debug` or set the environment variable: `BORING_REGISTRY_DEBUG=true`.
+
+## Roadmap
+
+The project is in its very early stages and there is a lot of things we want to tackle. This project started out as a single server (just serving the Module Registry Protocol), but is now becoming a single binary that can host the server and allow operators to manage the registry using a streamlined interface.
+
+* Module maintenance - The CLI should be able to inspect/view, modify and delete existing modules.
+* Migration helpers - We want the CLI to be able to provide some automation when migrating to the boring-registry. This is currently a manual task and is quite time consuming.
