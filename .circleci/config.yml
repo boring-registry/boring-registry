@@ -12,6 +12,6 @@ jobs:
 
 workflows:
   version: 2
-  deploy:
+  main:
     jobs:
       - run-tests
