@@ -1,0 +1,17 @@
+version: 2.1
+
+jobs:
+  run-tests:
+    docker:
+      - image: circleci/golang:1.15
+
+    working_directory: /go/src/github.com/TierMobility/boring-registry
+    steps:
+      - checkout
+      - run: go test -mod=vendor -v -cover -race ./...
+
+workflows:
+  version: 2
+  deploy:
+    jobs:
+      - run-tests
