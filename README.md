@@ -52,7 +52,7 @@ To run the server you need to specify which registry to use (currently only S3 i
 ```bash
 $ boring-registry server \
   -type=s3 \
-  -s3.bucket=terraform-registry-test
+  -s3-bucket=terraform-registry-test
 ```
 
 To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
@@ -61,7 +61,7 @@ To upload modules to the registry you need to specify which registry to use (cur
 ```bash
 $ boring-registry upload \
   -type=s3 \
-  -s3.bucket=terraform-registry-test terraform/modules
+  -s3-bucket=terraform-registry-test terraform/modules
 ```
 
 ## Configuration
@@ -105,79 +105,116 @@ USAGE
   boring-registry [flags] <subcommand> [flags] [<arg>...]
 
 SUBCOMMANDS
-  server  run the registry api server
-  upload  uploads terraform modules to a registry
-
-FLAGS
-  -debug false     log debug output
-  -no-color false  disable color output
-  -s3-bucket ...   s3 bucket to use for the S3 registry
-  -s3-prefix ...   s3 prefix to use for the S3 registry
-  -s3-region ...   s3 region to use for the S3 registry
-  -type s3         registry type
-
-VERSION
-boring-registry v0.1.0
+  server   Runs the server component
+  upload   Uploads modules to a registry.
+  version  Prints the version
 ```
 
 ### Server help output 
 
 ```bash
 USAGE
-  server [flags]
+  boring-registry server -type=<type> [flags]
 
-Run the registry API server.
+  Runs the server component.
 
-The server command expects some configuration, such as which registry type to use.
-The default registry type is "s3" and is currently the only registry type available.
-For more options see the available options below.
+  This command requires some configuration, such as which registry type to use.
 
-EXAMPLE USAGE
+  The server starts two servers (one for serving the API and one for Telemetry).
 
-boring-registry server -type=s3 -s3-bucket=my-bucket
+  Example Usage: boring-registry server -type=s3 -s3-bucket=example-bucket
+
+  For more options see the available options below.
 
 FLAGS
-  -api-key ...                     comma-delimited list of api keys
-  -debug false                     log debug output
-  -listen-address :5601            listen address for the registry api
-  -no-color false                  disable color output
-  -s3-bucket ...                   s3 bucket to use for the S3 registry
-  -s3-prefix ...                   s3 prefix to use for the S3 registry
-  -s3-region ...                   s3 region to use for the S3 registry
-  -telemetry-listen-address :7801  listen address for telemetry
-  -type s3                         registry type
+  -api-key=...
+  BORING_REGISTRY_API_KEY=...
+  Comma-separated string of static API keys to protect the server with.
 
-VERSION
-boring-registry v0.1.0
+  -debug=false
+  BORING_REGISTRY_DEBUG=false
+  Enable debug output.
+
+  -json=false
+  BORING_REGISTRY_JSON=false
+  Output logs in JSON format.
+
+  -listen-address=:5601
+  BORING_REGISTRY_LISTEN_ADDRESS=:5601
+  Listen address for the registry api.
+
+  -no-color=false
+  BORING_REGISTRY_NO_COLOR=false
+  Disables colored output.
+
+  -s3-bucket=...
+  BORING_REGISTRY_S3_BUCKET=...
+  Bucket to use when using the S3 registry type.
+
+  -s3-prefix=/
+  BORING_REGISTRY_S3_PREFIX=/
+  Prefix to use when using the S3 registry type.
+
+  -s3-region=...
+  BORING_REGISTRY_S3_REGION=...
+  Region of the S3 bucket when using the S3 registry type.
+
+  -telemetry-listen-address=:7801
+  BORING_REGISTRY_TELEMETRY_LISTEN_ADDRESS=:7801
+  Listen address for telemetry.
+
+  -type=...
+  BORING_REGISTRY_TYPE=...
+  Registry type to use (currently only "s3" is supported).
 ```
 
 ### Upload help output
 
 ```bash
 USAGE
-  upload [flags] <dir>
+  boring-registry upload [flags] <dir>
 
-Upload modules to a registry.
+  Uploads modules to a registry.
 
-The upload command expects some configuration, such as which registry type to use and which local directory to work in.
-The default registry type is "s3" and is currently the only registry type available.
-For more options see the available options below.
+  This command requires some configuration,
+  such as which registry type to use and a directory to search for modules.
 
-EXAMPLE USAGE
+  The upload command walks the directory recursively and looks
+  for modules with a boring-registry.hcl file in it. The file is then parsed
+  to get the module metadata the module is then archived and uploaded to the given registry.
 
-boring-registry upload -type=s3 -s3-bucket=my-bucket terraform/modules
+  Example Usage: boring-registry upload -type=s3 -s3-bucket=example-bucket modules/
 
+  For more options see the available options below.
 
 FLAGS
-  -debug false     log debug output
-  -no-color false  disable color output
-  -s3-bucket ...   s3 bucket to use for the S3 registry
-  -s3-prefix ...   s3 prefix to use for the S3 registry
-  -s3-region ...   s3 region to use for the S3 registry
-  -type s3         registry type
+  -debug=false
+  BORING_REGISTRY_DEBUG=false
+  Enable debug output.
 
-VERSION
-boring-registry v0.1.0
+  -json=false
+  BORING_REGISTRY_JSON=false
+  Output logs in JSON format.
+
+  -no-color=false
+  BORING_REGISTRY_NO_COLOR=false
+  Disables colored output.
+
+  -s3-bucket=...
+  BORING_REGISTRY_S3_BUCKET=...
+  Bucket to use when using the S3 registry type.
+
+  -s3-prefix=/
+  BORING_REGISTRY_S3_PREFIX=/
+  Prefix to use when using the S3 registry type.
+
+  -s3-region=...
+  BORING_REGISTRY_S3_REGION=...
+  Region of the S3 bucket when using the S3 registry type.
+
+  -type=...
+  BORING_REGISTRY_TYPE=...
+  Registry type to use (currently only "s3" is supported).
 ```
 
 # Roadmap
