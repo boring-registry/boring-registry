@@ -100,7 +100,7 @@ When running the upload command, the module is then packaged up and stored insid
 
 ## Help output
 
-```bash
+```
 USAGE
   boring-registry [flags] <subcommand> [flags] [<arg>...]
 
@@ -112,7 +112,7 @@ SUBCOMMANDS
 
 ### Server help output 
 
-```bash
+```
 USAGE
   boring-registry server -type=<type> [flags]
 
@@ -170,7 +170,7 @@ FLAGS
 
 ### Upload help output
 
-```bash
+```
 USAGE
   boring-registry upload [flags] <dir>
 
