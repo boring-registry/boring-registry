@@ -1,0 +1,7 @@
+language: go
+go:
+ - "1.10"
+ - tip
+
+install: true
+script: go test -v ./

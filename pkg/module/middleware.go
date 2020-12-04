@@ -35,12 +35,14 @@ func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, n
 			logger = level.Error(mw.logger)
 		}
 
-		_ = logger.Log(
-			"op", "ListModuleVersions",
-			"modules", modules,
-			"took", time.Since(begin),
-			"err", err,
-		)
+		if len(modules) > 0 {
+			_ = logger.Log(
+				"op", "ListModuleVersions",
+				"module", modules[0].ID(false),
+				"took", time.Since(begin),
+				"err", err,
+			)
+		}
 
 	}(time.Now())
 
@@ -56,7 +58,7 @@ func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, prov
 
 		_ = logger.Log(
 			"op", "GetModule",
-			"module", module,
+			"module", module.ID(true),
 			"took", time.Since(begin),
 			"err", err,
 		)

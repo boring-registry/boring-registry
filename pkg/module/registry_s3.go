@@ -162,7 +162,7 @@ func NewS3Registry(bucket string, options ...S3RegistryOption) (Registry, error)
 	if s.bucketRegion == "" {
 		region, err := s.determineBucketRegion()
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to determine bucket region")
 		}
 		s.bucketRegion = region
 	}

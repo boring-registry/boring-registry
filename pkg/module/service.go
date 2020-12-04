@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"fmt"
 )
 
 // Service implements the Module Registry Protocol.
@@ -47,4 +48,14 @@ type Module struct {
 	Provider    string `json:"provider"`
 	Version     string `json:"version"`
 	DownloadURL string `json:"download_url"`
+}
+
+// ID returns the module metadata in a compact format.
+func (m *Module) ID(version bool) string {
+	id := fmt.Sprintf("namespace=%s/name=%s/provider=%s", m.Namespace, m.Name, m.Provider)
+	if version {
+		id = fmt.Sprintf("%s/version=%s", id, m.Version)
+	}
+
+	return id
 }
