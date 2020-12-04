@@ -82,6 +82,22 @@ func (s *S3Registry) ListModuleVersions(ctx context.Context, namespace, name, pr
 
 // UploadModule uploads a module to the S3 storage.
 func (s *S3Registry) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
+	if namespace == "" {
+		return Module{}, errors.New("namespace not defined")
+	}
+
+	if name == "" {
+		return Module{}, errors.New("name not defined")
+	}
+
+	if provider == "" {
+		return Module{}, errors.New("provider not defined")
+	}
+
+	if version == "" {
+		return Module{}, errors.New("version not defined")
+	}
+
 	key := fmt.Sprintf("namespace=%[1]v/name=%[2]v/provider=%[3]v/version=%[4]v/%[1]v-%[2]v-%[3]v-%[4]v.tar.gz", namespace, name, provider, version)
 
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {

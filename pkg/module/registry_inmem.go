@@ -46,7 +46,24 @@ func (s *InmemRegistry) ListModuleVersions(ctx context.Context, namespace, name,
 }
 
 func (s *InmemRegistry) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
+	if namespace == "" {
+		return Module{}, errors.New("namespace not defined")
+	}
+
+	if name == "" {
+		return Module{}, errors.New("name not defined")
+	}
+
+	if provider == "" {
+		return Module{}, errors.New("provider not defined")
+	}
+
+	if version == "" {
+		return Module{}, errors.New("version not defined")
+	}
+
 	s.mu.Lock()
+
 	id := s.moduleID(namespace, name, provider, version)
 	if _, ok := s.modules[id]; ok {
 		return Module{}, errors.Wrap(ErrAlreadyExists, "id")
