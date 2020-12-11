@@ -1,29 +1,17 @@
 package uploadcmd
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/TierMobility/boring-registry/internal/cli/help"
 	"github.com/TierMobility/boring-registry/internal/cli/rootcmd"
 	"github.com/TierMobility/boring-registry/pkg/module"
-	"github.com/fatih/color"
 	"github.com/peterbourgon/ff/v3"
 	"github.com/peterbourgon/ff/v3/ffcli"
-	"github.com/slok/gospinner"
-)
-
-const (
-	moduleSpecFileName = "boring-registry.hcl"
 )
 
 type Config struct {
@@ -61,47 +49,15 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 			return err
 		}
 		registry = reg
+	default:
+		return flag.ErrHelp
 	}
-	err := filepath.Walk(args[0], func(path string, fi os.FileInfo, err error) error {
-		if fi == nil {
-			return errors.New("missing file or directory")
-		}
 
-		if fi.Name() == moduleSpecFileName {
-			spec, err := module.ParseFile(path)
-			if err != nil {
-				return err
-			}
+	if _, err := os.Stat(args[0]); os.IsNotExist(err) {
+		return err
+	}
 
-			name := fmt.Sprintf("%s/%s/%s/%s", spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version)
-
-			spinner, _ := gospinner.NewSpinnerWithColor(gospinner.Dots, gospinner.FgHiCyan)
-			spinner.Start(color.New(color.Bold).Sprintf("Processing module: %s", name))
-
-			if res, err := registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
-				spinner.FinishWithMessage(color.New(color.Bold).Sprint("⚠"), fmt.Sprintf("Module already exists: %s", res.DownloadURL))
-				return nil
-			}
-
-			body, err := archive(filepath.Dir(path))
-			if err != nil {
-				spinner.Fail()
-				return err
-			}
-
-			res, err := registry.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, body)
-			if err != nil {
-				spinner.Fail()
-				return err
-			}
-
-			spinner.FinishWithMessage(color.New(color.Bold).Sprint("✔"), fmt.Sprintf("Module successfully uploaded to: %s", res.DownloadURL))
-		}
-
-		return nil
-	})
-
-	return err
+	return c.archiveModules(args[0], registry)
 }
 
 func New(config *rootcmd.Config) *ffcli.Command {
@@ -137,58 +93,4 @@ func New(config *rootcmd.Config) *ffcli.Command {
   For more options see the available options below.`),
 		Exec: cfg.Exec,
 	}
-}
-
-func archive(dir string) (io.Reader, error) {
-	info, err := os.Stat(dir)
-	if err != nil {
-		return nil, err
-	}
-
-	var baseDir string
-	if info.IsDir() && info.Name() != "." {
-		baseDir = filepath.Base(dir)
-	}
-
-	buf := new(bytes.Buffer)
-
-	gw := gzip.NewWriter(buf)
-	defer gw.Close()
-
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	err = filepath.Walk(dir, func(file string, fi os.FileInfo, err error) error {
-		header, err := tar.FileInfoHeader(fi, file)
-		if err != nil {
-			return err
-		}
-
-		if baseDir != "" {
-			header.Name = filepath.Join(baseDir, strings.TrimPrefix(file, dir))
-		}
-
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		if !fi.IsDir() {
-			data, err := os.Open(file)
-			if err != nil {
-				return err
-			}
-
-			if _, err := io.Copy(tw, data); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return buf, nil
 }

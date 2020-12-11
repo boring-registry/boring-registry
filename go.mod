@@ -14,7 +14,6 @@ require (
 	github.com/peterbourgon/ff/v3 v3.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.8.0
-	github.com/slok/gospinner v0.1.1
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/sys v0.0.0-20201202213521-69691e467435 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect

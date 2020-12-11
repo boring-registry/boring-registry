@@ -127,9 +127,6 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/slok/gospinner v0.1.1
-## explicit
-github.com/slok/gospinner
 # github.com/stretchr/testify v1.6.1
 ## explicit
 github.com/stretchr/testify/assert
