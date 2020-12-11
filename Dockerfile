@@ -12,4 +12,4 @@ FROM gcr.io/distroless/base:nonroot
 
 COPY --from=build /go/bin/boring-registry /
 
-ENTRYPOINT ["/boring-registry"]
+ENTRYPOINT ["/boring-registry", "server"]
