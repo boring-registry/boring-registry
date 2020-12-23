@@ -1,4 +1,4 @@
-// Copyright 2019 Google LLC.
+// Copyright 2020 Google LLC.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -55,9 +55,10 @@ import (
 	"strconv"
 	"strings"
 
-	gensupport "google.golang.org/api/gensupport"
 	googleapi "google.golang.org/api/googleapi"
+	gensupport "google.golang.org/api/internal/gensupport"
 	option "google.golang.org/api/option"
+	internaloption "google.golang.org/api/option/internaloption"
 	htransport "google.golang.org/api/transport/http"
 )
 
@@ -74,11 +75,12 @@ var _ = googleapi.Version
 var _ = errors.New
 var _ = strings.Replace
 var _ = context.Canceled
+var _ = internaloption.WithDefaultEndpoint
 
 const apiId = "storage:v1"
 const apiName = "storage"
 const apiVersion = "v1"
-const basePath = "https://www.googleapis.com/storage/v1/"
+const basePath = "https://storage.googleapis.com/storage/v1/"
 
 // OAuth2 scopes used by this API.
 const (
@@ -109,6 +111,7 @@ func NewService(ctx context.Context, opts ...option.ClientOption) (*Service, err
 	)
 	// NOTE: prepend, so we don't override user-specified scopes.
 	opts = append([]option.ClientOption{scopesOption}, opts...)
+	opts = append(opts, internaloption.WithDefaultEndpoint(basePath))
 	client, endpoint, err := htransport.NewClient(ctx, opts...)
 	if err != nil {
 		return nil, err
@@ -238,6 +241,7 @@ type ObjectsService struct {
 
 func NewProjectsService(s *Service) *ProjectsService {
 	rs := &ProjectsService{s: s}
+	rs.HmacKeys = NewProjectsHmacKeysService(s)
 	rs.ServiceAccount = NewProjectsServiceAccountService(s)
 	return rs
 }
@@ -245,7 +249,18 @@ func NewProjectsService(s *Service) *ProjectsService {
 type ProjectsService struct {
 	s *Service
 
+	HmacKeys *ProjectsHmacKeysService
+
 	ServiceAccount *ProjectsServiceAccountService
+}
+
+func NewProjectsHmacKeysService(s *Service) *ProjectsHmacKeysService {
+	rs := &ProjectsHmacKeysService{s: s}
+	return rs
+}
+
+type ProjectsHmacKeysService struct {
+	s *Service
 }
 
 func NewProjectsServiceAccountService(s *Service) *ProjectsServiceAccountService {
@@ -318,6 +333,9 @@ type Bucket struct {
 	// US. See the developer's guide for the authoritative list.
 	Location string `json:"location,omitempty"`
 
+	// LocationType: The type of the bucket location.
+	LocationType string `json:"locationType,omitempty"`
+
 	// Logging: The bucket's logging configuration, which defines the
 	// destination bucket and optional name prefix for the current bucket's
 	// logs.
@@ -356,9 +374,9 @@ type Bucket struct {
 	// storageClass is specified for a newly-created object. This defines
 	// how objects in the bucket are stored and determines the SLA and the
 	// cost of storage. Values include MULTI_REGIONAL, REGIONAL, STANDARD,
-	// NEARLINE, COLDLINE, and DURABLE_REDUCED_AVAILABILITY. If this value
-	// is not specified when the bucket is created, it will default to
-	// STANDARD. For more information, see storage classes.
+	// NEARLINE, COLDLINE, ARCHIVE, and DURABLE_REDUCED_AVAILABILITY. If
+	// this value is not specified when the bucket is created, it will
+	// default to STANDARD. For more information, see storage classes.
 	StorageClass string `json:"storageClass,omitempty"`
 
 	// TimeCreated: The creation time of the bucket in RFC 3339 format.
@@ -374,6 +392,17 @@ type Bucket struct {
 	// service behaves when accessing bucket contents as a web site. See the
 	// Static Website Examples for more information.
 	Website *BucketWebsite `json:"website,omitempty"`
+
+	// ZoneAffinity: The zone or zones from which the bucket is intended to
+	// use zonal quota. Requests for data from outside the specified
+	// affinities are still allowed but won't be able to use zonal quota.
+	// The zone or zones need to be within the bucket location otherwise the
+	// requests will fail with a 400 Bad Request response.
+	ZoneAffinity []string `json:"zoneAffinity,omitempty"`
+
+	// ZoneSeparation: If set, objects placed in this bucket are required to
+	// be separated by disaster domain.
+	ZoneSeparation bool `json:"zoneSeparation,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
@@ -507,8 +536,17 @@ func (s *BucketEncryption) MarshalJSON() ([]byte, error) {
 
 // BucketIamConfiguration: The bucket's IAM configuration.
 type BucketIamConfiguration struct {
-	// BucketPolicyOnly: The bucket's Bucket Policy Only configuration.
+	// BucketPolicyOnly: The bucket's uniform bucket-level access
+	// configuration. The feature was formerly known as Bucket Policy Only.
+	// For backward compatibility, this field will be populated with
+	// identical information as the uniformBucketLevelAccess field. We
+	// recommend using the uniformBucketLevelAccess field to enable and
+	// disable the feature.
 	BucketPolicyOnly *BucketIamConfigurationBucketPolicyOnly `json:"bucketPolicyOnly,omitempty"`
+
+	// UniformBucketLevelAccess: The bucket's uniform bucket-level access
+	// configuration.
+	UniformBucketLevelAccess *BucketIamConfigurationUniformBucketLevelAccess `json:"uniformBucketLevelAccess,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "BucketPolicyOnly") to
 	// unconditionally include in API requests. By default, fields with
@@ -534,14 +572,18 @@ func (s *BucketIamConfiguration) MarshalJSON() ([]byte, error) {
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
 
-// BucketIamConfigurationBucketPolicyOnly: The bucket's Bucket Policy
-// Only configuration.
+// BucketIamConfigurationBucketPolicyOnly: The bucket's uniform
+// bucket-level access configuration. The feature was formerly known as
+// Bucket Policy Only. For backward compatibility, this field will be
+// populated with identical information as the uniformBucketLevelAccess
+// field. We recommend using the uniformBucketLevelAccess field to
+// enable and disable the feature.
 type BucketIamConfigurationBucketPolicyOnly struct {
-	// Enabled: If set, access checks only use bucket-level IAM policies or
-	// above.
+	// Enabled: If set, access is controlled only by bucket-level or above
+	// IAM policies.
 	Enabled bool `json:"enabled,omitempty"`
 
-	// LockedTime: The deadline time for changing
+	// LockedTime: The deadline for changing
 	// iamConfiguration.bucketPolicyOnly.enabled from true to false in RFC
 	// 3339 format. iamConfiguration.bucketPolicyOnly.enabled may be changed
 	// from true to false until the locked time, after which the field is
@@ -567,6 +609,44 @@ type BucketIamConfigurationBucketPolicyOnly struct {
 
 func (s *BucketIamConfigurationBucketPolicyOnly) MarshalJSON() ([]byte, error) {
 	type NoMethod BucketIamConfigurationBucketPolicyOnly
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// BucketIamConfigurationUniformBucketLevelAccess: The bucket's uniform
+// bucket-level access configuration.
+type BucketIamConfigurationUniformBucketLevelAccess struct {
+	// Enabled: If set, access is controlled only by bucket-level or above
+	// IAM policies.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// LockedTime: The deadline for changing
+	// iamConfiguration.uniformBucketLevelAccess.enabled from true to false
+	// in RFC 3339  format.
+	// iamConfiguration.uniformBucketLevelAccess.enabled may be changed from
+	// true to false until the locked time, after which the field is
+	// immutable.
+	LockedTime string `json:"lockedTime,omitempty"`
+
+	// ForceSendFields is a list of field names (e.g. "Enabled") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Enabled") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *BucketIamConfigurationUniformBucketLevelAccess) MarshalJSON() ([]byte, error) {
+	type NoMethod BucketIamConfigurationUniformBucketLevelAccess
 	raw := NoMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -676,6 +756,25 @@ type BucketLifecycleRuleCondition struct {
 	// is created before midnight of the specified date in UTC.
 	CreatedBefore string `json:"createdBefore,omitempty"`
 
+	// CustomTimeBefore: A date in RFC 3339 format with only the date part
+	// (for instance, "2013-01-15"). This condition is satisfied when the
+	// custom time on an object is before this date in UTC.
+	CustomTimeBefore string `json:"customTimeBefore,omitempty"`
+
+	// DaysSinceCustomTime: Number of days elapsed since the user-specified
+	// timestamp set on an object. The condition is satisfied if the days
+	// elapsed is at least this number. If no custom timestamp is specified
+	// on an object, the condition does not apply.
+	DaysSinceCustomTime int64 `json:"daysSinceCustomTime,omitempty"`
+
+	// DaysSinceNoncurrentTime: Number of days elapsed since the noncurrent
+	// timestamp of an object. The condition is satisfied if the days
+	// elapsed is at least this number. This condition is relevant only for
+	// versioned objects. The value of the field must be a nonnegative
+	// integer. If it's zero, the object version will become eligible for
+	// Lifecycle action as soon as it becomes noncurrent.
+	DaysSinceNoncurrentTime int64 `json:"daysSinceNoncurrentTime,omitempty"`
+
 	// IsLive: Relevant only for versioned objects. If the value is true,
 	// this condition matches live objects; if the value is false, it
 	// matches archived objects.
@@ -691,9 +790,15 @@ type BucketLifecycleRuleCondition struct {
 
 	// MatchesStorageClass: Objects having any of the storage classes
 	// specified by this condition will be matched. Values include
-	// MULTI_REGIONAL, REGIONAL, NEARLINE, COLDLINE, STANDARD, and
+	// MULTI_REGIONAL, REGIONAL, NEARLINE, COLDLINE, ARCHIVE, STANDARD, and
 	// DURABLE_REDUCED_AVAILABILITY.
 	MatchesStorageClass []string `json:"matchesStorageClass,omitempty"`
+
+	// NoncurrentTimeBefore: A date in RFC 3339 format with only the date
+	// part (for instance, "2013-01-15"). This condition is satisfied when
+	// the noncurrent time on an object is before this date in UTC. This
+	// condition is relevant only for versioned objects.
+	NoncurrentTimeBefore string `json:"noncurrentTimeBefore,omitempty"`
 
 	// NumNewerVersions: Relevant only for versioned objects. If the value
 	// is N, this condition is satisfied when there are at least N versions
@@ -1107,7 +1212,7 @@ type Channel struct {
 	Id string `json:"id,omitempty"`
 
 	// Kind: Identifies this as a notification channel used to watch for
-	// changes to a resource. Value: the fixed string "api#channel".
+	// changes to a resource, which is "api#channel".
 	Kind string `json:"kind,omitempty"`
 
 	// Params: Additional parameters controlling delivery channel behavior.
@@ -1276,10 +1381,6 @@ type Expr struct {
 	// message determines which well-known feature set of CEL is supported.
 	Expression string `json:"expression,omitempty"`
 
-	// Kind: The kind of item this is. For storage, this is always
-	// storage#expr. This field is ignored on input.
-	Kind string `json:"kind,omitempty"`
-
 	// Location: An optional string indicating the location of the
 	// expression for error reporting, e.g. a file name and a position in
 	// the file.
@@ -1309,6 +1410,153 @@ type Expr struct {
 
 func (s *Expr) MarshalJSON() ([]byte, error) {
 	type NoMethod Expr
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// HmacKey: JSON template to produce a JSON-style HMAC Key resource for
+// Create responses.
+type HmacKey struct {
+	// Kind: The kind of item this is. For HMAC keys, this is always
+	// storage#hmacKey.
+	Kind string `json:"kind,omitempty"`
+
+	// Metadata: Key metadata.
+	Metadata *HmacKeyMetadata `json:"metadata,omitempty"`
+
+	// Secret: HMAC secret key material.
+	Secret string `json:"secret,omitempty"`
+
+	// ServerResponse contains the HTTP response code and headers from the
+	// server.
+	googleapi.ServerResponse `json:"-"`
+
+	// ForceSendFields is a list of field names (e.g. "Kind") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Kind") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *HmacKey) MarshalJSON() ([]byte, error) {
+	type NoMethod HmacKey
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// HmacKeyMetadata: JSON template to produce a JSON-style HMAC Key
+// metadata resource.
+type HmacKeyMetadata struct {
+	// AccessId: The ID of the HMAC Key.
+	AccessId string `json:"accessId,omitempty"`
+
+	// Etag: HTTP 1.1 Entity tag for the HMAC key.
+	Etag string `json:"etag,omitempty"`
+
+	// Id: The ID of the HMAC key, including the Project ID and the Access
+	// ID.
+	Id string `json:"id,omitempty"`
+
+	// Kind: The kind of item this is. For HMAC Key metadata, this is always
+	// storage#hmacKeyMetadata.
+	Kind string `json:"kind,omitempty"`
+
+	// ProjectId: Project ID owning the service account to which the key
+	// authenticates.
+	ProjectId string `json:"projectId,omitempty"`
+
+	// SelfLink: The link to this resource.
+	SelfLink string `json:"selfLink,omitempty"`
+
+	// ServiceAccountEmail: The email address of the key's associated
+	// service account.
+	ServiceAccountEmail string `json:"serviceAccountEmail,omitempty"`
+
+	// State: The state of the key. Can be one of ACTIVE, INACTIVE, or
+	// DELETED.
+	State string `json:"state,omitempty"`
+
+	// TimeCreated: The creation time of the HMAC key in RFC 3339 format.
+	TimeCreated string `json:"timeCreated,omitempty"`
+
+	// Updated: The last modification time of the HMAC key metadata in RFC
+	// 3339 format.
+	Updated string `json:"updated,omitempty"`
+
+	// ServerResponse contains the HTTP response code and headers from the
+	// server.
+	googleapi.ServerResponse `json:"-"`
+
+	// ForceSendFields is a list of field names (e.g. "AccessId") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "AccessId") to include in
+	// API requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *HmacKeyMetadata) MarshalJSON() ([]byte, error) {
+	type NoMethod HmacKeyMetadata
+	raw := NoMethod(*s)
+	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
+}
+
+// HmacKeysMetadata: A list of hmacKeys.
+type HmacKeysMetadata struct {
+	// Items: The list of items.
+	Items []*HmacKeyMetadata `json:"items,omitempty"`
+
+	// Kind: The kind of item this is. For lists of hmacKeys, this is always
+	// storage#hmacKeysMetadata.
+	Kind string `json:"kind,omitempty"`
+
+	// NextPageToken: The continuation token, used to page through large
+	// result sets. Provide this value in a subsequent request to return the
+	// next page of results.
+	NextPageToken string `json:"nextPageToken,omitempty"`
+
+	// ServerResponse contains the HTTP response code and headers from the
+	// server.
+	googleapi.ServerResponse `json:"-"`
+
+	// ForceSendFields is a list of field names (e.g. "Items") to
+	// unconditionally include in API requests. By default, fields with
+	// empty values are omitted from API requests. However, any non-pointer,
+	// non-interface field appearing in ForceSendFields will be sent to the
+	// server regardless of whether the field is empty or not. This may be
+	// used to include empty fields in Patch requests.
+	ForceSendFields []string `json:"-"`
+
+	// NullFields is a list of field names (e.g. "Items") to include in API
+	// requests with the JSON null value. By default, fields with empty
+	// values are omitted from API requests. However, any field with an
+	// empty value appearing in NullFields will be sent to the server as
+	// null. It is an error if a field in this list has a non-empty value.
+	// This may be used to include null fields in Patch requests.
+	NullFields []string `json:"-"`
+}
+
+func (s *HmacKeysMetadata) MarshalJSON() ([]byte, error) {
+	type NoMethod HmacKeysMetadata
 	raw := NoMethod(*s)
 	return gensupport.MarshalJSON(raw, s.ForceSendFields, s.NullFields)
 }
@@ -1449,6 +1697,10 @@ type Object struct {
 	// about using the CRC32c checksum, see Hashes and ETags: Best
 	// Practices.
 	Crc32c string `json:"crc32c,omitempty"`
+
+	// CustomTime: A timestamp in RFC 3339 format specified by the user for
+	// an object.
+	CustomTime string `json:"customTime,omitempty"`
 
 	// CustomerEncryption: Metadata of customer-supplied encryption key, if
 	// the object is encrypted by such a key.
@@ -1868,6 +2120,9 @@ type Policy struct {
 	// generation can be denoted with #0. This field is ignored on input.
 	ResourceId string `json:"resourceId,omitempty"`
 
+	// Version: The IAM policy format version.
+	Version int64 `json:"version,omitempty"`
+
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
 	googleapi.ServerResponse `json:"-"`
@@ -2147,6 +2402,14 @@ func (r *BucketAccessControlsService) Delete(bucket string, entity string) *Buck
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketAccessControlsDeleteCall) ProvisionalUserProject(provisionalUserProject string) *BucketAccessControlsDeleteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketAccessControlsDeleteCall) UserProject(userProject string) *BucketAccessControlsDeleteCall {
@@ -2181,6 +2444,7 @@ func (c *BucketAccessControlsDeleteCall) Header() http.Header {
 
 func (c *BucketAccessControlsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -2235,6 +2499,11 @@ func (c *BucketAccessControlsDeleteCall) Do(opts ...googleapi.CallOption) error 
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -2268,6 +2537,14 @@ func (r *BucketAccessControlsService) Get(bucket string, entity string) *BucketA
 	c := &BucketAccessControlsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
 	c.entity = entity
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketAccessControlsGetCall) ProvisionalUserProject(provisionalUserProject string) *BucketAccessControlsGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -2315,6 +2592,7 @@ func (c *BucketAccessControlsGetCall) Header() http.Header {
 
 func (c *BucketAccessControlsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -2397,6 +2675,11 @@ func (c *BucketAccessControlsGetCall) Do(opts ...googleapi.CallOption) (*BucketA
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -2434,6 +2717,14 @@ func (r *BucketAccessControlsService) Insert(bucket string, bucketaccesscontrol 
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketAccessControlsInsertCall) ProvisionalUserProject(provisionalUserProject string) *BucketAccessControlsInsertCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketAccessControlsInsertCall) UserProject(userProject string) *BucketAccessControlsInsertCall {
@@ -2468,6 +2759,7 @@ func (c *BucketAccessControlsInsertCall) Header() http.Header {
 
 func (c *BucketAccessControlsInsertCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -2544,6 +2836,11 @@ func (c *BucketAccessControlsInsertCall) Do(opts ...googleapi.CallOption) (*Buck
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -2580,6 +2877,14 @@ type BucketAccessControlsListCall struct {
 func (r *BucketAccessControlsService) List(bucket string) *BucketAccessControlsListCall {
 	c := &BucketAccessControlsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketAccessControlsListCall) ProvisionalUserProject(provisionalUserProject string) *BucketAccessControlsListCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -2627,6 +2932,7 @@ func (c *BucketAccessControlsListCall) Header() http.Header {
 
 func (c *BucketAccessControlsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -2701,6 +3007,11 @@ func (c *BucketAccessControlsListCall) Do(opts ...googleapi.CallOption) (*Bucket
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -2740,6 +3051,14 @@ func (r *BucketAccessControlsService) Patch(bucket string, entity string, bucket
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketAccessControlsPatchCall) ProvisionalUserProject(provisionalUserProject string) *BucketAccessControlsPatchCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketAccessControlsPatchCall) UserProject(userProject string) *BucketAccessControlsPatchCall {
@@ -2774,6 +3093,7 @@ func (c *BucketAccessControlsPatchCall) Header() http.Header {
 
 func (c *BucketAccessControlsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -2858,6 +3178,11 @@ func (c *BucketAccessControlsPatchCall) Do(opts ...googleapi.CallOption) (*Bucke
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -2900,6 +3225,14 @@ func (r *BucketAccessControlsService) Update(bucket string, entity string, bucke
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketAccessControlsUpdateCall) ProvisionalUserProject(provisionalUserProject string) *BucketAccessControlsUpdateCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketAccessControlsUpdateCall) UserProject(userProject string) *BucketAccessControlsUpdateCall {
@@ -2934,6 +3267,7 @@ func (c *BucketAccessControlsUpdateCall) Header() http.Header {
 
 func (c *BucketAccessControlsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -3018,6 +3352,11 @@ func (c *BucketAccessControlsUpdateCall) Do(opts ...googleapi.CallOption) (*Buck
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -3072,6 +3411,14 @@ func (c *BucketsDeleteCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch in
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsDeleteCall) ProvisionalUserProject(provisionalUserProject string) *BucketsDeleteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketsDeleteCall) UserProject(userProject string) *BucketsDeleteCall {
@@ -3106,6 +3453,7 @@ func (c *BucketsDeleteCall) Header() http.Header {
 
 func (c *BucketsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -3161,6 +3509,11 @@ func (c *BucketsDeleteCall) Do(opts ...googleapi.CallOption) error {
 	//     "ifMetagenerationNotMatch": {
 	//       "description": "If set, only deletes the bucket if its metageneration does not match this value.",
 	//       "format": "int64",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -3227,6 +3580,14 @@ func (c *BucketsGetCall) Projection(projection string) *BucketsGetCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsGetCall) ProvisionalUserProject(provisionalUserProject string) *BucketsGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketsGetCall) UserProject(userProject string) *BucketsGetCall {
@@ -3271,6 +3632,7 @@ func (c *BucketsGetCall) Header() http.Header {
 
 func (c *BucketsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -3370,6 +3732,11 @@ func (c *BucketsGetCall) Do(opts ...googleapi.CallOption) (*Bucket, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -3406,6 +3773,24 @@ type BucketsGetIamPolicyCall struct {
 func (r *BucketsService) GetIamPolicy(bucket string) *BucketsGetIamPolicyCall {
 	c := &BucketsGetIamPolicyCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
+	return c
+}
+
+// OptionsRequestedPolicyVersion sets the optional parameter
+// "optionsRequestedPolicyVersion": The IAM policy format version to be
+// returned. If the optionsRequestedPolicyVersion is for an older
+// version that doesn't support part of the requested IAM policy, the
+// request fails.
+func (c *BucketsGetIamPolicyCall) OptionsRequestedPolicyVersion(optionsRequestedPolicyVersion int64) *BucketsGetIamPolicyCall {
+	c.urlParams_.Set("optionsRequestedPolicyVersion", fmt.Sprint(optionsRequestedPolicyVersion))
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsGetIamPolicyCall) ProvisionalUserProject(provisionalUserProject string) *BucketsGetIamPolicyCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -3453,6 +3838,7 @@ func (c *BucketsGetIamPolicyCall) Header() http.Header {
 
 func (c *BucketsGetIamPolicyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -3527,6 +3913,18 @@ func (c *BucketsGetIamPolicyCall) Do(opts ...googleapi.CallOption) (*Policy, err
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "optionsRequestedPolicyVersion": {
+	//       "description": "The IAM policy format version to be returned. If the optionsRequestedPolicyVersion is for an older version that doesn't support part of the requested IAM policy, the request fails.",
+	//       "format": "int32",
+	//       "location": "query",
+	//       "minimum": "1",
+	//       "type": "integer"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -3539,10 +3937,7 @@ func (c *BucketsGetIamPolicyCall) Do(opts ...googleapi.CallOption) (*Policy, err
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
-	//     "https://www.googleapis.com/auth/devstorage.full_control",
-	//     "https://www.googleapis.com/auth/devstorage.read_only",
-	//     "https://www.googleapis.com/auth/devstorage.read_write"
+	//     "https://www.googleapis.com/auth/devstorage.full_control"
 	//   ]
 	// }
 
@@ -3618,6 +4013,14 @@ func (c *BucketsInsertCall) Projection(projection string) *BucketsInsertCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsInsertCall) ProvisionalUserProject(provisionalUserProject string) *BucketsInsertCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request.
 func (c *BucketsInsertCall) UserProject(userProject string) *BucketsInsertCall {
@@ -3652,6 +4055,7 @@ func (c *BucketsInsertCall) Header() http.Header {
 
 func (c *BucketsInsertCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -3778,6 +4182,11 @@ func (c *BucketsInsertCall) Do(opts ...googleapi.CallOption) (*Bucket, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request.",
 	//       "location": "query",
@@ -3851,6 +4260,14 @@ func (c *BucketsListCall) Projection(projection string) *BucketsListCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsListCall) ProvisionalUserProject(provisionalUserProject string) *BucketsListCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request.
 func (c *BucketsListCall) UserProject(userProject string) *BucketsListCall {
@@ -3895,6 +4312,7 @@ func (c *BucketsListCall) Header() http.Header {
 
 func (c *BucketsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -3997,6 +4415,11 @@ func (c *BucketsListCall) Do(opts ...googleapi.CallOption) (*Buckets, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request.",
 	//       "location": "query",
@@ -4057,6 +4480,14 @@ func (r *BucketsService) LockRetentionPolicy(bucket string, ifMetagenerationMatc
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsLockRetentionPolicyCall) ProvisionalUserProject(provisionalUserProject string) *BucketsLockRetentionPolicyCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketsLockRetentionPolicyCall) UserProject(userProject string) *BucketsLockRetentionPolicyCall {
@@ -4091,6 +4522,7 @@ func (c *BucketsLockRetentionPolicyCall) Header() http.Header {
 
 func (c *BucketsLockRetentionPolicyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -4168,6 +4600,11 @@ func (c *BucketsLockRetentionPolicyCall) Do(opts ...googleapi.CallOption) (*Buck
 	//       "format": "int64",
 	//       "location": "query",
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "userProject": {
@@ -4278,6 +4715,14 @@ func (c *BucketsPatchCall) Projection(projection string) *BucketsPatchCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsPatchCall) ProvisionalUserProject(provisionalUserProject string) *BucketsPatchCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketsPatchCall) UserProject(userProject string) *BucketsPatchCall {
@@ -4312,6 +4757,7 @@ func (c *BucketsPatchCall) Header() http.Header {
 
 func (c *BucketsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -4453,6 +4899,11 @@ func (c *BucketsPatchCall) Do(opts ...googleapi.CallOption) (*Bucket, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -4493,6 +4944,14 @@ func (r *BucketsService) SetIamPolicy(bucket string, policy *Policy) *BucketsSet
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsSetIamPolicyCall) ProvisionalUserProject(provisionalUserProject string) *BucketsSetIamPolicyCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketsSetIamPolicyCall) UserProject(userProject string) *BucketsSetIamPolicyCall {
@@ -4527,6 +4986,7 @@ func (c *BucketsSetIamPolicyCall) Header() http.Header {
 
 func (c *BucketsSetIamPolicyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -4603,6 +5063,11 @@ func (c *BucketsSetIamPolicyCall) Do(opts ...googleapi.CallOption) (*Policy, err
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -4618,8 +5083,7 @@ func (c *BucketsSetIamPolicyCall) Do(opts ...googleapi.CallOption) (*Policy, err
 	//   },
 	//   "scopes": [
 	//     "https://www.googleapis.com/auth/cloud-platform",
-	//     "https://www.googleapis.com/auth/devstorage.full_control",
-	//     "https://www.googleapis.com/auth/devstorage.read_write"
+	//     "https://www.googleapis.com/auth/devstorage.full_control"
 	//   ]
 	// }
 
@@ -4642,6 +5106,14 @@ func (r *BucketsService) TestIamPermissions(bucket string, permissions []string)
 	c := &BucketsTestIamPermissionsCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
 	c.urlParams_.SetMulti("permissions", append([]string{}, permissions...))
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsTestIamPermissionsCall) ProvisionalUserProject(provisionalUserProject string) *BucketsTestIamPermissionsCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -4689,6 +5161,7 @@ func (c *BucketsTestIamPermissionsCall) Header() http.Header {
 
 func (c *BucketsTestIamPermissionsCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -4769,6 +5242,11 @@ func (c *BucketsTestIamPermissionsCall) Do(opts ...googleapi.CallOption) (*TestI
 	//       "location": "query",
 	//       "repeated": true,
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "userProject": {
@@ -4881,6 +5359,14 @@ func (c *BucketsUpdateCall) Projection(projection string) *BucketsUpdateCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *BucketsUpdateCall) ProvisionalUserProject(provisionalUserProject string) *BucketsUpdateCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *BucketsUpdateCall) UserProject(userProject string) *BucketsUpdateCall {
@@ -4915,6 +5401,7 @@ func (c *BucketsUpdateCall) Header() http.Header {
 
 func (c *BucketsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5056,6 +5543,11 @@ func (c *BucketsUpdateCall) Do(opts ...googleapi.CallOption) (*Bucket, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -5121,6 +5613,7 @@ func (c *ChannelsStopCall) Header() http.Header {
 
 func (c *ChannelsStopCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5195,6 +5688,14 @@ func (r *DefaultObjectAccessControlsService) Delete(bucket string, entity string
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *DefaultObjectAccessControlsDeleteCall) ProvisionalUserProject(provisionalUserProject string) *DefaultObjectAccessControlsDeleteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *DefaultObjectAccessControlsDeleteCall) UserProject(userProject string) *DefaultObjectAccessControlsDeleteCall {
@@ -5229,6 +5730,7 @@ func (c *DefaultObjectAccessControlsDeleteCall) Header() http.Header {
 
 func (c *DefaultObjectAccessControlsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5283,6 +5785,11 @@ func (c *DefaultObjectAccessControlsDeleteCall) Do(opts ...googleapi.CallOption)
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -5316,6 +5823,14 @@ func (r *DefaultObjectAccessControlsService) Get(bucket string, entity string) *
 	c := &DefaultObjectAccessControlsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
 	c.entity = entity
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *DefaultObjectAccessControlsGetCall) ProvisionalUserProject(provisionalUserProject string) *DefaultObjectAccessControlsGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -5363,6 +5878,7 @@ func (c *DefaultObjectAccessControlsGetCall) Header() http.Header {
 
 func (c *DefaultObjectAccessControlsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5445,6 +5961,11 @@ func (c *DefaultObjectAccessControlsGetCall) Do(opts ...googleapi.CallOption) (*
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -5483,6 +6004,14 @@ func (r *DefaultObjectAccessControlsService) Insert(bucket string, objectaccessc
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *DefaultObjectAccessControlsInsertCall) ProvisionalUserProject(provisionalUserProject string) *DefaultObjectAccessControlsInsertCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *DefaultObjectAccessControlsInsertCall) UserProject(userProject string) *DefaultObjectAccessControlsInsertCall {
@@ -5517,6 +6046,7 @@ func (c *DefaultObjectAccessControlsInsertCall) Header() http.Header {
 
 func (c *DefaultObjectAccessControlsInsertCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5593,6 +6123,11 @@ func (c *DefaultObjectAccessControlsInsertCall) Do(opts ...googleapi.CallOption)
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -5649,6 +6184,14 @@ func (c *DefaultObjectAccessControlsListCall) IfMetagenerationNotMatch(ifMetagen
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *DefaultObjectAccessControlsListCall) ProvisionalUserProject(provisionalUserProject string) *DefaultObjectAccessControlsListCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *DefaultObjectAccessControlsListCall) UserProject(userProject string) *DefaultObjectAccessControlsListCall {
@@ -5693,6 +6236,7 @@ func (c *DefaultObjectAccessControlsListCall) Header() http.Header {
 
 func (c *DefaultObjectAccessControlsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5779,6 +6323,11 @@ func (c *DefaultObjectAccessControlsListCall) Do(opts ...googleapi.CallOption) (
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -5818,6 +6367,14 @@ func (r *DefaultObjectAccessControlsService) Patch(bucket string, entity string,
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *DefaultObjectAccessControlsPatchCall) ProvisionalUserProject(provisionalUserProject string) *DefaultObjectAccessControlsPatchCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *DefaultObjectAccessControlsPatchCall) UserProject(userProject string) *DefaultObjectAccessControlsPatchCall {
@@ -5852,6 +6409,7 @@ func (c *DefaultObjectAccessControlsPatchCall) Header() http.Header {
 
 func (c *DefaultObjectAccessControlsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -5936,6 +6494,11 @@ func (c *DefaultObjectAccessControlsPatchCall) Do(opts ...googleapi.CallOption) 
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -5978,6 +6541,14 @@ func (r *DefaultObjectAccessControlsService) Update(bucket string, entity string
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *DefaultObjectAccessControlsUpdateCall) ProvisionalUserProject(provisionalUserProject string) *DefaultObjectAccessControlsUpdateCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *DefaultObjectAccessControlsUpdateCall) UserProject(userProject string) *DefaultObjectAccessControlsUpdateCall {
@@ -6012,6 +6583,7 @@ func (c *DefaultObjectAccessControlsUpdateCall) Header() http.Header {
 
 func (c *DefaultObjectAccessControlsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6096,6 +6668,11 @@ func (c *DefaultObjectAccessControlsUpdateCall) Do(opts ...googleapi.CallOption)
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -6136,6 +6713,14 @@ func (r *NotificationsService) Delete(bucket string, notification string) *Notif
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *NotificationsDeleteCall) ProvisionalUserProject(provisionalUserProject string) *NotificationsDeleteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *NotificationsDeleteCall) UserProject(userProject string) *NotificationsDeleteCall {
@@ -6170,6 +6755,7 @@ func (c *NotificationsDeleteCall) Header() http.Header {
 
 func (c *NotificationsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6224,6 +6810,11 @@ func (c *NotificationsDeleteCall) Do(opts ...googleapi.CallOption) error {
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -6257,6 +6848,14 @@ func (r *NotificationsService) Get(bucket string, notification string) *Notifica
 	c := &NotificationsGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
 	c.notification = notification
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *NotificationsGetCall) ProvisionalUserProject(provisionalUserProject string) *NotificationsGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -6304,6 +6903,7 @@ func (c *NotificationsGetCall) Header() http.Header {
 
 func (c *NotificationsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6386,6 +6986,11 @@ func (c *NotificationsGetCall) Do(opts ...googleapi.CallOption) (*Notification, 
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -6426,6 +7031,14 @@ func (r *NotificationsService) Insert(bucket string, notification *Notification)
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *NotificationsInsertCall) ProvisionalUserProject(provisionalUserProject string) *NotificationsInsertCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *NotificationsInsertCall) UserProject(userProject string) *NotificationsInsertCall {
@@ -6460,6 +7073,7 @@ func (c *NotificationsInsertCall) Header() http.Header {
 
 func (c *NotificationsInsertCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6536,6 +7150,11 @@ func (c *NotificationsInsertCall) Do(opts ...googleapi.CallOption) (*Notificatio
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -6574,6 +7193,14 @@ type NotificationsListCall struct {
 func (r *NotificationsService) List(bucket string) *NotificationsListCall {
 	c := &NotificationsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *NotificationsListCall) ProvisionalUserProject(provisionalUserProject string) *NotificationsListCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -6621,6 +7248,7 @@ func (c *NotificationsListCall) Header() http.Header {
 
 func (c *NotificationsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6695,6 +7323,11 @@ func (c *NotificationsListCall) Do(opts ...googleapi.CallOption) (*Notifications
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -6746,6 +7379,14 @@ func (c *ObjectAccessControlsDeleteCall) Generation(generation int64) *ObjectAcc
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectAccessControlsDeleteCall) ProvisionalUserProject(provisionalUserProject string) *ObjectAccessControlsDeleteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectAccessControlsDeleteCall) UserProject(userProject string) *ObjectAccessControlsDeleteCall {
@@ -6780,6 +7421,7 @@ func (c *ObjectAccessControlsDeleteCall) Header() http.Header {
 
 func (c *ObjectAccessControlsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -6848,6 +7490,11 @@ func (c *ObjectAccessControlsDeleteCall) Do(opts ...googleapi.CallOption) error 
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -6891,6 +7538,14 @@ func (r *ObjectAccessControlsService) Get(bucket string, object string, entity s
 // version, the default).
 func (c *ObjectAccessControlsGetCall) Generation(generation int64) *ObjectAccessControlsGetCall {
 	c.urlParams_.Set("generation", fmt.Sprint(generation))
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectAccessControlsGetCall) ProvisionalUserProject(provisionalUserProject string) *ObjectAccessControlsGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -6938,6 +7593,7 @@ func (c *ObjectAccessControlsGetCall) Header() http.Header {
 
 func (c *ObjectAccessControlsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7034,6 +7690,11 @@ func (c *ObjectAccessControlsGetCall) Do(opts ...googleapi.CallOption) (*ObjectA
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -7081,6 +7742,14 @@ func (c *ObjectAccessControlsInsertCall) Generation(generation int64) *ObjectAcc
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectAccessControlsInsertCall) ProvisionalUserProject(provisionalUserProject string) *ObjectAccessControlsInsertCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectAccessControlsInsertCall) UserProject(userProject string) *ObjectAccessControlsInsertCall {
@@ -7115,6 +7784,7 @@ func (c *ObjectAccessControlsInsertCall) Header() http.Header {
 
 func (c *ObjectAccessControlsInsertCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7205,6 +7875,11 @@ func (c *ObjectAccessControlsInsertCall) Do(opts ...googleapi.CallOption) (*Obje
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -7254,6 +7929,14 @@ func (c *ObjectAccessControlsListCall) Generation(generation int64) *ObjectAcces
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectAccessControlsListCall) ProvisionalUserProject(provisionalUserProject string) *ObjectAccessControlsListCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectAccessControlsListCall) UserProject(userProject string) *ObjectAccessControlsListCall {
@@ -7298,6 +7981,7 @@ func (c *ObjectAccessControlsListCall) Header() http.Header {
 
 func (c *ObjectAccessControlsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7386,6 +8070,11 @@ func (c *ObjectAccessControlsListCall) Do(opts ...googleapi.CallOption) (*Object
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -7435,6 +8124,14 @@ func (c *ObjectAccessControlsPatchCall) Generation(generation int64) *ObjectAcce
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectAccessControlsPatchCall) ProvisionalUserProject(provisionalUserProject string) *ObjectAccessControlsPatchCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectAccessControlsPatchCall) UserProject(userProject string) *ObjectAccessControlsPatchCall {
@@ -7469,6 +8166,7 @@ func (c *ObjectAccessControlsPatchCall) Header() http.Header {
 
 func (c *ObjectAccessControlsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7567,6 +8265,11 @@ func (c *ObjectAccessControlsPatchCall) Do(opts ...googleapi.CallOption) (*Objec
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -7619,6 +8322,14 @@ func (c *ObjectAccessControlsUpdateCall) Generation(generation int64) *ObjectAcc
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectAccessControlsUpdateCall) ProvisionalUserProject(provisionalUserProject string) *ObjectAccessControlsUpdateCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectAccessControlsUpdateCall) UserProject(userProject string) *ObjectAccessControlsUpdateCall {
@@ -7653,6 +8364,7 @@ func (c *ObjectAccessControlsUpdateCall) Header() http.Header {
 
 func (c *ObjectAccessControlsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7751,6 +8463,11 @@ func (c *ObjectAccessControlsUpdateCall) Do(opts ...googleapi.CallOption) (*Obje
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -7832,13 +8549,19 @@ func (c *ObjectsComposeCall) IfMetagenerationMatch(ifMetagenerationMatch int64) 
 	return c
 }
 
-// KmsKeyName sets the optional parameter "kmsKeyName": Resource name of
-// the Cloud KMS key, of the form
-// projects/my-project/locations/global/keyRings/my-kr/cryptoKeys/my-key,
-//  that will be used to encrypt the object. Overrides the object
-// metadata's kms_key_name value, if any.
+// KmsKeyName sets the optional parameter "kmsKeyName": Not currently
+// supported. Specifying the parameter causes the request to fail with
+// status code 400 - Bad Request.
 func (c *ObjectsComposeCall) KmsKeyName(kmsKeyName string) *ObjectsComposeCall {
 	c.urlParams_.Set("kmsKeyName", kmsKeyName)
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsComposeCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsComposeCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -7876,6 +8599,7 @@ func (c *ObjectsComposeCall) Header() http.Header {
 
 func (c *ObjectsComposeCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -7994,7 +8718,12 @@ func (c *ObjectsComposeCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//       "type": "string"
 	//     },
 	//     "kmsKeyName": {
-	//       "description": "Resource name of the Cloud KMS key, of the form projects/my-project/locations/global/keyRings/my-kr/cryptoKeys/my-key, that will be used to encrypt the object. Overrides the object metadata's kms_key_name value, if any.",
+	//       "description": "Not currently supported. Specifying the parameter causes the request to fail with status code 400 - Bad Request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -8043,6 +8772,17 @@ func (r *ObjectsService) Copy(sourceBucket string, sourceObject string, destinat
 	c.destinationBucket = destinationBucket
 	c.destinationObject = destinationObject
 	c.object = object
+	return c
+}
+
+// DestinationKmsKeyName sets the optional parameter
+// "destinationKmsKeyName": Resource name of the Cloud KMS key, of the
+// form
+// projects/my-project/locations/global/keyRings/my-kr/cryptoKeys/my-key,
+//  that will be used to encrypt the object. Overrides the object
+// metadata's kms_key_name value, if any.
+func (c *ObjectsCopyCall) DestinationKmsKeyName(destinationKmsKeyName string) *ObjectsCopyCall {
+	c.urlParams_.Set("destinationKmsKeyName", destinationKmsKeyName)
 	return c
 }
 
@@ -8152,6 +8892,14 @@ func (c *ObjectsCopyCall) Projection(projection string) *ObjectsCopyCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsCopyCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsCopyCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // SourceGeneration sets the optional parameter "sourceGeneration": If
 // present, selects a specific revision of the source object (as opposed
 // to the latest version, the default).
@@ -8194,6 +8942,7 @@ func (c *ObjectsCopyCall) Header() http.Header {
 
 func (c *ObjectsCopyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8274,6 +9023,11 @@ func (c *ObjectsCopyCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//       "description": "Name of the bucket in which to store the new object. Overrides the provided object metadata's bucket value, if any.For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "destinationKmsKeyName": {
+	//       "description": "Resource name of the Cloud KMS key, of the form projects/my-project/locations/global/keyRings/my-kr/cryptoKeys/my-key, that will be used to encrypt the object. Overrides the object metadata's kms_key_name value, if any.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "destinationObject": {
@@ -8361,6 +9115,11 @@ func (c *ObjectsCopyCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//         "Include all properties.",
 	//         "Omit the owner, acl property."
 	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -8469,6 +9228,14 @@ func (c *ObjectsDeleteCall) IfMetagenerationNotMatch(ifMetagenerationNotMatch in
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsDeleteCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsDeleteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsDeleteCall) UserProject(userProject string) *ObjectsDeleteCall {
@@ -8503,6 +9270,7 @@ func (c *ObjectsDeleteCall) Header() http.Header {
 
 func (c *ObjectsDeleteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8585,6 +9353,11 @@ func (c *ObjectsDeleteCall) Do(opts ...googleapi.CallOption) error {
 	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "userProject": {
@@ -8678,6 +9451,14 @@ func (c *ObjectsGetCall) Projection(projection string) *ObjectsGetCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsGetCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsGetCall) UserProject(userProject string) *ObjectsGetCall {
@@ -8722,6 +9503,7 @@ func (c *ObjectsGetCall) Header() http.Header {
 
 func (c *ObjectsGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -8863,6 +9645,11 @@ func (c *ObjectsGetCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -8914,6 +9701,14 @@ func (c *ObjectsGetIamPolicyCall) Generation(generation int64) *ObjectsGetIamPol
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsGetIamPolicyCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsGetIamPolicyCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsGetIamPolicyCall) UserProject(userProject string) *ObjectsGetIamPolicyCall {
@@ -8958,6 +9753,7 @@ func (c *ObjectsGetIamPolicyCall) Header() http.Header {
 
 func (c *ObjectsGetIamPolicyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9044,6 +9840,11 @@ func (c *ObjectsGetIamPolicyCall) Do(opts ...googleapi.CallOption) (*Policy, err
 	//       "description": "Name of the object. For information about how to URL encode object names to be path safe, see Encoding URI Path Parts.",
 	//       "location": "path",
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "userProject": {
@@ -9185,6 +9986,14 @@ func (c *ObjectsInsertCall) Projection(projection string) *ObjectsInsertCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsInsertCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsInsertCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsInsertCall) UserProject(userProject string) *ObjectsInsertCall {
@@ -9261,6 +10070,7 @@ func (c *ObjectsInsertCall) Header() http.Header {
 
 func (c *ObjectsInsertCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9275,7 +10085,7 @@ func (c *ObjectsInsertCall) doRequest(alt string) (*http.Response, error) {
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "b/{bucket}/o")
 	if c.mediaInfo_ != nil {
-		urls = strings.Replace(urls, "https://www.googleapis.com/", "https://www.googleapis.com/upload/", 1)
+		urls = googleapi.ResolveRelative(c.s.BasePath, "/upload/storage/v1/b/{bucket}/o")
 		c.urlParams_.Set("uploadType", c.mediaInfo_.UploadType())
 	}
 	if body == nil {
@@ -9294,7 +10104,7 @@ func (c *ObjectsInsertCall) doRequest(alt string) (*http.Response, error) {
 	googleapi.Expand(req.URL, map[string]string{
 		"bucket": c.bucket,
 	})
-	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+	return gensupport.SendRequestWithRetry(c.ctx_, c.s.client, req)
 }
 
 // Do executes the "storage.objects.insert" call.
@@ -9453,6 +10263,11 @@ func (c *ObjectsInsertCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -9505,6 +10320,15 @@ func (c *ObjectsListCall) Delimiter(delimiter string) *ObjectsListCall {
 	return c
 }
 
+// EndOffset sets the optional parameter "endOffset": Filter results to
+// objects whose names are lexicographically before endOffset. If
+// startOffset is also set, the objects listed will have names between
+// startOffset (inclusive) and endOffset (exclusive).
+func (c *ObjectsListCall) EndOffset(endOffset string) *ObjectsListCall {
+	c.urlParams_.Set("endOffset", endOffset)
+	return c
+}
+
 // IncludeTrailingDelimiter sets the optional parameter
 // "includeTrailingDelimiter": If true, objects that end in exactly one
 // instance of delimiter will have their metadata included in items in
@@ -9547,6 +10371,23 @@ func (c *ObjectsListCall) Prefix(prefix string) *ObjectsListCall {
 //   "noAcl" - Omit the owner, acl property.
 func (c *ObjectsListCall) Projection(projection string) *ObjectsListCall {
 	c.urlParams_.Set("projection", projection)
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsListCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsListCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
+// StartOffset sets the optional parameter "startOffset": Filter results
+// to objects whose names are lexicographically equal to or after
+// startOffset. If endOffset is also set, the objects listed will have
+// names between startOffset (inclusive) and endOffset (exclusive).
+func (c *ObjectsListCall) StartOffset(startOffset string) *ObjectsListCall {
+	c.urlParams_.Set("startOffset", startOffset)
 	return c
 }
 
@@ -9602,6 +10443,7 @@ func (c *ObjectsListCall) Header() http.Header {
 
 func (c *ObjectsListCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -9681,6 +10523,11 @@ func (c *ObjectsListCall) Do(opts ...googleapi.CallOption) (*Objects, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "endOffset": {
+	//       "description": "Filter results to objects whose names are lexicographically before endOffset. If startOffset is also set, the objects listed will have names between startOffset (inclusive) and endOffset (exclusive).",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "includeTrailingDelimiter": {
 	//       "description": "If true, objects that end in exactly one instance of delimiter will have their metadata included in items in addition to prefixes.",
 	//       "location": "query",
@@ -9714,6 +10561,16 @@ func (c *ObjectsListCall) Do(opts ...googleapi.CallOption) (*Objects, error) {
 	//         "Include all properties.",
 	//         "Omit the owner, acl property."
 	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "startOffset": {
+	//       "description": "Filter results to objects whose names are lexicographically equal to or after startOffset. If endOffset is also set, the objects listed will have names between startOffset (inclusive) and endOffset (exclusive).",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -9861,6 +10718,14 @@ func (c *ObjectsPatchCall) Projection(projection string) *ObjectsPatchCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsPatchCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsPatchCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request, for Requester Pays buckets.
 func (c *ObjectsPatchCall) UserProject(userProject string) *ObjectsPatchCall {
@@ -9895,6 +10760,7 @@ func (c *ObjectsPatchCall) Header() http.Header {
 
 func (c *ObjectsPatchCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10040,6 +10906,11 @@ func (c *ObjectsPatchCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//         "Include all properties.",
 	//         "Omit the owner, acl property."
 	//       ],
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
 	//       "location": "query",
 	//       "type": "string"
 	//     },
@@ -10220,6 +11091,14 @@ func (c *ObjectsRewriteCall) Projection(projection string) *ObjectsRewriteCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsRewriteCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsRewriteCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // RewriteToken sets the optional parameter "rewriteToken": Include this
 // field (from the previous rewrite response) on each rewrite request
 // after the first one, until the rewrite response 'done' flag is true.
@@ -10273,6 +11152,7 @@ func (c *ObjectsRewriteCall) Header() http.Header {
 
 func (c *ObjectsRewriteCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10454,6 +11334,11 @@ func (c *ObjectsRewriteCall) Do(opts ...googleapi.CallOption) (*RewriteResponse,
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "rewriteToken": {
 	//       "description": "Include this field (from the previous rewrite response) on each rewrite request after the first one, until the rewrite response 'done' flag is true. Calls that provide a rewriteToken can omit all other request fields, but if included those fields must match the values provided in the first rewrite request.",
 	//       "location": "query",
@@ -10528,6 +11413,14 @@ func (c *ObjectsSetIamPolicyCall) Generation(generation int64) *ObjectsSetIamPol
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsSetIamPolicyCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsSetIamPolicyCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsSetIamPolicyCall) UserProject(userProject string) *ObjectsSetIamPolicyCall {
@@ -10562,6 +11455,7 @@ func (c *ObjectsSetIamPolicyCall) Header() http.Header {
 
 func (c *ObjectsSetIamPolicyCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10652,6 +11546,11 @@ func (c *ObjectsSetIamPolicyCall) Do(opts ...googleapi.CallOption) (*Policy, err
 	//       "required": true,
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -10704,6 +11603,14 @@ func (c *ObjectsTestIamPermissionsCall) Generation(generation int64) *ObjectsTes
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsTestIamPermissionsCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsTestIamPermissionsCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsTestIamPermissionsCall) UserProject(userProject string) *ObjectsTestIamPermissionsCall {
@@ -10748,6 +11655,7 @@ func (c *ObjectsTestIamPermissionsCall) Header() http.Header {
 
 func (c *ObjectsTestIamPermissionsCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -10842,6 +11750,11 @@ func (c *ObjectsTestIamPermissionsCall) Do(opts ...googleapi.CallOption) (*TestI
 	//       "location": "query",
 	//       "repeated": true,
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "userProject": {
@@ -10961,6 +11874,14 @@ func (c *ObjectsUpdateCall) Projection(projection string) *ObjectsUpdateCall {
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsUpdateCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsUpdateCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsUpdateCall) UserProject(userProject string) *ObjectsUpdateCall {
@@ -10995,6 +11916,7 @@ func (c *ObjectsUpdateCall) Header() http.Header {
 
 func (c *ObjectsUpdateCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11143,6 +12065,11 @@ func (c *ObjectsUpdateCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -11194,6 +12121,15 @@ func (c *ObjectsWatchAllCall) Delimiter(delimiter string) *ObjectsWatchAllCall {
 	return c
 }
 
+// EndOffset sets the optional parameter "endOffset": Filter results to
+// objects whose names are lexicographically before endOffset. If
+// startOffset is also set, the objects listed will have names between
+// startOffset (inclusive) and endOffset (exclusive).
+func (c *ObjectsWatchAllCall) EndOffset(endOffset string) *ObjectsWatchAllCall {
+	c.urlParams_.Set("endOffset", endOffset)
+	return c
+}
+
 // IncludeTrailingDelimiter sets the optional parameter
 // "includeTrailingDelimiter": If true, objects that end in exactly one
 // instance of delimiter will have their metadata included in items in
@@ -11239,6 +12175,23 @@ func (c *ObjectsWatchAllCall) Projection(projection string) *ObjectsWatchAllCall
 	return c
 }
 
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ObjectsWatchAllCall) ProvisionalUserProject(provisionalUserProject string) *ObjectsWatchAllCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
+	return c
+}
+
+// StartOffset sets the optional parameter "startOffset": Filter results
+// to objects whose names are lexicographically equal to or after
+// startOffset. If endOffset is also set, the objects listed will have
+// names between startOffset (inclusive) and endOffset (exclusive).
+func (c *ObjectsWatchAllCall) StartOffset(startOffset string) *ObjectsWatchAllCall {
+	c.urlParams_.Set("startOffset", startOffset)
+	return c
+}
+
 // UserProject sets the optional parameter "userProject": The project to
 // be billed for this request. Required for Requester Pays buckets.
 func (c *ObjectsWatchAllCall) UserProject(userProject string) *ObjectsWatchAllCall {
@@ -11281,6 +12234,7 @@ func (c *ObjectsWatchAllCall) Header() http.Header {
 
 func (c *ObjectsWatchAllCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11362,6 +12316,11 @@ func (c *ObjectsWatchAllCall) Do(opts ...googleapi.CallOption) (*Channel, error)
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "endOffset": {
+	//       "description": "Filter results to objects whose names are lexicographically before endOffset. If startOffset is also set, the objects listed will have names between startOffset (inclusive) and endOffset (exclusive).",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "includeTrailingDelimiter": {
 	//       "description": "If true, objects that end in exactly one instance of delimiter will have their metadata included in items in addition to prefixes.",
 	//       "location": "query",
@@ -11398,6 +12357,16 @@ func (c *ObjectsWatchAllCall) Do(opts ...googleapi.CallOption) (*Channel, error)
 	//       "location": "query",
 	//       "type": "string"
 	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "startOffset": {
+	//       "description": "Filter results to objects whose names are lexicographically equal to or after startOffset. If endOffset is also set, the objects listed will have names between startOffset (inclusive) and endOffset (exclusive).",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
 	//     "userProject": {
 	//       "description": "The project to be billed for this request. Required for Requester Pays buckets.",
 	//       "location": "query",
@@ -11429,6 +12398,844 @@ func (c *ObjectsWatchAllCall) Do(opts ...googleapi.CallOption) (*Channel, error)
 
 }
 
+// method id "storage.projects.hmacKeys.create":
+
+type ProjectsHmacKeysCreateCall struct {
+	s          *Service
+	projectId  string
+	urlParams_ gensupport.URLParams
+	ctx_       context.Context
+	header_    http.Header
+}
+
+// Create: Creates a new HMAC key for the specified service account.
+func (r *ProjectsHmacKeysService) Create(projectId string, serviceAccountEmail string) *ProjectsHmacKeysCreateCall {
+	c := &ProjectsHmacKeysCreateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.projectId = projectId
+	c.urlParams_.Set("serviceAccountEmail", serviceAccountEmail)
+	return c
+}
+
+// UserProject sets the optional parameter "userProject": The project to
+// be billed for this request.
+func (c *ProjectsHmacKeysCreateCall) UserProject(userProject string) *ProjectsHmacKeysCreateCall {
+	c.urlParams_.Set("userProject", userProject)
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ProjectsHmacKeysCreateCall) Fields(s ...googleapi.Field) *ProjectsHmacKeysCreateCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ProjectsHmacKeysCreateCall) Context(ctx context.Context) *ProjectsHmacKeysCreateCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ProjectsHmacKeysCreateCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ProjectsHmacKeysCreateCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	c.urlParams_.Set("alt", alt)
+	c.urlParams_.Set("prettyPrint", "false")
+	urls := googleapi.ResolveRelative(c.s.BasePath, "projects/{projectId}/hmacKeys")
+	urls += "?" + c.urlParams_.Encode()
+	req, err := http.NewRequest("POST", urls, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"projectId": c.projectId,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "storage.projects.hmacKeys.create" call.
+// Exactly one of *HmacKey or error will be non-nil. Any non-2xx status
+// code is an error. Response headers are in either
+// *HmacKey.ServerResponse.Header or (if a response was returned at all)
+// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
+// check whether the returned error was because http.StatusNotModified
+// was returned.
+func (c *ProjectsHmacKeysCreateCall) Do(opts ...googleapi.CallOption) (*HmacKey, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &HmacKey{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Creates a new HMAC key for the specified service account.",
+	//   "httpMethod": "POST",
+	//   "id": "storage.projects.hmacKeys.create",
+	//   "parameterOrder": [
+	//     "projectId",
+	//     "serviceAccountEmail"
+	//   ],
+	//   "parameters": {
+	//     "projectId": {
+	//       "description": "Project ID owning the service account.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "serviceAccountEmail": {
+	//       "description": "Email address of the service account.",
+	//       "location": "query",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "userProject": {
+	//       "description": "The project to be billed for this request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "projects/{projectId}/hmacKeys",
+	//   "response": {
+	//     "$ref": "HmacKey"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/devstorage.full_control"
+	//   ]
+	// }
+
+}
+
+// method id "storage.projects.hmacKeys.delete":
+
+type ProjectsHmacKeysDeleteCall struct {
+	s          *Service
+	projectId  string
+	accessId   string
+	urlParams_ gensupport.URLParams
+	ctx_       context.Context
+	header_    http.Header
+}
+
+// Delete: Deletes an HMAC key.
+func (r *ProjectsHmacKeysService) Delete(projectId string, accessId string) *ProjectsHmacKeysDeleteCall {
+	c := &ProjectsHmacKeysDeleteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.projectId = projectId
+	c.accessId = accessId
+	return c
+}
+
+// UserProject sets the optional parameter "userProject": The project to
+// be billed for this request.
+func (c *ProjectsHmacKeysDeleteCall) UserProject(userProject string) *ProjectsHmacKeysDeleteCall {
+	c.urlParams_.Set("userProject", userProject)
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ProjectsHmacKeysDeleteCall) Fields(s ...googleapi.Field) *ProjectsHmacKeysDeleteCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ProjectsHmacKeysDeleteCall) Context(ctx context.Context) *ProjectsHmacKeysDeleteCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ProjectsHmacKeysDeleteCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ProjectsHmacKeysDeleteCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	c.urlParams_.Set("alt", alt)
+	c.urlParams_.Set("prettyPrint", "false")
+	urls := googleapi.ResolveRelative(c.s.BasePath, "projects/{projectId}/hmacKeys/{accessId}")
+	urls += "?" + c.urlParams_.Encode()
+	req, err := http.NewRequest("DELETE", urls, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"projectId": c.projectId,
+		"accessId":  c.accessId,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "storage.projects.hmacKeys.delete" call.
+func (c *ProjectsHmacKeysDeleteCall) Do(opts ...googleapi.CallOption) error {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if err != nil {
+		return err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return err
+	}
+	return nil
+	// {
+	//   "description": "Deletes an HMAC key.",
+	//   "httpMethod": "DELETE",
+	//   "id": "storage.projects.hmacKeys.delete",
+	//   "parameterOrder": [
+	//     "projectId",
+	//     "accessId"
+	//   ],
+	//   "parameters": {
+	//     "accessId": {
+	//       "description": "Name of the HMAC key to be deleted.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "projectId": {
+	//       "description": "Project ID owning the requested key",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "userProject": {
+	//       "description": "The project to be billed for this request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "projects/{projectId}/hmacKeys/{accessId}",
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/devstorage.full_control",
+	//     "https://www.googleapis.com/auth/devstorage.read_write"
+	//   ]
+	// }
+
+}
+
+// method id "storage.projects.hmacKeys.get":
+
+type ProjectsHmacKeysGetCall struct {
+	s            *Service
+	projectId    string
+	accessId     string
+	urlParams_   gensupport.URLParams
+	ifNoneMatch_ string
+	ctx_         context.Context
+	header_      http.Header
+}
+
+// Get: Retrieves an HMAC key's metadata
+func (r *ProjectsHmacKeysService) Get(projectId string, accessId string) *ProjectsHmacKeysGetCall {
+	c := &ProjectsHmacKeysGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.projectId = projectId
+	c.accessId = accessId
+	return c
+}
+
+// UserProject sets the optional parameter "userProject": The project to
+// be billed for this request.
+func (c *ProjectsHmacKeysGetCall) UserProject(userProject string) *ProjectsHmacKeysGetCall {
+	c.urlParams_.Set("userProject", userProject)
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ProjectsHmacKeysGetCall) Fields(s ...googleapi.Field) *ProjectsHmacKeysGetCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// IfNoneMatch sets the optional parameter which makes the operation
+// fail if the object's ETag matches the given value. This is useful for
+// getting updates only after the object has changed since the last
+// request. Use googleapi.IsNotModified to check whether the response
+// error from Do is the result of In-None-Match.
+func (c *ProjectsHmacKeysGetCall) IfNoneMatch(entityTag string) *ProjectsHmacKeysGetCall {
+	c.ifNoneMatch_ = entityTag
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ProjectsHmacKeysGetCall) Context(ctx context.Context) *ProjectsHmacKeysGetCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ProjectsHmacKeysGetCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ProjectsHmacKeysGetCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
+	var body io.Reader = nil
+	c.urlParams_.Set("alt", alt)
+	c.urlParams_.Set("prettyPrint", "false")
+	urls := googleapi.ResolveRelative(c.s.BasePath, "projects/{projectId}/hmacKeys/{accessId}")
+	urls += "?" + c.urlParams_.Encode()
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"projectId": c.projectId,
+		"accessId":  c.accessId,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "storage.projects.hmacKeys.get" call.
+// Exactly one of *HmacKeyMetadata or error will be non-nil. Any non-2xx
+// status code is an error. Response headers are in either
+// *HmacKeyMetadata.ServerResponse.Header or (if a response was returned
+// at all) in error.(*googleapi.Error).Header. Use
+// googleapi.IsNotModified to check whether the returned error was
+// because http.StatusNotModified was returned.
+func (c *ProjectsHmacKeysGetCall) Do(opts ...googleapi.CallOption) (*HmacKeyMetadata, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &HmacKeyMetadata{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Retrieves an HMAC key's metadata",
+	//   "httpMethod": "GET",
+	//   "id": "storage.projects.hmacKeys.get",
+	//   "parameterOrder": [
+	//     "projectId",
+	//     "accessId"
+	//   ],
+	//   "parameters": {
+	//     "accessId": {
+	//       "description": "Name of the HMAC key.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "projectId": {
+	//       "description": "Project ID owning the service account of the requested key.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "userProject": {
+	//       "description": "The project to be billed for this request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "projects/{projectId}/hmacKeys/{accessId}",
+	//   "response": {
+	//     "$ref": "HmacKeyMetadata"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
+	//     "https://www.googleapis.com/auth/devstorage.full_control",
+	//     "https://www.googleapis.com/auth/devstorage.read_only"
+	//   ]
+	// }
+
+}
+
+// method id "storage.projects.hmacKeys.list":
+
+type ProjectsHmacKeysListCall struct {
+	s            *Service
+	projectId    string
+	urlParams_   gensupport.URLParams
+	ifNoneMatch_ string
+	ctx_         context.Context
+	header_      http.Header
+}
+
+// List: Retrieves a list of HMAC keys matching the criteria.
+func (r *ProjectsHmacKeysService) List(projectId string) *ProjectsHmacKeysListCall {
+	c := &ProjectsHmacKeysListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.projectId = projectId
+	return c
+}
+
+// MaxResults sets the optional parameter "maxResults": Maximum number
+// of items to return in a single page of responses. The service uses
+// this parameter or 250 items, whichever is smaller. The max number of
+// items per page will also be limited by the number of distinct service
+// accounts in the response. If the number of service accounts in a
+// single response is too high, the page will truncated and a next page
+// token will be returned.
+func (c *ProjectsHmacKeysListCall) MaxResults(maxResults int64) *ProjectsHmacKeysListCall {
+	c.urlParams_.Set("maxResults", fmt.Sprint(maxResults))
+	return c
+}
+
+// PageToken sets the optional parameter "pageToken": A
+// previously-returned page token representing part of the larger set of
+// results to view.
+func (c *ProjectsHmacKeysListCall) PageToken(pageToken string) *ProjectsHmacKeysListCall {
+	c.urlParams_.Set("pageToken", pageToken)
+	return c
+}
+
+// ServiceAccountEmail sets the optional parameter
+// "serviceAccountEmail": If present, only keys for the given service
+// account are returned.
+func (c *ProjectsHmacKeysListCall) ServiceAccountEmail(serviceAccountEmail string) *ProjectsHmacKeysListCall {
+	c.urlParams_.Set("serviceAccountEmail", serviceAccountEmail)
+	return c
+}
+
+// ShowDeletedKeys sets the optional parameter "showDeletedKeys":
+// Whether or not to show keys in the DELETED state.
+func (c *ProjectsHmacKeysListCall) ShowDeletedKeys(showDeletedKeys bool) *ProjectsHmacKeysListCall {
+	c.urlParams_.Set("showDeletedKeys", fmt.Sprint(showDeletedKeys))
+	return c
+}
+
+// UserProject sets the optional parameter "userProject": The project to
+// be billed for this request.
+func (c *ProjectsHmacKeysListCall) UserProject(userProject string) *ProjectsHmacKeysListCall {
+	c.urlParams_.Set("userProject", userProject)
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ProjectsHmacKeysListCall) Fields(s ...googleapi.Field) *ProjectsHmacKeysListCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// IfNoneMatch sets the optional parameter which makes the operation
+// fail if the object's ETag matches the given value. This is useful for
+// getting updates only after the object has changed since the last
+// request. Use googleapi.IsNotModified to check whether the response
+// error from Do is the result of In-None-Match.
+func (c *ProjectsHmacKeysListCall) IfNoneMatch(entityTag string) *ProjectsHmacKeysListCall {
+	c.ifNoneMatch_ = entityTag
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ProjectsHmacKeysListCall) Context(ctx context.Context) *ProjectsHmacKeysListCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ProjectsHmacKeysListCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ProjectsHmacKeysListCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	if c.ifNoneMatch_ != "" {
+		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
+	}
+	var body io.Reader = nil
+	c.urlParams_.Set("alt", alt)
+	c.urlParams_.Set("prettyPrint", "false")
+	urls := googleapi.ResolveRelative(c.s.BasePath, "projects/{projectId}/hmacKeys")
+	urls += "?" + c.urlParams_.Encode()
+	req, err := http.NewRequest("GET", urls, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"projectId": c.projectId,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "storage.projects.hmacKeys.list" call.
+// Exactly one of *HmacKeysMetadata or error will be non-nil. Any
+// non-2xx status code is an error. Response headers are in either
+// *HmacKeysMetadata.ServerResponse.Header or (if a response was
+// returned at all) in error.(*googleapi.Error).Header. Use
+// googleapi.IsNotModified to check whether the returned error was
+// because http.StatusNotModified was returned.
+func (c *ProjectsHmacKeysListCall) Do(opts ...googleapi.CallOption) (*HmacKeysMetadata, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &HmacKeysMetadata{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Retrieves a list of HMAC keys matching the criteria.",
+	//   "httpMethod": "GET",
+	//   "id": "storage.projects.hmacKeys.list",
+	//   "parameterOrder": [
+	//     "projectId"
+	//   ],
+	//   "parameters": {
+	//     "maxResults": {
+	//       "default": "250",
+	//       "description": "Maximum number of items to return in a single page of responses. The service uses this parameter or 250 items, whichever is smaller. The max number of items per page will also be limited by the number of distinct service accounts in the response. If the number of service accounts in a single response is too high, the page will truncated and a next page token will be returned.",
+	//       "format": "uint32",
+	//       "location": "query",
+	//       "minimum": "0",
+	//       "type": "integer"
+	//     },
+	//     "pageToken": {
+	//       "description": "A previously-returned page token representing part of the larger set of results to view.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "projectId": {
+	//       "description": "Name of the project in which to look for HMAC keys.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "serviceAccountEmail": {
+	//       "description": "If present, only keys for the given service account are returned.",
+	//       "location": "query",
+	//       "type": "string"
+	//     },
+	//     "showDeletedKeys": {
+	//       "description": "Whether or not to show keys in the DELETED state.",
+	//       "location": "query",
+	//       "type": "boolean"
+	//     },
+	//     "userProject": {
+	//       "description": "The project to be billed for this request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "projects/{projectId}/hmacKeys",
+	//   "response": {
+	//     "$ref": "HmacKeysMetadata"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/cloud-platform.read-only",
+	//     "https://www.googleapis.com/auth/devstorage.full_control",
+	//     "https://www.googleapis.com/auth/devstorage.read_only"
+	//   ]
+	// }
+
+}
+
+// Pages invokes f for each page of results.
+// A non-nil error returned from f will halt the iteration.
+// The provided context supersedes any context provided to the Context method.
+func (c *ProjectsHmacKeysListCall) Pages(ctx context.Context, f func(*HmacKeysMetadata) error) error {
+	c.ctx_ = ctx
+	defer c.PageToken(c.urlParams_.Get("pageToken")) // reset paging to original point
+	for {
+		x, err := c.Do()
+		if err != nil {
+			return err
+		}
+		if err := f(x); err != nil {
+			return err
+		}
+		if x.NextPageToken == "" {
+			return nil
+		}
+		c.PageToken(x.NextPageToken)
+	}
+}
+
+// method id "storage.projects.hmacKeys.update":
+
+type ProjectsHmacKeysUpdateCall struct {
+	s               *Service
+	projectId       string
+	accessId        string
+	hmackeymetadata *HmacKeyMetadata
+	urlParams_      gensupport.URLParams
+	ctx_            context.Context
+	header_         http.Header
+}
+
+// Update: Updates the state of an HMAC key. See the HMAC Key resource
+// descriptor for valid states.
+func (r *ProjectsHmacKeysService) Update(projectId string, accessId string, hmackeymetadata *HmacKeyMetadata) *ProjectsHmacKeysUpdateCall {
+	c := &ProjectsHmacKeysUpdateCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.projectId = projectId
+	c.accessId = accessId
+	c.hmackeymetadata = hmackeymetadata
+	return c
+}
+
+// UserProject sets the optional parameter "userProject": The project to
+// be billed for this request.
+func (c *ProjectsHmacKeysUpdateCall) UserProject(userProject string) *ProjectsHmacKeysUpdateCall {
+	c.urlParams_.Set("userProject", userProject)
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ProjectsHmacKeysUpdateCall) Fields(s ...googleapi.Field) *ProjectsHmacKeysUpdateCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ProjectsHmacKeysUpdateCall) Context(ctx context.Context) *ProjectsHmacKeysUpdateCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ProjectsHmacKeysUpdateCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ProjectsHmacKeysUpdateCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.hmackeymetadata)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	c.urlParams_.Set("prettyPrint", "false")
+	urls := googleapi.ResolveRelative(c.s.BasePath, "projects/{projectId}/hmacKeys/{accessId}")
+	urls += "?" + c.urlParams_.Encode()
+	req, err := http.NewRequest("PUT", urls, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"projectId": c.projectId,
+		"accessId":  c.accessId,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "storage.projects.hmacKeys.update" call.
+// Exactly one of *HmacKeyMetadata or error will be non-nil. Any non-2xx
+// status code is an error. Response headers are in either
+// *HmacKeyMetadata.ServerResponse.Header or (if a response was returned
+// at all) in error.(*googleapi.Error).Header. Use
+// googleapi.IsNotModified to check whether the returned error was
+// because http.StatusNotModified was returned.
+func (c *ProjectsHmacKeysUpdateCall) Do(opts ...googleapi.CallOption) (*HmacKeyMetadata, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &HmacKeyMetadata{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := gensupport.DecodeResponse(target, res); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Updates the state of an HMAC key. See the HMAC Key resource descriptor for valid states.",
+	//   "httpMethod": "PUT",
+	//   "id": "storage.projects.hmacKeys.update",
+	//   "parameterOrder": [
+	//     "projectId",
+	//     "accessId"
+	//   ],
+	//   "parameters": {
+	//     "accessId": {
+	//       "description": "Name of the HMAC key being updated.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "projectId": {
+	//       "description": "Project ID owning the service account of the updated key.",
+	//       "location": "path",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "userProject": {
+	//       "description": "The project to be billed for this request.",
+	//       "location": "query",
+	//       "type": "string"
+	//     }
+	//   },
+	//   "path": "projects/{projectId}/hmacKeys/{accessId}",
+	//   "request": {
+	//     "$ref": "HmacKeyMetadata"
+	//   },
+	//   "response": {
+	//     "$ref": "HmacKeyMetadata"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/devstorage.full_control"
+	//   ]
+	// }
+
+}
+
 // method id "storage.projects.serviceAccount.get":
 
 type ProjectsServiceAccountGetCall struct {
@@ -11445,6 +13252,14 @@ type ProjectsServiceAccountGetCall struct {
 func (r *ProjectsServiceAccountService) Get(projectId string) *ProjectsServiceAccountGetCall {
 	c := &ProjectsServiceAccountGetCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.projectId = projectId
+	return c
+}
+
+// ProvisionalUserProject sets the optional parameter
+// "provisionalUserProject": The project to be billed for this request
+// if the target bucket is requester-pays bucket.
+func (c *ProjectsServiceAccountGetCall) ProvisionalUserProject(provisionalUserProject string) *ProjectsServiceAccountGetCall {
+	c.urlParams_.Set("provisionalUserProject", provisionalUserProject)
 	return c
 }
 
@@ -11492,6 +13307,7 @@ func (c *ProjectsServiceAccountGetCall) Header() http.Header {
 
 func (c *ProjectsServiceAccountGetCall) doRequest(alt string) (*http.Response, error) {
 	reqHeaders := make(http.Header)
+	reqHeaders.Set("x-goog-api-client", "gl-go/"+gensupport.GoVersion()+" gdcl/20200912")
 	for k, v := range c.header_ {
 		reqHeaders[k] = v
 	}
@@ -11564,6 +13380,11 @@ func (c *ProjectsServiceAccountGetCall) Do(opts ...googleapi.CallOption) (*Servi
 	//       "description": "Project ID",
 	//       "location": "path",
 	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "provisionalUserProject": {
+	//       "description": "The project to be billed for this request if the target bucket is requester-pays bucket.",
+	//       "location": "query",
 	//       "type": "string"
 	//     },
 	//     "userProject": {

@@ -49,6 +49,19 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 			return err
 		}
 		registry = reg
+	case "gcs":
+		if c.S3Bucket == "" {
+			return errors.New("missing flag -s3-bucket")
+		}
+
+		reg, err := module.NewGCSRegistry(c.S3Bucket,
+			module.WithS3RegistryBucketPrefix(c.S3Prefix),
+			module.WithS3RegistryBucketRegion(c.S3Region),
+		)
+		if err != nil {
+			return err
+		}
+		registry = reg
 	default:
 		return flag.ErrHelp
 	}
