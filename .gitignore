@@ -16,3 +16,4 @@
 main
 dist/
 .idea
+.DS_Store
