@@ -17,17 +17,11 @@ import (
 
 // S3Registry is a Registry implementation backed by S3.
 type GCSRegistry struct {
-	sc *storage.Client
-	//s3           *s3.S3
-	//uploader     *s3manager.Uploader
-	bucket       string
-	bucketPrefix string
-	bucketRegion string
+	sc     *storage.Client
+	bucket string
 }
 
 func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
-	//ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	//defer cancel()
 	o := s.sc.Bucket(s.bucket).Object(fmt.Sprintf("namespace=%[1]v/name=%[2]v/provider=%[3]v/version=%[4]v/%[1]v-%[2]v-%[3]v-%[4]v.tar.gz", namespace, name, provider, version))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
@@ -37,7 +31,7 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 		Namespace:   namespace,
 		Name:        attrs.Name,
 		Provider:    provider,
-		Version:     strconv.FormatInt(attrs.Generation,10),
+		Version:     strconv.FormatInt(attrs.Generation, 10),
 		DownloadURL: attrs.MediaLink,
 	}, nil
 }
@@ -45,8 +39,6 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
 	var modules []Module
 
-	//ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	//defer cancel()
 	query := &storage.Query{
 		Prefix: fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider),
 		//Delimiter: "/",
@@ -64,7 +56,7 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 			Namespace:   namespace,
 			Name:        attrs.Name,
 			Provider:    provider,
-			Version:     strconv.FormatInt(attrs.Generation,10),
+			Version:     strconv.FormatInt(attrs.Generation, 10),
 			DownloadURL: attrs.MediaLink,
 		}
 
@@ -73,7 +65,6 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 	return modules, nil
 }
 
-// UploadModule uploads a module to the S3 storage.
 func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
 	if namespace == "" {
 		return Module{}, errors.New("namespace not defined")
@@ -97,8 +88,6 @@ func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provide
 		return Module{}, errors.Wrap(ErrAlreadyExists, key)
 	}
 
-	//ctx, cancel := context.WithTimeout(ctx, time.Second*50)
-	//defer cancel()
 	wc := s.sc.Bucket(s.bucket).Object(key).NewWriter(ctx)
 	if _, err := io.Copy(wc, body); err != nil {
 		return Module{}, errors.Wrapf(ErrUploadFailed, err.Error())
@@ -110,7 +99,6 @@ func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provide
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-// NewS3Registry returns a fully initialized S3 storage.
 func NewGCSRegistry(bucket string, options ...S3RegistryOption) (Registry, error) {
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if projectID == "" {
@@ -123,8 +111,8 @@ func NewGCSRegistry(bucket string, options ...S3RegistryOption) (Registry, error
 		log.Fatal(err)
 	}
 	s := &GCSRegistry{
-		sc:       client,
-		bucket:   bucket,
+		sc:     client,
+		bucket: bucket,
 	}
 	return s, nil
 }
