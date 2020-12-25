@@ -55,8 +55,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		}
 
 		reg, err := module.NewGCSRegistry(c.S3Bucket,
-			module.WithS3RegistryBucketPrefix(c.S3Prefix),
-			module.WithS3RegistryBucketRegion(c.S3Region),
+			module.WithGCSRegistryBucketPrefix(c.S3Prefix),
 		)
 		if err != nil {
 			return err
@@ -81,7 +80,7 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs := flag.NewFlagSet("boring-registry upload", flag.ExitOnError)
 	fs.StringVar(&cfg.RegistryType, "type", "", "Registry type to use (currently only \"s3\" is supported)")
 	fs.StringVar(&cfg.S3Bucket, "s3-bucket", "", "Bucket to use when using the S3 registry type")
-	fs.StringVar(&cfg.S3Prefix, "s3-prefix", "/", "Prefix to use when using the S3 registry type")
+	fs.StringVar(&cfg.S3Prefix, "s3-prefix", "", "Prefix to use when using the S3 registry type")
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	config.RegisterFlags(fs)
 

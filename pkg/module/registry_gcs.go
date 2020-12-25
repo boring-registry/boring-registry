@@ -6,22 +6,20 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"io"
-	"log"
 	"os"
-	//"golang.org/x/oauth2/google"
-	//"google.golang.org/api/iterator"
 
 	"cloud.google.com/go/storage"
 )
 
 // GCSRegistry is a Registry implementation backed by Google Cloud Storage.
 type GCSRegistry struct {
-	sc     *storage.Client
-	bucket string
+	sc           *storage.Client
+	bucket       string
+	bucketPrefix string
 }
 
 func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
-	o := s.sc.Bucket(s.bucket).Object(fmt.Sprintf("namespace=%[1]v/name=%[2]v/provider=%[3]v/version=%[4]v/%[1]v-%[2]v-%[3]v-%[4]v.tar.gz", namespace, name, provider, version))
+	o := s.sc.Bucket(s.bucket).Object(moduleObjectKey(namespace, name, provider, version, s.bucketPrefix))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
 		return Module{}, errors.Wrap(ErrNotFound, err.Error())
@@ -41,7 +39,7 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 
 func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
 	var modules []Module
-	prefix := fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider)
+	prefix := moduleObjectKeyBase(namespace, name, provider, s.bucketPrefix)
 
 	query := &storage.Query{
 		Prefix: prefix,
@@ -89,8 +87,7 @@ func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provide
 		return Module{}, errors.New("version not defined")
 	}
 
-	key := fmt.Sprintf("namespace=%[1]v/name=%[2]v/provider=%[3]v/version=%[4]v/%[1]v-%[2]v-%[3]v-%[4]v.tar.gz", namespace, name, provider, version)
-
+	key := moduleObjectKey(namespace, name, provider, version, s.bucketPrefix)
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
 		return Module{}, errors.Wrap(ErrAlreadyExists, key)
 	}
@@ -106,21 +103,35 @@ func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provide
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-func NewGCSRegistry(bucket string, options ...S3RegistryOption) (Registry, error) {
+// GCSRegistryOption provides additional options for the S3Registry.
+type GCSRegistryOption func(*GCSRegistry)
+
+// WithS3RegistryBucketPrefix configures the s3 storage to work under a given prefix.
+func WithGCSRegistryBucketPrefix(prefix string) GCSRegistryOption {
+	return func(s *GCSRegistry) {
+		s.bucketPrefix = prefix
+	}
+}
+
+func NewGCSRegistry(bucket string, options ...GCSRegistryOption) (Registry, error) {
 	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
 	if projectID == "" {
-		fmt.Fprintf(os.Stderr, "GOOGLE_CLOUD_PROJECT environment variable must be set.\n")
-		os.Exit(1)
+		return nil, errors.New("GOOGLE_CLOUD_PROJECT environment variable must be set.")
 	}
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	s := &GCSRegistry{
 		sc:     client,
 		bucket: bucket,
 	}
+
+	for _, option := range options {
+		option(s)
+	}
+
 	return s, nil
 }
 
