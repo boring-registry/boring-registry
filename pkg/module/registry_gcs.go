@@ -8,8 +8,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
-
 	//"golang.org/x/oauth2/google"
 	//"google.golang.org/api/iterator"
 
@@ -28,11 +26,7 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 	if err != nil {
 		return Module{}, errors.Wrap(ErrNotFound, err.Error())
 	}
-	prefix := fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider)
-	version, err = s.getVersion(attrs.Name, prefix+"/version=%s")
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	return Module{
 		Namespace:   namespace,
 		Name:        attrs.Name,
@@ -57,20 +51,22 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			return modules, err
 		}
-		version, err := s.getVersion(attrs.Name, prefix+"/version=%s")
-		if err != nil {
-			log.Fatal(err)
+		metadata := objectMetadata(attrs.Name)
+
+		version, ok := metadata["version"]
+		if !ok {
+			continue
 		}
 
 		module := Module{
-			Namespace:   namespace,
-			Name:        attrs.Name,
-			Provider:    provider,
-			Version:     version,
+			Namespace: namespace,
+			Name:      attrs.Name,
+			Provider:  provider,
+			Version:   version,
 			/* https://www.terraform.io/docs/internals/module-registry-protocol.html#sample-response-1
-			 e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
+			e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
 			*/
 			DownloadURL: s.generateDownloadURL(attrs.Bucket, attrs.Name),
 		}
@@ -132,15 +128,6 @@ func NewGCSRegistry(bucket string, options ...S3RegistryOption) (Registry, error
 	return s, nil
 }
 
-func (s *GCSRegistry)  getVersion(objectstr, searchstr string) ( string, error) {
-	var _version string
-	fmt.Sscanf(objectstr, searchstr, &_version)
-	version := strings.Split(_version, "/")
-	if len(version) < 2 {
-		return "", errors.New("failed to parse module version from " + _version)
-	}
-	return version[0], nil
-}
 // XXX: support presigned URLs?
 func (s *GCSRegistry) generateDownloadURL(bucket, key string) string {
 	return fmt.Sprintf("gcs::https://www.googleapis.com/storage/v1/%s/%s", bucket, key)
