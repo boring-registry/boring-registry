@@ -14,7 +14,7 @@ import (
 	"cloud.google.com/go/storage"
 )
 
-// S3Registry is a Registry implementation backed by S3.
+// GCSRegistry is a Registry implementation backed by Google Cloud Storage.
 type GCSRegistry struct {
 	sc     *storage.Client
 	bucket string
@@ -28,10 +28,13 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 	}
 
 	return Module{
-		Namespace:   namespace,
-		Name:        attrs.Name,
-		Provider:    provider,
-		Version:     version,
+		Namespace: namespace,
+		Name:      attrs.Name,
+		Provider:  provider,
+		Version:   version,
+		/* https://www.terraform.io/docs/internals/module-registry-protocol.html#sample-response-1
+		e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
+		*/
 		DownloadURL: s.generateDownloadURL(attrs.Bucket, attrs.Name),
 	}, nil
 }
@@ -61,14 +64,7 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 		}
 
 		module := Module{
-			Namespace: namespace,
-			Name:      attrs.Name,
-			Provider:  provider,
-			Version:   version,
-			/* https://www.terraform.io/docs/internals/module-registry-protocol.html#sample-response-1
-			e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
-			*/
-			DownloadURL: s.generateDownloadURL(attrs.Bucket, attrs.Name),
+			Version: version,
 		}
 
 		modules = append(modules, module)
