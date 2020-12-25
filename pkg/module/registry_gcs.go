@@ -8,7 +8,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"strconv"
+	"strings"
+
 	//"golang.org/x/oauth2/google"
 	//"google.golang.org/api/iterator"
 
@@ -27,20 +28,26 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 	if err != nil {
 		return Module{}, errors.Wrap(ErrNotFound, err.Error())
 	}
+	prefix := fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider)
+	version, err = s.getVersion(attrs.Name, prefix+"/version=%s")
+	if err != nil {
+		log.Fatal(err)
+	}
 	return Module{
 		Namespace:   namespace,
 		Name:        attrs.Name,
 		Provider:    provider,
-		Version:     strconv.FormatInt(attrs.Generation, 10),
-		DownloadURL: attrs.MediaLink,
+		Version:     version,
+		DownloadURL: s.generateDownloadURL(attrs.Bucket, attrs.Name),
 	}, nil
 }
 
 func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
 	var modules []Module
+	prefix := fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider)
 
 	query := &storage.Query{
-		Prefix: fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider),
+		Prefix: prefix,
 		//Delimiter: "/",
 	}
 	it := s.sc.Bucket(s.bucket).Objects(ctx, query)
@@ -52,12 +59,20 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 		if err != nil {
 			log.Fatal(err)
 		}
+		version, err := s.getVersion(attrs.Name, prefix+"/version=%s")
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		module := Module{
 			Namespace:   namespace,
 			Name:        attrs.Name,
 			Provider:    provider,
-			Version:     strconv.FormatInt(attrs.Generation, 10),
-			DownloadURL: attrs.MediaLink,
+			Version:     version,
+			/* https://www.terraform.io/docs/internals/module-registry-protocol.html#sample-response-1
+			 e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
+			*/
+			DownloadURL: s.generateDownloadURL(attrs.Bucket, attrs.Name),
 		}
 
 		modules = append(modules, module)
@@ -115,4 +130,18 @@ func NewGCSRegistry(bucket string, options ...S3RegistryOption) (Registry, error
 		bucket: bucket,
 	}
 	return s, nil
+}
+
+func (s *GCSRegistry)  getVersion(objectstr, searchstr string) ( string, error) {
+	var _version string
+	fmt.Sscanf(objectstr, searchstr, &_version)
+	version := strings.Split(_version, "/")
+	if len(version) < 2 {
+		return "", errors.New("failed to parse module version from " + _version)
+	}
+	return version[0], nil
+}
+// XXX: support presigned URLs?
+func (s *GCSRegistry) generateDownloadURL(bucket, key string) string {
+	return fmt.Sprintf("gcs::https://www.googleapis.com/storage/v1/%s/%s", bucket, key)
 }
