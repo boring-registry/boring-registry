@@ -55,6 +55,15 @@ $ boring-registry server \
   -s3-bucket=terraform-registry-test
 ```
 
+**Example using the registry with GCS:**
+```bash
+$ boring-registry server \
+  -type=gcs \
+  -gcs-bucket=terraform-registry-test
+```
+
+Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`). 
+
 To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
 
 **Example using the S3 registry:**
@@ -63,6 +72,15 @@ $ boring-registry upload \
   -type=s3 \
   -s3-bucket=terraform-registry-test terraform/modules
 ```
+
+**Example using the registry with GCS:**
+```bash
+$ boring-registry upload \
+  -type=gcs \
+  -gcs-bucket=terraform-registry-test terraform/modules
+```
+
+Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`).
 
 ## Configuration
 
@@ -135,6 +153,14 @@ FLAGS
   BORING_REGISTRY_DEBUG=false
   Enable debug output.
 
+  -gcs-bucket=...
+  BORING_REGISTRY_GCS_BUCKET=...
+  Bucket to use when using the GCS registry type.
+
+  -gcs-prefix=...
+  BORING_REGISTRY_GCS_PREFIX=...
+  Prefix to use when using the GCS registry type.
+
   -json=false
   BORING_REGISTRY_JSON=false
   Output logs in JSON format.
@@ -151,8 +177,8 @@ FLAGS
   BORING_REGISTRY_S3_BUCKET=...
   Bucket to use when using the S3 registry type.
 
-  -s3-prefix=/
-  BORING_REGISTRY_S3_PREFIX=/
+  -s3-prefix=...
+  BORING_REGISTRY_S3_PREFIX=...
   Prefix to use when using the S3 registry type.
 
   -s3-region=...
@@ -165,7 +191,7 @@ FLAGS
 
   -type=...
   BORING_REGISTRY_TYPE=...
-  Registry type to use (currently only "s3" is supported).
+  Registry type to use (currently only "s3" and "gcs" is supported).
 ```
 
 ### Upload help output
@@ -192,6 +218,14 @@ FLAGS
   BORING_REGISTRY_DEBUG=false
   Enable debug output.
 
+  -gcs-bucket=...
+  BORING_REGISTRY_GCS_BUCKET=...
+  Bucket to use when using the GCS registry type.
+
+  -gcs-prefix=...
+  BORING_REGISTRY_GCS_PREFIX=...
+  Prefix to use when using the GCS registry type.
+
   -json=false
   BORING_REGISTRY_JSON=false
   Output logs in JSON format.
@@ -204,8 +238,8 @@ FLAGS
   BORING_REGISTRY_S3_BUCKET=...
   Bucket to use when using the S3 registry type.
 
-  -s3-prefix=/
-  BORING_REGISTRY_S3_PREFIX=/
+  -s3-prefix=...
+  BORING_REGISTRY_S3_PREFIX=...
   Prefix to use when using the S3 registry type.
 
   -s3-region=...
@@ -214,7 +248,7 @@ FLAGS
 
   -type=...
   BORING_REGISTRY_TYPE=...
-  Registry type to use (currently only "s3" is supported).
+  Registry type to use (currently only "s3" and "gcs" is supported).
 ```
 
 # Roadmap

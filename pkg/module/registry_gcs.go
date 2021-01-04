@@ -1,14 +1,12 @@
 package module
 
 import (
+	"cloud.google.com/go/storage"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
 	"google.golang.org/api/iterator"
 	"io"
-	"os"
-
-	"cloud.google.com/go/storage"
 )
 
 // GCSRegistry is a Registry implementation backed by Google Cloud Storage.
@@ -43,7 +41,6 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 
 	query := &storage.Query{
 		Prefix: prefix,
-		//Delimiter: "/",
 	}
 	it := s.sc.Bucket(s.bucket).Objects(ctx, query)
 	for {
@@ -114,10 +111,6 @@ func WithGCSRegistryBucketPrefix(prefix string) GCSRegistryOption {
 }
 
 func NewGCSRegistry(bucket string, options ...GCSRegistryOption) (Registry, error) {
-	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
-	if projectID == "" {
-		return nil, errors.New("GOOGLE_CLOUD_PROJECT environment variable must be set.")
-	}
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
