@@ -3,14 +3,12 @@ package module
 import (
 	"context"
 	"fmt"
-	"io"
-	"strings"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/pkg/errors"
+	"io"
 )
 
 // S3Registry is a Registry implementation backed by S3.
@@ -52,7 +50,7 @@ func (s *S3Registry) ListModuleVersions(ctx context.Context, namespace, name, pr
 
 	fn := func(page *s3.ListObjectsV2Output, last bool) bool {
 		for _, obj := range page.Contents {
-			metadata := s.objectMetadata(*obj.Key)
+			metadata := objectMetadata(*obj.Key)
 
 			version, ok := metadata["version"]
 			if !ok {
@@ -124,21 +122,6 @@ func (s *S3Registry) determineBucketRegion() (string, error) {
 	}
 
 	return region, nil
-}
-
-func (s *S3Registry) objectMetadata(key string) map[string]string {
-	m := make(map[string]string)
-
-	for _, part := range strings.Split(key, "/") {
-		parts := strings.SplitN(part, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		m[parts[0]] = parts[1]
-	}
-
-	return m
 }
 
 // S3RegistryOption provides additional options for the S3Registry.

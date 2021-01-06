@@ -76,6 +76,10 @@ func (c *Config) archiveModules(root string, registry module.Registry) error {
 
 func archiveModule(root string) (io.Reader, error) {
 	buf := new(bytes.Buffer)
+	// ensure the src actually exists before trying to tar it
+	if _, err := os.Stat(root); err != nil {
+		return buf, fmt.Errorf("Unable to tar files - %v", err.Error())
+	}
 
 	gw := gzip.NewWriter(buf)
 	defer gw.Close()
@@ -84,15 +88,24 @@ func archiveModule(root string) (io.Reader, error) {
 	defer tw.Close()
 
 	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
-		if fi.IsDir() {
-			return nil
-		}
-
-		header, err := tar.FileInfoHeader(fi, path)
+		// return on any error
 		if err != nil {
 			return err
 		}
-		header.Name = strings.TrimPrefix(path, root+"/")
+
+		// return on non-regular files
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
+
+		// create a new dir/file header
+		header, err := tar.FileInfoHeader(fi, fi.Name())
+		if err != nil {
+			return err
+		}
+
+		// update the name to correctly reflect the desired destination when untaring
+		header.Name = strings.TrimPrefix(strings.Replace(path, root, "", -1), string(filepath.Separator))
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
@@ -106,6 +119,10 @@ func archiveModule(root string) (io.Reader, error) {
 		if _, err := io.Copy(tw, data); err != nil {
 			return err
 		}
+
+		// manually close here after each file operation; defering would cause each file close
+		// to wait until all operations have completed.
+		data.Close()
 
 		return nil
 	})

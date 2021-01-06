@@ -41,6 +41,9 @@ type Config struct {
 	S3Prefix     string
 	S3Region     string
 
+	GCSBucket string
+	GCSPrefix string
+
 	APIKey                 string
 	ListenAddress          string
 	TelemetryListenAddress string
@@ -112,6 +115,18 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		reg, err := module.NewS3Registry(c.S3Bucket,
 			module.WithS3RegistryBucketPrefix(c.S3Prefix),
 			module.WithS3RegistryBucketRegion(c.S3Region),
+		)
+		if err != nil {
+			return errors.Wrap(err, "failed to set up registry")
+		}
+		registry = reg
+	case "gcs":
+		if c.GCSBucket == "" {
+			return errors.Wrap(flag.ErrHelp, "missing flag -gcs-bucket")
+		}
+
+		reg, err := module.NewGCSRegistry(c.GCSBucket,
+			module.WithGCSRegistryBucketPrefix(c.GCSPrefix),
 		)
 		if err != nil {
 			return errors.Wrap(err, "failed to set up registry")
@@ -221,10 +236,12 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.ListenAddress, "listen-address", ":5601", "Listen address for the registry api")
 	fs.StringVar(&cfg.TelemetryListenAddress, "telemetry-listen-address", ":7801", "Listen address for telemetry")
 	fs.StringVar(&cfg.APIKey, "api-key", "", "Comma-separated string of static API keys to protect the server with")
-	fs.StringVar(&cfg.RegistryType, "type", "", "Registry type to use (currently only \"s3\" is supported)")
+	fs.StringVar(&cfg.RegistryType, "type", "", "Registry type to use (currently only \"s3\" and \"gcs\" is supported)")
 	fs.StringVar(&cfg.S3Bucket, "s3-bucket", "", "Bucket to use when using the S3 registry type")
-	fs.StringVar(&cfg.S3Prefix, "s3-prefix", "/", "Prefix to use when using the S3 registry type")
+	fs.StringVar(&cfg.S3Prefix, "s3-prefix", "", "Prefix to use when using the S3 registry type")
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
+	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
+	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
 	config.RegisterFlags(fs)
 
 	return &ffcli.Command{
