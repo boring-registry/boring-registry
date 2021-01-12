@@ -1,19 +1,26 @@
 package module
 
 import (
+	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/storage"
 	"context"
 	"fmt"
 	"github.com/pkg/errors"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
+	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 	"io"
+	"time"
 )
 
 // GCSRegistry is a Registry implementation backed by Google Cloud Storage.
 type GCSRegistry struct {
-	sc           *storage.Client
-	bucket       string
-	bucketPrefix string
+	sc              *storage.Client
+	bucket          string
+	bucketPrefix    string
+	signedURL       bool
+	signedURLExpiry int64
+	serviceAccount  string
 }
 
 func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
@@ -22,7 +29,15 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 	if err != nil {
 		return Module{}, errors.Wrap(ErrNotFound, err.Error())
 	}
-
+	var url string
+	if s.signedURL {
+		url, err = s.generateV4GetObjectSignedURL(attrs.Bucket, attrs.Name)
+	} else {
+		url, err = s.generateDownloadURL(attrs.Bucket, attrs.Name)
+	}
+	if err != nil {
+		return Module{}, errors.Wrap(ErrNotFound, err.Error())
+	}
 	return Module{
 		Namespace: namespace,
 		Name:      attrs.Name,
@@ -31,7 +46,7 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 		/* https://www.terraform.io/docs/internals/module-registry-protocol.html#sample-response-1
 		e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
 		*/
-		DownloadURL: s.generateDownloadURL(attrs.Bucket, attrs.Name),
+		DownloadURL: url,
 	}, nil
 }
 
@@ -100,13 +115,34 @@ func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provide
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-// GCSRegistryOption provides additional options for the S3Registry.
+// GCSRegistryOption provides additional options for the GCSRegistry.
 type GCSRegistryOption func(*GCSRegistry)
 
-// WithS3RegistryBucketPrefix configures the s3 storage to work under a given prefix.
+// WithGCSRegistryBucketPrefix configures the s3 storage to work under a given prefix.
 func WithGCSRegistryBucketPrefix(prefix string) GCSRegistryOption {
 	return func(s *GCSRegistry) {
 		s.bucketPrefix = prefix
+	}
+}
+
+// WithGCSRegistrySignedURL configures the s3 storage to work under a given prefix.
+func WithGCSRegistrySignedURL(set bool) GCSRegistryOption {
+	return func(s *GCSRegistry) {
+		s.signedURL = set
+	}
+}
+
+// WithGCSServiceAccount configures Application Default Credentials (ADC) service account email.
+func WithGCSServiceAccount(sa string) GCSRegistryOption {
+	return func(s *GCSRegistry) {
+		s.serviceAccount = sa
+	}
+}
+
+// WithGCSServiceAccount configures Application Default Credentials (ADC) service account email.
+func WithGCSSignedUrlExpiry(seconds int64) GCSRegistryOption {
+	return func(s *GCSRegistry) {
+		s.signedURLExpiry = seconds
 	}
 }
 
@@ -128,7 +164,62 @@ func NewGCSRegistry(bucket string, options ...GCSRegistryOption) (Registry, erro
 	return s, nil
 }
 
-// XXX: support presigned URLs?
-func (s *GCSRegistry) generateDownloadURL(bucket, key string) string {
-	return fmt.Sprintf("gcs::https://www.googleapis.com/storage/v1/%s/%s", bucket, key)
+func (s *GCSRegistry) generateDownloadURL(bucket, key string) (string, error) {
+	return fmt.Sprintf("gcs::https://www.googleapis.com/storage/v1/%s/%s", bucket, key), nil
+}
+
+// https://github.com/GoogleCloudPlatform/golang-samples/blob/73d60a5de091dcdda5e4f753b594ef18eee67906/storage/objects/generate_v4_get_object_signed_url.go#L28
+// generateV4GetObjectSignedURL generates object signed URL with GET method.
+func (s *GCSRegistry) generateV4GetObjectSignedURL(bucket, object string) (string, error) {
+	ctx := context.Background()
+	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
+	cred, err := google.FindDefaultCredentials(ctx, "cloud-platform")
+	if err != nil {
+		return "", fmt.Errorf("google.FindDefaultCredentials: %v", err)
+	}
+
+	var url string
+	if s.serviceAccount != "" {
+		// needs Service Account Token Creator role
+		c, err := credentials.NewIamCredentialsClient(ctx)
+		if err != nil {
+			return "", fmt.Errorf("credentials.NewIamCredentialsClient: %v", err)
+		}
+
+		url, err = storage.SignedURL(bucket, object, &storage.SignedURLOptions{
+			Scheme:         storage.SigningSchemeV4,
+			Method:         "GET",
+			GoogleAccessID: s.serviceAccount,
+			Expires:        time.Now().Add(time.Duration(s.signedURLExpiry) * time.Second),
+			SignBytes: func(b []byte) ([]byte, error) {
+				req := &credentialspb.SignBlobRequest{
+					Payload: b,
+					Name:    s.serviceAccount,
+				}
+				resp, err := c.SignBlob(ctx, req)
+				if err != nil {
+					return nil, fmt.Errorf("storage.signedURL.SignBytes: %v", err)
+				}
+				return resp.SignedBlob, nil
+			},
+		})
+		if err != nil {
+			return "", fmt.Errorf("storage.signedURL: %v", err)
+		}
+	} else {
+		conf, err := google.JWTConfigFromJSON(cred.JSON)
+		opts := &storage.SignedURLOptions{
+			Scheme:         storage.SigningSchemeV4,
+			Method:         "GET",
+			GoogleAccessID: conf.Email,
+			PrivateKey:     conf.PrivateKey,
+			Expires:        time.Now().Add(time.Duration(s.signedURLExpiry) * time.Second),
+		}
+		url, err = storage.SignedURL(bucket, object, opts)
+		if err != nil {
+			return "", fmt.Errorf("storage.signedURL: %v", err)
+		}
+	}
+
+	return url, nil
 }

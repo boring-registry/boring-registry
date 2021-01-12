@@ -41,8 +41,11 @@ type Config struct {
 	S3Prefix     string
 	S3Region     string
 
-	GCSBucket string
-	GCSPrefix string
+	GCSBucket          string
+	GCSPrefix          string
+	GCSSignedURL       bool
+	GCSServiceAccount  string
+	GCSSignedURLExpiry int64
 
 	APIKey                 string
 	ListenAddress          string
@@ -127,6 +130,9 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 
 		reg, err := module.NewGCSRegistry(c.GCSBucket,
 			module.WithGCSRegistryBucketPrefix(c.GCSPrefix),
+			module.WithGCSRegistrySignedURL(c.GCSSignedURL),
+			module.WithGCSServiceAccount(c.GCSServiceAccount),
+			module.WithGCSSignedUrlExpiry(c.GCSSignedURLExpiry),
 		)
 		if err != nil {
 			return errors.Wrap(err, "failed to set up registry")
@@ -242,6 +248,9 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
+	fs.BoolVar(&cfg.GCSSignedURL, "gcs-signedurl", false, "Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init. WARNING: only use in combination with `api-key` option")
+	fs.Int64Var(&cfg.GCSSignedURLExpiry, "gcs-signedurl-expiry", 30, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`")
+	fs.StringVar(&cfg.GCSServiceAccount, "gcs-sa-email", "", "Google service account email to be used for Application Default Credentials (ADC). GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative. For GCS presigned URLs this SA needs the `iam.serviceAccountTokenCreator` role")
 	config.RegisterFlags(fs)
 
 	return &ffcli.Command{
