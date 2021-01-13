@@ -161,6 +161,18 @@ FLAGS
   BORING_REGISTRY_GCS_PREFIX=...
   Prefix to use when using the GCS registry type.
 
+  -gcs-sa-email=...
+  BORING_REGISTRY_GCS_SA_EMAIL=...
+  Google service account email to be used for Application Default Credentials (ADC). GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative. For GCS presigned URLs this SA needs the `iam.serviceAccountTokenCreator` role.
+
+  -gcs-signedurl=false
+  BORING_REGISTRY_GCS_SIGNEDURL=false
+  Generate GCS SignedURL (public) instead of relying on GCP credentials being set on terraform init. WARNING: only use in combination with `api-key` option.
+
+  -gcs-signedurl-expiry=30
+  BORING_REGISTRY_GCS_SIGNEDURL_EXPIRE=30
+  Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`.
+
   -json=false
   BORING_REGISTRY_JSON=false
   Output logs in JSON format.

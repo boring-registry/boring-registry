@@ -3,7 +3,7 @@ module github.com/TierMobility/boring-registry
 go 1.14
 
 require (
-	cloud.google.com/go v0.66.0 // indirect
+	cloud.google.com/go v0.66.0
 	cloud.google.com/go/storage v1.12.0
 	github.com/aws/aws-sdk-go v1.35.34
 	github.com/fatih/color v1.7.0
@@ -18,8 +18,9 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.8.0
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43 // indirect
+	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	golang.org/x/sys v0.0.0-20201202213521-69691e467435 // indirect
 	google.golang.org/api v0.32.0
+	google.golang.org/genproto v0.0.0-20200921151605-7abf4a1a14d5
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
