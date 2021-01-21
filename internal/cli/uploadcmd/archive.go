@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,58 +21,73 @@ const (
 )
 
 func (c *Config) archiveModules(root string, registry module.Registry) error {
-	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
-		if fi.Name() != moduleSpecFileName {
-			return nil
-		}
+	var err error
+	if c.UploadRecursive == true {
+		err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+			if fi.Name() != moduleSpecFileName {
+				return nil
+			}
+			return c.doUpload(path, registry)
+		})
+	} else {
+		err = c.doUpload(filepath.Join(root, moduleSpecFileName), registry)
+	}
+	return err
+}
 
-		spec, err := module.ParseFile(path)
-		if err != nil {
-			return err
-		}
+func (c *Config) doUpload(path string, registry module.Registry) error {
+	spec, err := module.ParseFile(path)
+	if err != nil {
+		return err
+	}
 
-		name := fmt.Sprintf("%s/%s/%s/%s",
-			spec.Metadata.Namespace, spec.Metadata.Name,
-			spec.Metadata.Provider, spec.Metadata.Version,
-		)
+	name := fmt.Sprintf("%s/%s/%s/%s",
+		spec.Metadata.Namespace, spec.Metadata.Name,
+		spec.Metadata.Provider, spec.Metadata.Version,
+	)
 
-		level.Debug(c.Logger).Log(
-			"msg", "parsed module spec",
-			"path", path,
-			"name", name,
-		)
+	level.Debug(c.Logger).Log(
+		"msg", "parsed module spec",
+		"path", path,
+		"name", name,
+	)
 
-		ctx := context.Background()
-		if res, err := registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+	ctx := context.Background()
+	if res, err := registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+		if c.IgnoreExistingModule == true {
 			level.Info(c.Logger).Log(
 				"msg", "module already exists",
 				"download_url", res.DownloadURL,
 			)
-
 			return nil
+		} else {
+			level.Error(c.Logger).Log(
+				"msg", "module already exists",
+				"download_url", res.DownloadURL,
+			)
+			return errors.New("module already exists")
 		}
+	}
 
-		moduleRoot := filepath.Dir(path)
+	moduleRoot := filepath.Dir(path)
 
-		buf, err := archiveModule(moduleRoot)
-		if err != nil {
-			return err
-		}
+	buf, err := archiveModule(moduleRoot)
+	if err != nil {
+		return err
+	}
 
-		res, err := registry.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf)
-		if err != nil {
-			return err
-		}
+	res, err := registry.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf)
+	if err != nil {
+		return err
+	}
 
-		level.Info(c.Logger).Log(
-			"msg", "module successfully uploaded",
-			"download_url", res.DownloadURL,
-		)
+	level.Info(c.Logger).Log(
+		"msg", "module successfully uploaded",
+		"download_url", res.DownloadURL,
+	)
 
-		return nil
-	})
+	return nil
 
-	return err
 }
 
 func archiveModule(root string) (io.Reader, error) {
