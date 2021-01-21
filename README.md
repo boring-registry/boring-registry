@@ -238,6 +238,10 @@ FLAGS
   BORING_REGISTRY_GCS_PREFIX=...
   Prefix to use when using the GCS registry type.
 
+  -ignore-existing=true
+  BORING_REGISTRY_IGNORE_EXISTING=true
+  Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version.
+
   -json=false
   BORING_REGISTRY_JSON=false
   Output logs in JSON format.
@@ -245,6 +249,10 @@ FLAGS
   -no-color=false
   BORING_REGISTRY_NO_COLOR=false
   Disables colored output.
+
+  -recursive=true
+  BORING_REGISTRY_RECURSIVE=true
+  Recursively traverse <dir> and upload all modules in subdirectories.
 
   -s3-bucket=...
   BORING_REGISTRY_S3_BUCKET=...
