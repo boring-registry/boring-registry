@@ -116,6 +116,8 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	switch errors.Cause(err) {
 	case ErrVarMissing:
 		w.WriteHeader(http.StatusBadRequest)
+	case ErrInvalidKey:
+		w.WriteHeader(http.StatusUnauthorized)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
