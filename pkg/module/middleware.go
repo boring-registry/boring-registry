@@ -86,7 +86,7 @@ func AuthMiddleware(keys ...string) endpoint.Middleware {
 			}
 
 			if !found {
-				return nil, fmt.Errorf("invalid key")
+				return nil, ErrInvalidKey
 			}
 
 			return next(ctx, request)
