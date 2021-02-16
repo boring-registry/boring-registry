@@ -14,3 +14,8 @@ var (
 var (
 	ErrVarMissing = errors.New("variable missing")
 )
+
+// Middleware errors.
+var (
+	ErrInvalidKey = errors.New("invalid key")
+)
