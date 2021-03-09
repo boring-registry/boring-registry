@@ -116,6 +116,33 @@ metadata {
 
 When running the upload command, the module is then packaged up and stored inside the registry. 
 
+### Recursive vs. non-recursive upload
+
+Walking the directory recursively is the default behavoir of `boring-registry upload`. This way all modules underneath theq
+current directory will be checked for `boring-registry.hcl` files and modules will be packaged and uploaded if they not
+already exist. However this can be unwanted in certain situations e.g. if a `.terraform` directory is present containing
+other modules that have a configuration file. The `-recursive=false` flag will omit this behavior. Here is a short example:
+
+### Fail early if module version already exists
+
+By default the upload command will silently ignore already uploaded versions of a module and return exit code `0`. For
+taging mono-repositories this can become a problem as it is not clear if the module version is new or already uploaded.
+The `-ignore-existing=false` parameter will force the upload command to return exit code `1` in such a case. In
+combination with `-recursive=false` the exit code can be used to tag the GIT repository only if a new version was uploaded.
+
+```shell
+for i in $(ls -d */); do
+  printf "Operating on module \"${i%%/}\"\n"
+  # upload the given directory
+  ./boring-registry upload -type gcs -gcs-bucket=my-boring-registry-upload-bucket -recursive=false -ignore-existing=false ${i%%/}
+  # tag the repo with a tag composed out of the boring-registry.hcl if not already exist
+  if [ $? -eq 0 ]; then
+    # git tag the repository with the version from boring-registry.hcl
+    # hint: use mattolenik/hclq to parse the hcl file
+  fi
+done
+```
+
 ## Help output
 
 ```
