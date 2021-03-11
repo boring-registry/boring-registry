@@ -2,7 +2,7 @@
 
 Boring Registry is an open source Terraform Module Registry.
 
-The registry is designed to be simple and only implements the "Module Registry Protocol" and apart from the registry storage backend (currently only S3 is supported), there are no external dependencies, it also does not ship with a UI. The endpoints provided are:
+The registry is designed to be simple and only implements the "Module Registry Protocol" and apart from the registry storage backend, there are no external dependencies, it also does not ship with a UI. The endpoints provided are:
 
 * GET /v1/modules/{namespace}/{name}/{provider}/versions
 * GET /v1/modules/{namespace}/{name}/{provider}/{version}/download
