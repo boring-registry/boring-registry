@@ -299,7 +299,7 @@ FLAGS
   
   -version-constraints=...
   BORING_REGISTRY_VERSION_CONSTRAINTS=...
-  Limit the module versions that are eligible for upload with version constraints.
+  Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas.
 ```
 
 # Roadmap
