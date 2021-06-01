@@ -46,7 +46,7 @@ The registry supports two modes:
   * Server - The server runs the registry API
   * Upload - Uploads modules to the configured registry
 
-To run the server you need to specify which registry to use (currently only S3 is supported):
+To run the server you need to specify which registry to use:
 
 **Example using the S3 registry:**
 ```bash
@@ -296,6 +296,10 @@ FLAGS
   -type=...
   BORING_REGISTRY_TYPE=...
   Registry type to use (currently only "s3" and "gcs" is supported).
+  
+  -version-constraints=...
+  BORING_REGISTRY_VERSION_CONSTRAINTS=...
+  Limit the module versions that are eligible for upload with version constraints.
 ```
 
 # Roadmap

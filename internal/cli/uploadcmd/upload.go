@@ -105,7 +105,7 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
-	fs.StringVar(&flagVersionConstraints, "version-constraints", "", "Limit the versions that are eligible for uploads with version constraints")
+	fs.StringVar(&flagVersionConstraints, "version-constraints", "", "Limit the module versions that are eligible for upload with version constraints")
 	fs.BoolVar(&cfg.UploadRecursive, "recursive", true, "Recursively traverse <dir> and upload all modules in subdirectories")
 	fs.BoolVar(&cfg.IgnoreExistingModule, "ignore-existing", true, "Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version")
 
