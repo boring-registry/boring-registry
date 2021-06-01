@@ -77,8 +77,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		return flag.ErrHelp
 	}
 
-	// TODO(oliviermichaelis): use errors.Is(err, os.ErrNotExist
-	if _, err := os.Stat(args[0]); os.IsNotExist(err) {
+	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
