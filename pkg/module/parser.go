@@ -2,6 +2,7 @@ package module
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -49,6 +50,10 @@ func (s *Spec) Validate() error {
 	}
 
 	return result.ErrorOrNil()
+}
+
+func (s *Spec) Name() string {
+	return fmt.Sprintf("%s/%s/%s/%s", s.Metadata.Namespace, s.Metadata.Name, s.Metadata.Provider, s.Metadata.Version)
 }
 
 // ParseFile parses a module spec file.
