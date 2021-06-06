@@ -143,6 +143,15 @@ for i in $(ls -d */); do
 done
 ```
 
+### Module version constraints
+
+The `-version-constraints` flag lets you specify a range of acceptable versions for modules.
+It expects a specially formatted string containing one or more conditions, which are separated by commas.
+The syntax is similar to the [Terraform Version Constraint Syntax](https://www.terraform.io/docs/language/expressions/version-constraints.html#version-constraint-syntax).
+
+In order to exclude all SemVer pre-releases, you can e.g. use `-version-constraints=">=v0"`, which will instruct the boring-registry cli to only upload non-pre-releases to the registry.
+This would for example allow you to prevent 
+
 ## Help output
 
 ```
