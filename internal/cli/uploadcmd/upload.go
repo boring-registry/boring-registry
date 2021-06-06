@@ -15,10 +15,6 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-var (
-	flagVersionConstraints string
-)
-
 type Config struct {
 	*rootcmd.Config
 
@@ -35,8 +31,7 @@ type Config struct {
 	TelemetryListenAddress string
 	UploadRecursive        bool
 	IgnoreExistingModule   bool
-
-	VersionConstraints version.Constraints
+	VersionConstraints string
 }
 
 func (c *Config) Exec(ctx context.Context, args []string) error {
@@ -82,9 +77,8 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	}
 
 	// Validate the version constraint
-	if flagVersionConstraints != "" {
-		var err error
-		if c.VersionConstraints, err = version.NewConstraint(flagVersionConstraints); err != nil {
+	if c.VersionConstraints != "" {
+		if _, err := version.NewConstraint(c.VersionConstraints); err != nil {
 			return err
 		}
 	}
@@ -104,7 +98,7 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
-	fs.StringVar(&flagVersionConstraints, "version-constraints", "", "Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas")
+	fs.StringVar(&cfg.VersionConstraints, "version-constraints", "", "Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas")
 	fs.BoolVar(&cfg.UploadRecursive, "recursive", true, "Recursively traverse <dir> and upload all modules in subdirectories")
 	fs.BoolVar(&cfg.IgnoreExistingModule, "ignore-existing", true, "Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version")
 

@@ -156,8 +156,13 @@ func archiveModule(root string) (io.Reader, error) {
 // meetsConstraints checks whether a module version matches the version constraints - if there are any.
 // Returns an unrecoverable error if there's an internal error. Otherwise it returns a boolean indicating if the module meets the constraints
 func (c *Config) meetsConstraints(spec *module.Spec) (bool, error) {
-	if c.VersionConstraints == nil {
+	if c.VersionConstraints == "" {
 		return true, nil
+	}
+
+	constraints, err := version.NewConstraint(c.VersionConstraints)
+	if err != nil {
+		return false, err
 	}
 
 	v, err := version.NewVersion(spec.Metadata.Version)
@@ -165,5 +170,5 @@ func (c *Config) meetsConstraints(spec *module.Spec) (bool, error) {
 		return false, err
 	}
 
-	return c.VersionConstraints.Check(v), nil
+	return constraints.Check(v), nil
 }
