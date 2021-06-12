@@ -101,7 +101,7 @@ func archiveModule(root string) (io.Reader, error) {
 	buf := new(bytes.Buffer)
 	// ensure the src actually exists before trying to tar it
 	if _, err := os.Stat(root); err != nil {
-		return buf, fmt.Errorf("Unable to tar files - %v", err.Error())
+		return buf, fmt.Errorf("unable to tar files - %v", err.Error())
 	}
 
 	gw := gzip.NewWriter(buf)
@@ -143,7 +143,7 @@ func archiveModule(root string) (io.Reader, error) {
 			return err
 		}
 
-		// manually close here after each file operation; defering would cause each file close
+		// manually close here after each file operation; deferring would cause each file close
 		// to wait until all operations have completed.
 		data.Close()
 
@@ -165,7 +165,7 @@ func (c *Config) meetsConstraints(spec *module.Spec) (bool, error) {
 		return false, err
 	}
 
-	v, err := version.NewVersion(spec.Metadata.Version)
+	v, err := version.NewSemver(spec.Metadata.Version)
 	if err != nil {
 		return false, err
 	}
