@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/TierMobility/boring-registry/pkg/module"
@@ -49,14 +50,23 @@ func (c *Config) processModule(path string, registry module.Registry) error {
 	)
 
 	// Check if the module meets version constraints
-	ok, err := c.meetsConstraints(spec)
-	if err != nil {
-		return err
-	} else if !ok {
-		// Skip the module, as it didn't pass the version constraints
-		level.Info(c.Logger).Log("msg", "skipped as module doesn't meet version constraints", "name", spec.Name())
+	if c.VersionConstraintsSemver != "" {
+		ok, err := c.meetsSemverConstraints(spec)
+		if err != nil {
+			return err
+		} else if !ok {
+			// Skip the module, as it didn't pass the version constraints
+			level.Info(c.Logger).Log("msg", "module doesn't meet semver version constraints, skipped", "name", spec.Name())
+			return nil
+		}
+	}
 
-		return nil
+	if c.VersionConstraintsRegex != "" {
+		if !c.meetsRegexConstraints(spec) {
+			// Skip the module, as it didn't pass the regex version constraints
+			level.Info(c.Logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
+			return nil
+		}
 	}
 
 	ctx := context.Background()
@@ -153,14 +163,10 @@ func archiveModule(root string) (io.Reader, error) {
 	return buf, err
 }
 
-// meetsConstraints checks whether a module version matches the version constraints - if there are any.
+// meetsSemverConstraints checks whether a module version matches the semver version constraints - if there are any.
 // Returns an unrecoverable error if there's an internal error. Otherwise it returns a boolean indicating if the module meets the constraints
-func (c *Config) meetsConstraints(spec *module.Spec) (bool, error) {
-	if c.VersionConstraints == "" {
-		return true, nil
-	}
-
-	constraints, err := version.NewConstraint(c.VersionConstraints)
+func (c *Config) meetsSemverConstraints(spec *module.Spec) (bool, error) {
+	constraints, err := version.NewConstraint(c.VersionConstraintsSemver)
 	if err != nil {
 		return false, err
 	}
@@ -171,4 +177,14 @@ func (c *Config) meetsConstraints(spec *module.Spec) (bool, error) {
 	}
 
 	return constraints.Check(v), nil
+}
+
+func (c *Config) meetsRegexConstraints(spec *module.Spec) bool {
+	constraints, err := regexp.Compile(c.VersionConstraintsRegex)
+	if err != nil {
+		// panic here as we already validated the regex before. This should never happen
+		panic(fmt.Errorf("invalid regex passed to -version-constraints-regex: %v", err))
+	}
+
+	return constraints.MatchString(spec.Metadata.Version)
 }

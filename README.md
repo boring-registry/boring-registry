@@ -145,12 +145,16 @@ done
 
 ### Module version constraints
 
-The `-version-constraints` flag lets you specify a range of acceptable versions for modules.
+The `-version-constraints-semver` flag lets you specify a range of acceptable semver versions for modules.
 It expects a specially formatted string containing one or more conditions, which are separated by commas.
 The syntax is similar to the [Terraform Version Constraint Syntax](https://www.terraform.io/docs/language/expressions/version-constraints.html#version-constraint-syntax).
 
-In order to exclude all SemVer pre-releases, you can e.g. use `-version-constraints=">=v0"`, which will instruct the boring-registry cli to only upload non-pre-releases to the registry.
-This would for example allow you to prevent 
+In order to exclude all SemVer pre-releases, you can e.g. use `-version-constraints-semver=">=v0"`, which will instruct the boring-registry cli to only upload non-pre-releases to the registry.
+This would for example be useful to restrict CI to only publish releases from the `main` branch.
+
+The `-version-constraints-regex` flag lets you specify a regex that module versions have to match.
+In order to only match pre-releases, you can e.g. use `-version-constraints-regex="^[0-9]+\.[0-9]+\.[0-9]+-|\d*[a-zA-Z-][0-9a-zA-Z-]*$"`.
+This would for example be useful to prevent publishing releases from non-`main` branches, while allowing pre-releases to test out e.g. pull-requests.
 
 ## Help output
 
@@ -305,10 +309,14 @@ FLAGS
   -type=...
   BORING_REGISTRY_TYPE=...
   Registry type to use (currently only "s3" and "gcs" is supported).
-  
-  -version-constraints=...
-  BORING_REGISTRY_VERSION_CONSTRAINTS=...
-  Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas.
+
+  -version-constraints-regex=...
+  BORING_REGISTRY_VERSION_CONSTRAINTS_REGEX=...
+  Limit the module versions that are eligible for upload with a regex that a version has to match. Can be combined with the -version-constraints-semver flag.
+
+  -version-constraints-semver=...
+  BORING_REGISTRY_VERSION_CONSTRAINTS_SEMVER=...
+  Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag.
 ```
 
 # Roadmap
