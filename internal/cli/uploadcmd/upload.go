@@ -16,6 +16,12 @@ import (
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
+// Variables used to store flag values for further parsing and validation
+var (
+	versionConstraintsSemver string
+	versionConstraintsRegex  string
+)
+
 type Config struct {
 	*rootcmd.Config
 
@@ -27,13 +33,17 @@ type Config struct {
 	GCSBucket string
 	GCSPrefix string
 
-	APIKey                   string
-	ListenAddress            string
-	TelemetryListenAddress   string
-	UploadRecursive          bool
-	IgnoreExistingModule     bool
-	VersionConstraintsSemver string
-	VersionConstraintsRegex  string
+	APIKey                 string
+	ListenAddress          string
+	TelemetryListenAddress string
+	UploadRecursive        bool
+	IgnoreExistingModule   bool
+
+	// VersionConstraintsSemver holds semver constraints used to assess if discovered modules should be processed
+	VersionConstraintsSemver version.Constraints
+
+	// VersionConstraintsRegex holds regex constraints used to assess if discovered modules should be processed
+	VersionConstraintsRegex *regexp.Regexp
 }
 
 func (c *Config) Exec(ctx context.Context, args []string) error {
@@ -79,17 +89,21 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 	}
 
 	// Validate the semver version constraints
-	if c.VersionConstraintsSemver != "" {
-		if _, err := version.NewConstraint(c.VersionConstraintsSemver); err != nil {
+	if versionConstraintsSemver != "" {
+		constraints, err := version.NewConstraint(versionConstraintsSemver)
+		if err != nil {
 			return err
 		}
+		c.VersionConstraintsSemver = constraints
 	}
 
 	// Validate the regex version constraints
-	if c.VersionConstraintsRegex != "" {
-		if _, err := regexp.Compile(c.VersionConstraintsRegex); err != nil {
+	if versionConstraintsRegex != "" {
+		constraints, err := regexp.Compile(versionConstraintsRegex)
+		if err != nil {
 			return fmt.Errorf("invalid regex given: %v", err)
 		}
+		c.VersionConstraintsRegex = constraints
 	}
 
 	return c.archiveModules(args[0], registry)
@@ -107,8 +121,8 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
-	fs.StringVar(&cfg.VersionConstraintsSemver, "version-constraints-semver", "", "Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag")
-	fs.StringVar(&cfg.VersionConstraintsRegex, "version-constraints-regex", "", "Limit the module versions that are eligible for upload with a regex that a version has to match. Can be combined with the -version-constraints-semver flag")
+	fs.StringVar(&versionConstraintsSemver, "version-constraints-semver", "", "Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag")
+	fs.StringVar(&versionConstraintsRegex, "version-constraints-regex", "", "Limit the module versions that are eligible for upload with a regex that a version has to match. Can be combined with the -version-constraints-semver flag")
 	fs.BoolVar(&cfg.UploadRecursive, "recursive", true, "Recursively traverse <dir> and upload all modules in subdirectories")
 	fs.BoolVar(&cfg.IgnoreExistingModule, "ignore-existing", true, "Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version")
 

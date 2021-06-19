@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/TierMobility/boring-registry/pkg/module"
@@ -50,7 +49,7 @@ func (c *Config) processModule(path string, registry module.Registry) error {
 	)
 
 	// Check if the module meets version constraints
-	if c.VersionConstraintsSemver != "" {
+	if c.VersionConstraintsSemver != nil {
 		ok, err := c.meetsSemverConstraints(spec)
 		if err != nil {
 			return err
@@ -61,7 +60,7 @@ func (c *Config) processModule(path string, registry module.Registry) error {
 		}
 	}
 
-	if c.VersionConstraintsRegex != "" {
+	if c.VersionConstraintsRegex != nil {
 		if !c.meetsRegexConstraints(spec) {
 			// Skip the module, as it didn't pass the regex version constraints
 			level.Info(c.Logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
@@ -163,28 +162,19 @@ func archiveModule(root string) (io.Reader, error) {
 	return buf, err
 }
 
-// meetsSemverConstraints checks whether a module version matches the semver version constraints - if there are any.
+// meetsSemverConstraints checks whether a module version matches the semver version constraints.
 // Returns an unrecoverable error if there's an internal error. Otherwise it returns a boolean indicating if the module meets the constraints
 func (c *Config) meetsSemverConstraints(spec *module.Spec) (bool, error) {
-	constraints, err := version.NewConstraint(c.VersionConstraintsSemver)
-	if err != nil {
-		return false, err
-	}
-
 	v, err := version.NewSemver(spec.Metadata.Version)
 	if err != nil {
 		return false, err
 	}
 
-	return constraints.Check(v), nil
+	return c.VersionConstraintsSemver.Check(v), nil
 }
 
+// meetsRegexConstraints checks whether a module version matches the regex.
+// Returns a boolean indicating if the module meets the constraints
 func (c *Config) meetsRegexConstraints(spec *module.Spec) bool {
-	constraints, err := regexp.Compile(c.VersionConstraintsRegex)
-	if err != nil {
-		// panic here as we already validated the regex before. This should never happen
-		panic(fmt.Errorf("invalid regex passed to -version-constraints-regex: %v", err))
-	}
-
-	return constraints.MatchString(spec.Metadata.Version)
+	return c.VersionConstraintsRegex.MatchString(spec.Metadata.Version)
 }
