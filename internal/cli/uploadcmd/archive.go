@@ -14,6 +14,7 @@ import (
 
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log/level"
+	"github.com/hashicorp/go-version"
 )
 
 const (
@@ -27,30 +28,45 @@ func (c *Config) archiveModules(root string, registry module.Registry) error {
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			return c.doUpload(path, registry)
+			return c.processModule(path, registry)
 		})
 	} else {
-		err = c.doUpload(filepath.Join(root, moduleSpecFileName), registry)
+		err = c.processModule(filepath.Join(root, moduleSpecFileName), registry)
 	}
 	return err
 }
 
-func (c *Config) doUpload(path string, registry module.Registry) error {
+func (c *Config) processModule(path string, registry module.Registry) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
 		return err
 	}
 
-	name := fmt.Sprintf("%s/%s/%s/%s",
-		spec.Metadata.Namespace, spec.Metadata.Name,
-		spec.Metadata.Provider, spec.Metadata.Version,
-	)
-
 	level.Debug(c.Logger).Log(
 		"msg", "parsed module spec",
 		"path", path,
-		"name", name,
+		"name", spec.Name(),
 	)
+
+	// Check if the module meets version constraints
+	if c.VersionConstraintsSemver != nil {
+		ok, err := c.meetsSemverConstraints(spec)
+		if err != nil {
+			return err
+		} else if !ok {
+			// Skip the module, as it didn't pass the version constraints
+			level.Info(c.Logger).Log("msg", "module doesn't meet semver version constraints, skipped", "name", spec.Name())
+			return nil
+		}
+	}
+
+	if c.VersionConstraintsRegex != nil {
+		if !c.meetsRegexConstraints(spec) {
+			// Skip the module, as it didn't pass the regex version constraints
+			level.Info(c.Logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
+			return nil
+		}
+	}
 
 	ctx := context.Background()
 	if res, err := registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
@@ -94,7 +110,7 @@ func archiveModule(root string) (io.Reader, error) {
 	buf := new(bytes.Buffer)
 	// ensure the src actually exists before trying to tar it
 	if _, err := os.Stat(root); err != nil {
-		return buf, fmt.Errorf("Unable to tar files - %v", err.Error())
+		return buf, fmt.Errorf("unable to tar files - %v", err.Error())
 	}
 
 	gw := gzip.NewWriter(buf)
@@ -136,7 +152,7 @@ func archiveModule(root string) (io.Reader, error) {
 			return err
 		}
 
-		// manually close here after each file operation; defering would cause each file close
+		// manually close here after each file operation; deferring would cause each file close
 		// to wait until all operations have completed.
 		data.Close()
 
@@ -144,4 +160,21 @@ func archiveModule(root string) (io.Reader, error) {
 	})
 
 	return buf, err
+}
+
+// meetsSemverConstraints checks whether a module version matches the semver version constraints.
+// Returns an unrecoverable error if there's an internal error. Otherwise it returns a boolean indicating if the module meets the constraints
+func (c *Config) meetsSemverConstraints(spec *module.Spec) (bool, error) {
+	v, err := version.NewSemver(spec.Metadata.Version)
+	if err != nil {
+		return false, err
+	}
+
+	return c.VersionConstraintsSemver.Check(v), nil
+}
+
+// meetsRegexConstraints checks whether a module version matches the regex.
+// Returns a boolean indicating if the module meets the constraints
+func (c *Config) meetsRegexConstraints(spec *module.Spec) bool {
+	return c.VersionConstraintsRegex.MatchString(spec.Metadata.Version)
 }
