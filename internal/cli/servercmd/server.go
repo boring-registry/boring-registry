@@ -50,6 +50,9 @@ type Config struct {
 	APIKey                 string
 	ListenAddress          string
 	TelemetryListenAddress string
+
+	Keyfile  string
+	Certfile string
 }
 
 func (c *Config) Exec(ctx context.Context, args []string) error {
@@ -96,6 +99,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 					return err
 				}
 			}
+
 			return nil
 		}, func(err error) {
 			if err := telemetryServer.Close(); err != nil {
@@ -189,19 +193,37 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		}
 
 		g.Add(func() error {
+			tls := "disabled"
+			if c.Certfile != "" && c.Keyfile != "" {
+				tls = "enabled"
+			}
+
 			level.Info(c.Logger).Log(
 				"msg", "starting server",
 				"service", "api",
 				"listen", c.ListenAddress,
+				"tls", tls,
 			)
 
-			if err := server.ListenAndServe(); err != nil {
-				if err == http.ErrServerClosed {
-					level.Debug(c.Logger).Log(
-						"msg", "shutting down server gracefully",
-					)
-				} else {
-					return err
+			if c.Certfile != "" && c.Keyfile != "" {
+				if err := server.ListenAndServeTLS(c.Certfile, c.Keyfile); err != nil {
+					if err == http.ErrServerClosed {
+						level.Debug(c.Logger).Log(
+							"msg", "shutting down server gracefully",
+						)
+					} else {
+						return err
+					}
+				}
+			} else {
+				if err := server.ListenAndServe(); err != nil {
+					if err == http.ErrServerClosed {
+						level.Debug(c.Logger).Log(
+							"msg", "shutting down server gracefully",
+						)
+					} else {
+						return err
+					}
 				}
 			}
 
@@ -248,6 +270,8 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
+	fs.StringVar(&cfg.Keyfile, "key-file", "", "TLS private key to serve")
+	fs.StringVar(&cfg.Certfile, "cert-file", "", "TLS certificate to serve")
 	fs.BoolVar(&cfg.GCSSignedURL, "gcs-signedurl", false, "Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init. WARNING: only use in combination with `api-key` option")
 	fs.Int64Var(&cfg.GCSSignedURLExpiry, "gcs-signedurl-expiry", 30, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`")
 	fs.StringVar(&cfg.GCSServiceAccount, "gcs-sa-email", "", "Google service account email to be used for Application Default Credentials (ADC). GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative. For GCS presigned URLs this SA needs the `iam.serviceAccountTokenCreator` role")
