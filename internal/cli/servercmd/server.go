@@ -193,10 +193,16 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		}
 
 		g.Add(func() error {
+			tls := "disabled"
+			if c.Certfile != "" && c.Keyfile != "" {
+				tls = "enabled"
+			}
+
 			level.Info(c.Logger).Log(
 				"msg", "starting server",
 				"service", "api",
 				"listen", c.ListenAddress,
+				"tls", tls,
 			)
 
 			if c.Certfile != "" && c.Keyfile != "" {
