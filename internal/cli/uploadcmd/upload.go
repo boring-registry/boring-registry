@@ -61,7 +61,9 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		if c.S3Bucket == "" {
 			return errors.New("missing flag -s3-bucket")
 		}
+		if c.S3Region == "" {
 
+		}
 		reg, err := module.NewS3Registry(c.S3Bucket,
 			module.WithS3RegistryBucketPrefix(c.S3Prefix),
 			module.WithS3RegistryBucketRegion(c.S3Region),
@@ -123,7 +125,7 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Bucket, "s3-bucket", "", "Bucket to use when using the S3 registry type")
 	fs.StringVar(&cfg.S3Prefix, "s3-prefix", "", "Prefix to use when using the S3 registry type")
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
-	fs.StringVar(&cfg.S3Endpoint, "s3-endpoint", `""`, "Endpoint of the S3 bucket when using the S3 registry type")
+	fs.StringVar(&cfg.S3Endpoint, "s3-endpoint", "", "Endpoint of the S3 bucket when using the S3 registry type")
 	fs.BoolVar(&cfg.S3PathStyle, "s3-pathstyle", false, "Use PathStyle for S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")

@@ -147,15 +147,21 @@ func WithS3RegistryBucketRegion(region string) S3RegistryOption {
 // WithS3RegistryBucketEndpoint configures the endpoint for a given s3 storage. (needed for MINIO)
 func WithS3RegistryBucketEndpoint(endpoint string) S3RegistryOption {
 	return func(s *S3Registry) {
-		s.s3.Client.Endpoint = endpoint
-		s.bucketEndpoint = endpoint
+		// default value is "", so don't set and leave to aws sdk
+		if len(endpoint) > 0 {
+			s.s3.Client.Endpoint = endpoint
+		}
+		s.bucketEndpoint = "aws sdk default"
 	}
 }
 
 // WithS3RegistryPathStyle configures if Path Style is used for a given s3 storage. (needed for MINIO)
 func WithS3RegistryPathStyle(pathStyle bool) S3RegistryOption {
 	return func(s *S3Registry) {
-		s.s3.Client.Config.S3ForcePathStyle = &pathStyle
+		// only set if true, default value is false
+		if pathStyle {
+			s.s3.Client.Config.S3ForcePathStyle = &pathStyle
+		}
 		s.pathStyle = pathStyle
 	}
 }
