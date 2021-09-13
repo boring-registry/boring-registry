@@ -158,7 +158,7 @@ func WithS3RegistryBucketEndpoint(endpoint string) S3RegistryOption {
 // WithS3RegistryPathStyle configures if Path Style is used for a given s3 storage. (needed for MINIO)
 func WithS3RegistryPathStyle(pathStyle bool) S3RegistryOption {
 	return func(s *S3Registry) {
-		// only set if true, default value is false
+		// only set if true, default value is false but leave for aws sdk
 		if pathStyle {
 			s.s3.Client.Config.S3ForcePathStyle = &pathStyle
 		}

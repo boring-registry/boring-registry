@@ -67,7 +67,7 @@ func (c *Config) Exec(ctx context.Context, args []string) error {
 		reg, err := module.NewS3Registry(c.S3Bucket,
 			module.WithS3RegistryBucketPrefix(c.S3Prefix),
 			module.WithS3RegistryBucketRegion(c.S3Region),
-			module.WithS3RegistryBucketEndpoint(c.S3Endpoint), // only if set?
+			module.WithS3RegistryBucketEndpoint(c.S3Endpoint),
 			module.WithS3RegistryPathStyle(c.S3PathStyle),
 		)
 		if err != nil {
