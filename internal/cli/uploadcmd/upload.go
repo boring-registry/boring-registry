@@ -126,7 +126,7 @@ func New(config *rootcmd.Config) *ffcli.Command {
 	fs.StringVar(&cfg.S3Prefix, "s3-prefix", "", "Prefix to use when using the S3 registry type")
 	fs.StringVar(&cfg.S3Region, "s3-region", "", "Region of the S3 bucket when using the S3 registry type")
 	fs.StringVar(&cfg.S3Endpoint, "s3-endpoint", "", "Endpoint of the S3 bucket when using the S3 registry type")
-	fs.BoolVar(&cfg.S3PathStyle, "s3-pathstyle", false, "Use PathStyle for S3 bucket when using the S3 registry type")
+	fs.BoolVar(&cfg.S3PathStyle, "s3-pathstyle", false, "Use PathStyle for S3 bucket when using the S3 registry type with MINIO")
 	fs.StringVar(&cfg.GCSBucket, "gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	fs.StringVar(&cfg.GCSPrefix, "gcs-prefix", "", "Prefix to use when using the GCS registry type")
 	fs.StringVar(&versionConstraintsSemver, "version-constraints-semver", "", "Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag")
