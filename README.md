@@ -62,6 +62,15 @@ $ boring-registry server \
   -gcs-bucket=terraform-registry-test
 ```
 
+**Example using the S3 registry with MINIO:**
+```bash
+$ boring-registry server \
+  -type=s3 \
+  -s3-bucket=terraform-registry-test \
+  -s3-pathstyle=true \
+  -s3-endpoint=https://minio.example.com
+```
+
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`). 
 
 To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
@@ -78,6 +87,15 @@ $ boring-registry upload \
 $ boring-registry upload \
   -type=gcs \
   -gcs-bucket=terraform-registry-test terraform/modules
+```
+
+**Example using the S3 registry with MINIO:**
+```bash
+$ boring-registry upload \
+  -type=s3 \
+  -s3-pathstyle=true \
+  -s3-endpoint=https://minio.example.com
+  -s3-bucket=terraform-registry-test terraform/modules
 ```
 
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`).
@@ -189,6 +207,10 @@ FLAGS
   BORING_REGISTRY_API_KEY=...
   Comma-separated string of static API keys to protect the server with.
 
+  -cert-file=...
+  BORING_REGISTRY_CERT_FILE=...
+  TLS certificate to serve.
+
   -debug=false
   BORING_REGISTRY_DEBUG=false
   Enable debug output.
@@ -207,15 +229,19 @@ FLAGS
 
   -gcs-signedurl=false
   BORING_REGISTRY_GCS_SIGNEDURL=false
-  Generate GCS SignedURL (public) instead of relying on GCP credentials being set on terraform init. WARNING: only use in combination with `api-key` option.
+  Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init. WARNING: only use in combination with `api-key` option.
 
   -gcs-signedurl-expiry=30
-  BORING_REGISTRY_GCS_SIGNEDURL_EXPIRE=30
+  BORING_REGISTRY_GCS_SIGNEDURL_EXPIRY=30
   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`.
 
   -json=false
   BORING_REGISTRY_JSON=false
   Output logs in JSON format.
+
+  -key-file=...
+  BORING_REGISTRY_KEY_FILE=...
+  TLS private key to serve.
 
   -listen-address=:5601
   BORING_REGISTRY_LISTEN_ADDRESS=:5601
@@ -228,6 +254,14 @@ FLAGS
   -s3-bucket=...
   BORING_REGISTRY_S3_BUCKET=...
   Bucket to use when using the S3 registry type.
+
+  -s3-endpoint=""
+  BORING_REGISTRY_S3_ENDPOINT=""
+  Endpoint of the S3 bucket when using the S3 registry type.
+
+  -s3-pathstyle=false
+  BORING_REGISTRY_S3_PATHSTYLE=false
+  Use PathStyle for S3 bucket when using the S3 registry type.
 
   -s3-prefix=...
   BORING_REGISTRY_S3_PREFIX=...
@@ -297,6 +331,14 @@ FLAGS
   -s3-bucket=...
   BORING_REGISTRY_S3_BUCKET=...
   Bucket to use when using the S3 registry type.
+
+  -s3-endpoint=""
+  BORING_REGISTRY_S3_ENDPOINT=""
+  Endpoint of the S3 bucket when using the S3 registry type.
+
+  -s3-pathstyle=false
+  BORING_REGISTRY_S3_PATHSTYLE=false
+  Use PathStyle for S3 bucket when using the S3 registry type.
 
   -s3-prefix=...
   BORING_REGISTRY_S3_PREFIX=...
