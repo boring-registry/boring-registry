@@ -3,21 +3,24 @@ package module
 import (
 	"context"
 	"fmt"
+	"io"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/pkg/errors"
-	"io"
 )
 
 // S3Registry is a Registry implementation backed by S3.
 type S3Registry struct {
-	s3           *s3.S3
-	uploader     *s3manager.Uploader
-	bucket       string
-	bucketPrefix string
-	bucketRegion string
+	s3             *s3.S3
+	uploader       *s3manager.Uploader
+	bucket         string
+	bucketPrefix   string
+	bucketRegion   string
+	pathStyle      bool
+	bucketEndpoint string
 }
 
 // GetModule retrieves information about a module from the S3 storage.
@@ -138,6 +141,28 @@ func WithS3RegistryBucketPrefix(prefix string) S3RegistryOption {
 func WithS3RegistryBucketRegion(region string) S3RegistryOption {
 	return func(s *S3Registry) {
 		s.bucketRegion = region
+	}
+}
+
+// WithS3RegistryBucketEndpoint configures the endpoint for a given s3 storage. (needed for MINIO)
+func WithS3RegistryBucketEndpoint(endpoint string) S3RegistryOption {
+	return func(s *S3Registry) {
+		// default value is "", so don't set and leave to aws sdk
+		if len(endpoint) > 0 {
+			s.s3.Client.Endpoint = endpoint
+		}
+		s.bucketEndpoint = "aws sdk default"
+	}
+}
+
+// WithS3RegistryPathStyle configures if Path Style is used for a given s3 storage. (needed for MINIO)
+func WithS3RegistryPathStyle(pathStyle bool) S3RegistryOption {
+	return func(s *S3Registry) {
+		// only set if true, default value is false but leave for aws sdk
+		if pathStyle {
+			s.s3.Client.Config.S3ForcePathStyle = &pathStyle
+		}
+		s.pathStyle = pathStyle
 	}
 }
 
