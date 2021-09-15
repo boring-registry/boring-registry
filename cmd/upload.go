@@ -33,7 +33,7 @@ func init() {
 }
 
 var uploadCmd = &cobra.Command{
-	Use:   "upload",
+	Use: "upload [flags] MODULE",
 	Short: "Upload modules",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		registry, err := setupRegistry()
