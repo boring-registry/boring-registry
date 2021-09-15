@@ -134,20 +134,20 @@ When running the upload command, the module is then packaged up and stored insid
 Walking the directory recursively is the default behavior of `boring-registry upload`. This way all modules underneath the
 current directory will be checked for `boring-registry.hcl` files and modules will be packaged and uploaded if they not
 already exist. However this can be unwanted in certain situations e.g. if a `.terraform` directory is present containing
-other modules that have a configuration file. The `-recursive=false` flag will omit this behavior. Here is a short example:
+other modules that have a configuration file. The `--recursive=false` flag will omit this behavior. Here is a short example:
 
 ### Fail early if module version already exists
 
 By default the upload command will silently ignore already uploaded versions of a module and return exit code `0`. For
 tagging mono-repositories this can become a problem as it is not clear if the module version is new or already uploaded.
-The `-ignore-existing=false` parameter will force the upload command to return exit code `1` in such a case. In
-combination with `-recursive=false` the exit code can be used to tag the GIT repository only if a new version was uploaded.
+The `--ignore-existing=false` parameter will force the upload command to return exit code `1` in such a case. In
+combination with `--recursive=false` the exit code can be used to tag the GIT repository only if a new version was uploaded.
 
 ```shell
 for i in $(ls -d */); do
   printf "Operating on module \"${i%%/}\"\n"
   # upload the given directory
-  ./boring-registry upload -type gcs -gcs-bucket=my-boring-registry-upload-bucket -recursive=false -ignore-existing=false ${i%%/}
+  ./boring-registry upload --type gcs -gcs-bucket=my-boring-registry-upload-bucket --recursive=false --ignore-existing=false ${i%%/}
   # tag the repo with a tag composed out of the boring-registry.hcl if not already exist
   if [ $? -eq 0 ]; then
     # git tag the repository with the version from boring-registry.hcl
@@ -170,190 +170,98 @@ In order to only match pre-releases, you can e.g. use `--version-constraints-reg
 This would for example be useful to prevent publishing releases from non-`main` branches, while allowing pre-releases to test out e.g. pull-requests.
 
 ## Help output
-
 ```
-USAGE
-  boring-registry [flags] <subcommand> [flags] [<arg>...]
+Usage:
+  boring-registry [command]
 
-SUBCOMMANDS
-  server   Runs the server component
-  upload   Uploads modules to a registry.
-  version  Prints the version
+Available Commands:
+  completion  generate the autocompletion script for the specified shell
+  help        Help about any command
+  server      Starts the server component
+  upload      Upload modules
+  version     Prints the version of the Boring Registry
+
+Flags:
+      --debug                                                 enable debug logging
+  -h, --help                                                  help for boring-registry
+      --json                                                  enable json logging
+      --storage-gcs-bucket string                             Bucket to use when using the GCS registry type
+      --storage-gcs-prefix string                             Prefix to use when using the GCS registry type
+      --storage-gcs-sa-email iam.serviceAccountTokenCreator   Google service account email to be used for Application Default Credentials (ADC).
+                                                              GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+                                                              For GCPersistentS presigned URLs this SA needs the iam.serviceAccountTokenCreator role
+      --storage-gcs-signedurl api-key                         Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+                                                              WARNINPersistentG: only use in combination with api-key option
+      --storage-gcs-signedurl-expiry gcs-signedurl            Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
+      --storage-s3-bucket string                              S3 bucket to use for the registry
+      --storage-s3-prefix string                              S3 bucket prefix to use for the registry
+      --storage-s3-region string                              S3 bucket region to use for the registry
+
+Use "boring-registry [command] --help" for more information about a command.
 ```
 
 ### Server help output 
 
 ```
-USAGE
-  boring-registry server -type=<type> [flags]
+Starts the server component
 
-  Runs the server component.
+Usage:
+  boring-registry server [flags]
 
-  This command requires some configuration, such as which registry type to use.
+Flags:
+      --api-key string                    Comma-separated string of static API keys to protect the server with
+  -h, --help                              help for server
+      --listen-address string             Address to listen on
+      --listen-telemetry-address string   Telemetry address to listen on
+      --tls-cert-file string              TLS certificate to serve
+      --tls-key-file string               TLS private key to serve
 
-  The server starts two servers (one for serving the API and one for Telemetry).
-
-  Example Usage: boring-registry server -type=s3 -s3-bucket=example-bucket
-
-  For more options see the available options below.
-
-FLAGS
-  -api-key=...
-  BORING_REGISTRY_API_KEY=...
-  Comma-separated string of static API keys to protect the server with.
-
-  -cert-file=...
-  BORING_REGISTRY_CERT_FILE=...
-  TLS certificate to serve.
-
-  -debug=false
-  BORING_REGISTRY_DEBUG=false
-  Enable debug output.
-
-  -gcs-bucket=...
-  BORING_REGISTRY_GCS_BUCKET=...
-  Bucket to use when using the GCS registry type.
-
-  -gcs-prefix=...
-  BORING_REGISTRY_GCS_PREFIX=...
-  Prefix to use when using the GCS registry type.
-
-  -gcs-sa-email=...
-  BORING_REGISTRY_GCS_SA_EMAIL=...
-  Google service account email to be used for Application Default Credentials (ADC). GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative. For GCS presigned URLs this SA needs the `iam.serviceAccountTokenCreator` role.
-
-  -gcs-signedurl=false
-  BORING_REGISTRY_GCS_SIGNEDURL=false
-  Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init. WARNING: only use in combination with `api-key` option.
-
-  -gcs-signedurl-expiry=30
-  BORING_REGISTRY_GCS_SIGNEDURL_EXPIRY=30
-  Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`.
-
-  -json=false
-  BORING_REGISTRY_JSON=false
-  Output logs in JSON format.
-
-  -key-file=...
-  BORING_REGISTRY_KEY_FILE=...
-  TLS private key to serve.
-
-  -listen-address=:5601
-  BORING_REGISTRY_LISTEN_ADDRESS=:5601
-  Listen address for the registry api.
-
-  -no-color=false
-  BORING_REGISTRY_NO_COLOR=false
-  Disables colored output.
-
-  -s3-bucket=...
-  BORING_REGISTRY_S3_BUCKET=...
-  Bucket to use when using the S3 registry type.
-
-  -s3-endpoint=""
-  BORING_REGISTRY_S3_ENDPOINT=""
-  Endpoint of the S3 bucket when using the S3 registry type.
-
-  -s3-pathstyle=false
-  BORING_REGISTRY_S3_PATHSTYLE=false
-  Use PathStyle for S3 bucket when using the S3 registry type.
-
-  -s3-prefix=...
-  BORING_REGISTRY_S3_PREFIX=...
-  Prefix to use when using the S3 registry type.
-
-  -s3-region=...
-  BORING_REGISTRY_S3_REGION=...
-  Region of the S3 bucket when using the S3 registry type.
-
-  -telemetry-listen-address=:7801
-  BORING_REGISTRY_TELEMETRY_LISTEN_ADDRESS=:7801
-  Listen address for telemetry.
-
-  -type=...
-  BORING_REGISTRY_TYPE=...
-  Registry type to use (currently only "s3" and "gcs" is supported).
+Global Flags:
+      --debug                                                 enable debug logging
+      --json                                                  enable json logging
+      --storage-gcs-bucket string                             Bucket to use when using the GCS registry type
+      --storage-gcs-prefix string                             Prefix to use when using the GCS registry type
+      --storage-gcs-sa-email iam.serviceAccountTokenCreator   Google service account email to be used for Application Default Credentials (ADC).
+                                                              GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+                                                              For GCPersistentS presigned URLs this SA needs the iam.serviceAccountTokenCreator role
+      --storage-gcs-signedurl api-key                         Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+                                                              WARNINPersistentG: only use in combination with api-key option
+      --storage-gcs-signedurl-expiry gcs-signedurl            Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
+      --storage-s3-bucket string                              S3 bucket to use for the registry
+      --storage-s3-prefix string                              S3 bucket prefix to use for the registry
+      --storage-s3-region string                              S3 bucket region to use for the registry
 ```
 
 ### Upload help output
-
 ```
-USAGE
-  boring-registry upload [flags] <dir>
+Upload modules
 
-  Uploads modules to a registry.
+Usage:
+  boring-registry upload [flags]
 
-  This command requires some configuration,
-  such as which registry type to use and a directory to search for modules.
+Flags:
+  -h, --help                                help for upload
+      --ignore-existing                     Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version (default true)
+      --recursive                           Recursively traverse <dir> and upload all modules in subdirectories (default true)
+      --version-constraints-regex string    Limit the module versions that are eligible for upload with a regex that a version has to match.
+                                            Can be combined with the -version-constraints-semver flag
+      --version-constraints-semver string   Limit the module versions that are eligible for upload with version constraints.
+                                            The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag
 
-  The upload command walks the directory recursively and looks
-  for modules with a boring-registry.hcl file in it. The file is then parsed
-  to get the module metadata the module is then archived and uploaded to the given registry.
-
-  Example Usage: boring-registry upload -type=s3 -s3-bucket=example-bucket modules/
-
-  For more options see the available options below.
-
-FLAGS
-  -debug=false
-  BORING_REGISTRY_DEBUG=false
-  Enable debug output.
-
-  -gcs-bucket=...
-  BORING_REGISTRY_GCS_BUCKET=...
-  Bucket to use when using the GCS registry type.
-
-  -gcs-prefix=...
-  BORING_REGISTRY_GCS_PREFIX=...
-  Prefix to use when using the GCS registry type.
-
-  -ignore-existing=true
-  BORING_REGISTRY_IGNORE_EXISTING=true
-  Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version.
-
-  -json=false
-  BORING_REGISTRY_JSON=false
-  Output logs in JSON format.
-
-  -no-color=false
-  BORING_REGISTRY_NO_COLOR=false
-  Disables colored output.
-
-  -recursive=true
-  BORING_REGISTRY_RECURSIVE=true
-  Recursively traverse <dir> and upload all modules in subdirectories.
-
-  -s3-bucket=...
-  BORING_REGISTRY_S3_BUCKET=...
-  Bucket to use when using the S3 registry type.
-
-  -s3-endpoint=""
-  BORING_REGISTRY_S3_ENDPOINT=""
-  Endpoint of the S3 bucket when using the S3 registry type.
-
-  -s3-pathstyle=false
-  BORING_REGISTRY_S3_PATHSTYLE=false
-  Use PathStyle for S3 bucket when using the S3 registry type.
-
-  -s3-prefix=...
-  BORING_REGISTRY_S3_PREFIX=...
-  Prefix to use when using the S3 registry type.
-
-  -s3-region=...
-  BORING_REGISTRY_S3_REGION=...
-  Region of the S3 bucket when using the S3 registry type.
-
-  -type=...
-  BORING_REGISTRY_TYPE=...
-  Registry type to use (currently only "s3" and "gcs" is supported).
-
-  -version-constraints-regex=...
-  BORING_REGISTRY_VERSION_CONSTRAINTS_REGEX=...
-  Limit the module versions that are eligible for upload with a regex that a version has to match. Can be combined with the -version-constraints-semver flag.
-
-  -version-constraints-semver=...
-  BORING_REGISTRY_VERSION_CONSTRAINTS_SEMVER=...
-  Limit the module versions that are eligible for upload with version constraints. The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag.
+Global Flags:
+      --debug                                                 enable debug logging
+      --json                                                  enable json logging
+      --storage-gcs-bucket string                             Bucket to use when using the GCS registry type
+      --storage-gcs-prefix string                             Prefix to use when using the GCS registry type
+      --storage-gcs-sa-email iam.serviceAccountTokenCreator   Google service account email to be used for Application Default Credentials (ADC).
+                                                              GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+                                                              For GCPersistentS presigned URLs this SA needs the iam.serviceAccountTokenCreator role
+      --storage-gcs-signedurl api-key                         Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+                                                              WARNINPersistentG: only use in combination with api-key option
+      --storage-gcs-signedurl-expiry gcs-signedurl            Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
+      --storage-s3-bucket string                              S3 bucket to use for the registry
+      --storage-s3-prefix string                              S3 bucket prefix to use for the registry
+      --storage-s3-region string                              S3 bucket region to use for the registry
 ```
 
 # Roadmap
