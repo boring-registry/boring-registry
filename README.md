@@ -51,24 +51,21 @@ To run the server you need to specify which registry to use:
 **Example using the S3 registry:**
 ```bash
 $ boring-registry server \
-  -type=s3 \
-  -s3-bucket=terraform-registry-test
+  --s3-bucket=terraform-registry-test
 ```
 
 **Example using the registry with GCS:**
 ```bash
 $ boring-registry server \
-  -type=gcs \
-  -gcs-bucket=terraform-registry-test
+  --gcs-bucket=terraform-registry-test
 ```
 
 **Example using the S3 registry with MINIO:**
 ```bash
 $ boring-registry server \
-  -type=s3 \
-  -s3-bucket=terraform-registry-test \
-  -s3-pathstyle=true \
-  -s3-endpoint=https://minio.example.com
+  --s3-bucket=terraform-registry-test \
+  --s3-pathstyle=true \
+  --s3-endpoint=https://minio.example.com
 ```
 
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`). 
@@ -78,24 +75,22 @@ To upload modules to the registry you need to specify which registry to use (cur
 **Example using the S3 registry:**
 ```bash
 $ boring-registry upload \
-  -type=s3 \
-  -s3-bucket=terraform-registry-test terraform/modules
+  --s3-bucket=terraform-registry-test terraform/modules
 ```
 
 **Example using the S3 registry with MINIO:**
 ```bash
 $ boring-registry upload \
-  -type=s3 \
-  -s3-pathstyle=true \
-  -s3-endpoint=https://minio.example.com
-  -s3-bucket=terraform-registry-test terraform/modules
+  --s3-pathstyle=true \
+  --s3-endpoint=https://minio.example.com
+  --s3-bucket=terraform-registry-test terraform/modules
 ```
 
 **Example using the registry with GCS:**
 ```bash
 $ boring-registry upload \
-  -type=gcs \
-  -gcs-bucket=terraform-registry-test terraform/modules
+  --type=gcs \
+  --gcs-bucket=terraform-registry-test terraform/modules
 ```
 
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`).
@@ -106,10 +101,10 @@ The Boring Registry does not rely on any configuration files. Instead, everythin
 **Important Note**: Flags have higher priority than environment variables. Environment variables are always prefixed with `BORING_REGISTRY`.
 
 **Example:**
-To enable debug logging you can either pass the flag: `-debug` or set the environment variable: `BORING_REGISTRY_DEBUG=true`.
+To enable debug logging you can either pass the flag: `--debug` or set the environment variable: `BORING_REGISTRY_DEBUG=true`.
 
 ### Authentication
-The Boring Registry can be configured with a set of API keys to match for by using the `-api-key="very-secure-token"` flag or by providing it as an environment variable `BORING_REGISTRY_API_KEY="very-secure-token"`
+The Boring Registry can be configured with a set of API keys to match for by using the `--api-key="very-secure-token"` flag or by providing it as an environment variable `BORING_REGISTRY_API_KEY="very-secure-token"`
 
 This can then be configured inside `~/.terraformrc` like this:
 ```
@@ -136,7 +131,7 @@ When running the upload command, the module is then packaged up and stored insid
 
 ### Recursive vs. non-recursive upload
 
-Walking the directory recursively is the default behavoir of `boring-registry upload`. This way all modules underneath theq
+Walking the directory recursively is the default behavior of `boring-registry upload`. This way all modules underneath the
 current directory will be checked for `boring-registry.hcl` files and modules will be packaged and uploaded if they not
 already exist. However this can be unwanted in certain situations e.g. if a `.terraform` directory is present containing
 other modules that have a configuration file. The `-recursive=false` flag will omit this behavior. Here is a short example:
@@ -144,7 +139,7 @@ other modules that have a configuration file. The `-recursive=false` flag will o
 ### Fail early if module version already exists
 
 By default the upload command will silently ignore already uploaded versions of a module and return exit code `0`. For
-taging mono-repositories this can become a problem as it is not clear if the module version is new or already uploaded.
+tagging mono-repositories this can become a problem as it is not clear if the module version is new or already uploaded.
 The `-ignore-existing=false` parameter will force the upload command to return exit code `1` in such a case. In
 combination with `-recursive=false` the exit code can be used to tag the GIT repository only if a new version was uploaded.
 
@@ -163,15 +158,15 @@ done
 
 ### Module version constraints
 
-The `-version-constraints-semver` flag lets you specify a range of acceptable semver versions for modules.
+The `--version-constraints-semver` flag lets you specify a range of acceptable semver versions for modules.
 It expects a specially formatted string containing one or more conditions, which are separated by commas.
 The syntax is similar to the [Terraform Version Constraint Syntax](https://www.terraform.io/docs/language/expressions/version-constraints.html#version-constraint-syntax).
 
-In order to exclude all SemVer pre-releases, you can e.g. use `-version-constraints-semver=">=v0"`, which will instruct the boring-registry cli to only upload non-pre-releases to the registry.
+In order to exclude all SemVer pre-releases, you can e.g. use `--version-constraints-semver=">=v0"`, which will instruct the boring-registry cli to only upload non-pre-releases to the registry.
 This would for example be useful to restrict CI to only publish releases from the `main` branch.
 
-The `-version-constraints-regex` flag lets you specify a regex that module versions have to match.
-In order to only match pre-releases, you can e.g. use `-version-constraints-regex="^[0-9]+\.[0-9]+\.[0-9]+-|\d*[a-zA-Z-][0-9a-zA-Z-]*$"`.
+The `--version-constraints-regex` flag lets you specify a regex that module versions have to match.
+In order to only match pre-releases, you can e.g. use `--version-constraints-regex="^[0-9]+\.[0-9]+\.[0-9]+-|\d*[a-zA-Z-][0-9a-zA-Z-]*$"`.
 This would for example be useful to prevent publishing releases from non-`main` branches, while allowing pre-releases to test out e.g. pull-requests.
 
 ## Help output

@@ -1,4 +1,4 @@
-package uploadcmd
+package cmd
 
 import (
 	"archive/tar"
@@ -6,11 +6,12 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log/level"
@@ -21,63 +22,63 @@ const (
 	moduleSpecFileName = "boring-registry.hcl"
 )
 
-func (c *Config) archiveModules(root string, registry module.Registry) error {
+func archiveModules(root string, registry module.Registry) error {
 	var err error
-	if c.UploadRecursive == true {
+	if flagRecursive {
 		err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			return c.processModule(path, registry)
+			return processModule(path, registry)
 		})
 	} else {
-		err = c.processModule(filepath.Join(root, moduleSpecFileName), registry)
+		err = processModule(filepath.Join(root, moduleSpecFileName), registry)
 	}
 	return err
 }
 
-func (c *Config) processModule(path string, registry module.Registry) error {
+func processModule(path string, registry module.Registry) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
 		return err
 	}
 
-	level.Debug(c.Logger).Log(
+	level.Debug(logger).Log(
 		"msg", "parsed module spec",
 		"path", path,
 		"name", spec.Name(),
 	)
 
 	// Check if the module meets version constraints
-	if c.VersionConstraintsSemver != nil {
-		ok, err := c.meetsSemverConstraints(spec)
+	if versionConstraintsSemver != nil {
+		ok, err := meetsSemverConstraints(spec)
 		if err != nil {
 			return err
 		} else if !ok {
 			// Skip the module, as it didn't pass the version constraints
-			level.Info(c.Logger).Log("msg", "module doesn't meet semver version constraints, skipped", "name", spec.Name())
+			level.Info(logger).Log("msg", "module doesn't meet semver version constraints, skipped", "name", spec.Name())
 			return nil
 		}
 	}
 
-	if c.VersionConstraintsRegex != nil {
-		if !c.meetsRegexConstraints(spec) {
+	if versionConstraintsRegex != nil {
+		if !meetsRegexConstraints(spec) {
 			// Skip the module, as it didn't pass the regex version constraints
-			level.Info(c.Logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
+			level.Info(logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
 			return nil
 		}
 	}
 
 	ctx := context.Background()
 	if res, err := registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
-		if c.IgnoreExistingModule == true {
-			level.Info(c.Logger).Log(
+		if flagIgnoreExistingModule {
+			level.Info(logger).Log(
 				"msg", "module already exists",
 				"download_url", res.DownloadURL,
 			)
 			return nil
 		} else {
-			level.Error(c.Logger).Log(
+			level.Error(logger).Log(
 				"msg", "module already exists",
 				"download_url", res.DownloadURL,
 			)
@@ -97,7 +98,7 @@ func (c *Config) processModule(path string, registry module.Registry) error {
 		return err
 	}
 
-	level.Info(c.Logger).Log(
+	level.Info(logger).Log(
 		"msg", "module successfully uploaded",
 		"download_url", res.DownloadURL,
 	)
@@ -164,17 +165,17 @@ func archiveModule(root string) (io.Reader, error) {
 
 // meetsSemverConstraints checks whether a module version matches the semver version constraints.
 // Returns an unrecoverable error if there's an internal error. Otherwise it returns a boolean indicating if the module meets the constraints
-func (c *Config) meetsSemverConstraints(spec *module.Spec) (bool, error) {
+func meetsSemverConstraints(spec *module.Spec) (bool, error) {
 	v, err := version.NewSemver(spec.Metadata.Version)
 	if err != nil {
 		return false, err
 	}
 
-	return c.VersionConstraintsSemver.Check(v), nil
+	return versionConstraintsSemver.Check(v), nil
 }
 
 // meetsRegexConstraints checks whether a module version matches the regex.
 // Returns a boolean indicating if the module meets the constraints
-func (c *Config) meetsRegexConstraints(spec *module.Spec) bool {
-	return c.VersionConstraintsRegex.MatchString(spec.Metadata.Version)
+func meetsRegexConstraints(spec *module.Spec) bool {
+	return versionConstraintsRegex.MatchString(spec.Metadata.Version)
 }
