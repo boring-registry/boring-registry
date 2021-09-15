@@ -39,7 +39,7 @@ func (s *S3Registry) GetModule(ctx context.Context, namespace, name, provider, v
 		Name:        name,
 		Provider:    provider,
 		Version:     version,
-		DownloadURL: fmt.Sprintf("%s.s3-eu-central-1.amazonaws.com/%s", s.bucket, *input.Key),
+		DownloadURL: fmt.Sprintf("%s.s3-%s.amazonaws.com/%s", s.bucket, s.bucketRegion, *input.Key),
 	}, nil
 }
 
@@ -65,7 +65,7 @@ func (s *S3Registry) ListModuleVersions(ctx context.Context, namespace, name, pr
 				Name:        name,
 				Provider:    provider,
 				Version:     version,
-				DownloadURL: fmt.Sprintf("%s.s3-eu-central-1.amazonaws.com/%s", s.bucket, *obj.Key),
+				DownloadURL: fmt.Sprintf("%s.s3-%s.amazonaws.com/%s", s.bucket, s.bucketRegion, *obj.Key),
 			}
 
 			modules = append(modules, module)
