@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-// Registry represents the Registrysitory of Terraform modules.
+// Registry represents the repository of Terraform modules.
 type Registry interface {
 	GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error)
 	ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error)
