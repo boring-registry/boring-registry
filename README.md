@@ -82,13 +82,6 @@ $ boring-registry upload \
   -s3-bucket=terraform-registry-test terraform/modules
 ```
 
-**Example using the registry with GCS:**
-```bash
-$ boring-registry upload \
-  -type=gcs \
-  -gcs-bucket=terraform-registry-test terraform/modules
-```
-
 **Example using the S3 registry with MINIO:**
 ```bash
 $ boring-registry upload \
@@ -96,6 +89,13 @@ $ boring-registry upload \
   -s3-pathstyle=true \
   -s3-endpoint=https://minio.example.com
   -s3-bucket=terraform-registry-test terraform/modules
+```
+
+**Example using the registry with GCS:**
+```bash
+$ boring-registry upload \
+  -type=gcs \
+  -gcs-bucket=terraform-registry-test terraform/modules
 ```
 
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`).
