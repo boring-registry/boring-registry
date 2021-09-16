@@ -8,7 +8,6 @@ require (
 	github.com/aws/aws-sdk-go v1.35.34
 	github.com/fatih/color v1.7.0
 	github.com/go-kit/kit v0.10.0
-	github.com/googleapis/gax-go v1.0.3 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/hashicorp/go-version v1.2.1
