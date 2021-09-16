@@ -1,0 +1,23 @@
+name: container
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-container:
+    runs-on: ubuntu-latest
+    name: build_container
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: TierMobility
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v2
+        with:
+          push: true
+          # The github ref is in the 'refs/tags/<tag_name>' format, therefore we strip until the <tag_name>
+          tags: ghcr.io/TierMobility/boring-registry:${GITHUB_REF#refs/*/}
