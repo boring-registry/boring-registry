@@ -165,8 +165,8 @@ func init() {
 	serverCmd.Flags().StringVar(&flagAPIKey, "api-key", "", "Comma-separated string of static API keys to protect the server with")
 	serverCmd.Flags().StringVar(&flagTLSKeyFile, "tls-key-file", "", "TLS private key to serve")
 	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
-	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", "", "Address to listen on")
-	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", "", "Telemetry address to listen on")
+	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
+	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 }
 
 func serveMux(service module.Service) *http.ServeMux {
