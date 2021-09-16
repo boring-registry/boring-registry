@@ -31,9 +31,11 @@ var (
 	flagDebug bool
 
 	// S3 options.
-	flagS3Bucket string
-	flagS3Prefix string
-	flagS3Region string
+	flagS3Bucket    string
+	flagS3Prefix    string
+	flagS3Region    string
+	flagS3Endpoint  string
+	flagS3PathStyle bool
 
 	// GCS options.
 	flagGCSBucket          string
@@ -68,6 +70,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&flagS3Bucket, "storage-s3-bucket", "", "S3 bucket to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Prefix, "storage-s3-prefix", "", "S3 bucket prefix to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Region, "storage-s3-region", "", "S3 bucket region to use for the registry")
+	rootCmd.PersistentFlags().StringVar(&flagS3Endpoint, "storage-s3-endpoint", "", "S3 bucket endpoit URL (required for MINIO)")
+	rootCmd.PersistentFlags().BoolVar(&flagS3PathStyle, "storage-s3-pathstyle", false, "S3 use PathStyle (required for MINIO)")
 
 	rootCmd.PersistentFlags().StringVar(&flagGCSBucket, "storage-gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	rootCmd.PersistentFlags().StringVar(&flagGCSPrefix, "storage-gcs-prefix", "", "Prefix to use when using the GCS registry type")
@@ -132,6 +136,8 @@ func setupS3Registry() (module.Registry, error) {
 	return module.NewS3Registry(flagS3Bucket,
 		module.WithS3RegistryBucketPrefix(flagS3Prefix),
 		module.WithS3RegistryBucketRegion(flagS3Region),
+		module.WithS3RegistryBucketEndpoint(flagS3Endpoint),
+		module.WithS3RegistryPathStyle(flagS3PathStyle),
 	)
 }
 
