@@ -4,7 +4,7 @@ PKG_NAME=boring-registry
 default: build
 
 build:
-	go install github.com/TierMobility/boring-registry/cmd/boring-registry/...
+	go install github.com/TierMobility/boring-registry
 
 test:
 	go test -i $(TEST) || exit 1
