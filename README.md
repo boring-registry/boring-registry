@@ -78,6 +78,8 @@ The Boring Registry does not rely on any configuration files. Instead, everythin
 **Example:**
 To enable debug logging you can either pass the flag: `--debug` or set the environment variable: `BORING_REGISTRY_DEBUG=true`.
 
+To enable json log output you can either pass the flag: `--json` or set the environment variable: `BORING_REGISTRY_JSON=true`.
+
 ### Authentication
 The Boring Registry can be configured with a set of API keys to match for by using the `--api-key="very-secure-token"` flag or by providing it as an environment variable `BORING_REGISTRY_API_KEY="very-secure-token"`
 
