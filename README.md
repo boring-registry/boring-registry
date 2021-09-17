@@ -182,20 +182,22 @@ Available Commands:
   version     Prints the version of the Boring Registry
 
 Flags:
-      --debug                                                 enable debug logging
-  -h, --help                                                  help for boring-registry
-      --json                                                  enable json logging
-      --storage-gcs-bucket string                             Bucket to use when using the GCS registry type
-      --storage-gcs-prefix string                             Prefix to use when using the GCS registry type
-      --storage-gcs-sa-email iam.serviceAccountTokenCreator   Google service account email to be used for Application Default Credentials (ADC).
-                                                              GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.
-                                                              For GCPersistentS presigned URLs this SA needs the iam.serviceAccountTokenCreator role
-      --storage-gcs-signedurl api-key                         Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
-                                                              WARNINPersistentG: only use in combination with api-key option
-      --storage-gcs-signedurl-expiry gcs-signedurl            Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
-      --storage-s3-bucket string                              S3 bucket to use for the registry
-      --storage-s3-prefix string                              S3 bucket prefix to use for the registry
-      --storage-s3-region string                              S3 bucket region to use for the registry
+      --debug                                        Enable debug logging
+  -h, --help                                         help for boring-registry
+      --json                                         Enable json logging
+      --storage-gcs-bucket string                    Bucket to use when using the GCS registry type
+      --storage-gcs-prefix string                    Prefix to use when using the GCS registry type
+      --storage-gcs-sa-email string                  Google service account email to be used for Application Default Credentials (ADC)
+                                                     GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+                                                     For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.
+      --storage-gcs-signedurl                        Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+                                                     WARNING: only use in combination with api-key option.
+      --storage-gcs-signedurl-expiry gcs-signedurl   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
+      --storage-s3-bucket string                     S3 bucket to use for the registry
+      --storage-s3-endpoint string                   S3 bucket endpoint URL (required for MINIO)
+      --storage-s3-pathstyle                         S3 use PathStyle (required for MINIO)
+      --storage-s3-prefix string                     S3 bucket prefix to use for the registry
+      --storage-s3-region string                     S3 bucket region to use for the registry
 
 Use "boring-registry [command] --help" for more information about a command.
 ```
@@ -211,25 +213,27 @@ Usage:
 Flags:
       --api-key string                    Comma-separated string of static API keys to protect the server with
   -h, --help                              help for server
-      --listen-address string             Address to listen on
-      --listen-telemetry-address string   Telemetry address to listen on
+      --listen-address string             Address to listen on (default ":5601")
+      --listen-telemetry-address string   Telemetry address to listen on (default ":7801")
       --tls-cert-file string              TLS certificate to serve
       --tls-key-file string               TLS private key to serve
 
 Global Flags:
-      --debug                                                 enable debug logging
-      --json                                                  enable json logging
-      --storage-gcs-bucket string                             Bucket to use when using the GCS registry type
-      --storage-gcs-prefix string                             Prefix to use when using the GCS registry type
-      --storage-gcs-sa-email iam.serviceAccountTokenCreator   Google service account email to be used for Application Default Credentials (ADC).
-                                                              GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.
-                                                              For GCPersistentS presigned URLs this SA needs the iam.serviceAccountTokenCreator role
-      --storage-gcs-signedurl api-key                         Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
-                                                              WARNINPersistentG: only use in combination with api-key option
-      --storage-gcs-signedurl-expiry gcs-signedurl            Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
-      --storage-s3-bucket string                              S3 bucket to use for the registry
-      --storage-s3-prefix string                              S3 bucket prefix to use for the registry
-      --storage-s3-region string                              S3 bucket region to use for the registry
+      --debug                                        Enable debug logging
+      --json                                         Enable json logging
+      --storage-gcs-bucket string                    Bucket to use when using the GCS registry type
+      --storage-gcs-prefix string                    Prefix to use when using the GCS registry type
+      --storage-gcs-sa-email string                  Google service account email to be used for Application Default Credentials (ADC)
+                                                     GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+                                                     For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.
+      --storage-gcs-signedurl                        Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+                                                     WARNING: only use in combination with api-key option.
+      --storage-gcs-signedurl-expiry gcs-signedurl   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
+      --storage-s3-bucket string                     S3 bucket to use for the registry
+      --storage-s3-endpoint string                   S3 bucket endpoint URL (required for MINIO)
+      --storage-s3-pathstyle                         S3 use PathStyle (required for MINIO)
+      --storage-s3-prefix string                     S3 bucket prefix to use for the registry
+      --storage-s3-region string                     S3 bucket region to use for the registry
 ```
 
 ### Upload help output
@@ -237,7 +241,7 @@ Global Flags:
 Upload modules
 
 Usage:
-  boring-registry upload [flags]
+  boring-registry upload [flags] MODULE
 
 Flags:
   -h, --help                                help for upload
@@ -249,19 +253,21 @@ Flags:
                                             The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag
 
 Global Flags:
-      --debug                                                 enable debug logging
-      --json                                                  enable json logging
-      --storage-gcs-bucket string                             Bucket to use when using the GCS registry type
-      --storage-gcs-prefix string                             Prefix to use when using the GCS registry type
-      --storage-gcs-sa-email iam.serviceAccountTokenCreator   Google service account email to be used for Application Default Credentials (ADC).
-                                                              GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.
-                                                              For GCPersistentS presigned URLs this SA needs the iam.serviceAccountTokenCreator role
-      --storage-gcs-signedurl api-key                         Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
-                                                              WARNINPersistentG: only use in combination with api-key option
-      --storage-gcs-signedurl-expiry gcs-signedurl            Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
-      --storage-s3-bucket string                              S3 bucket to use for the registry
-      --storage-s3-prefix string                              S3 bucket prefix to use for the registry
-      --storage-s3-region string                              S3 bucket region to use for the registry
+      --debug                                        Enable debug logging
+      --json                                         Enable json logging
+      --storage-gcs-bucket string                    Bucket to use when using the GCS registry type
+      --storage-gcs-prefix string                    Prefix to use when using the GCS registry type
+      --storage-gcs-sa-email string                  Google service account email to be used for Application Default Credentials (ADC)
+                                                     GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+                                                     For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.
+      --storage-gcs-signedurl                        Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+                                                     WARNING: only use in combination with api-key option.
+      --storage-gcs-signedurl-expiry gcs-signedurl   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
+      --storage-s3-bucket string                     S3 bucket to use for the registry
+      --storage-s3-endpoint string                   S3 bucket endpoint URL (required for MINIO)
+      --storage-s3-pathstyle                         S3 use PathStyle (required for MINIO)
+      --storage-s3-prefix string                     S3 bucket prefix to use for the registry
+      --storage-s3-region string                     S3 bucket region to use for the registry
 ```
 
 # Roadmap
