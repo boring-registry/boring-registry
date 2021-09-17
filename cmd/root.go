@@ -53,8 +53,17 @@ var rootCmd = &cobra.Command{
 	Use:           projectName,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := initializeConfig(cmd); err != nil {
+			return err
+		}
+
 		logger = setupLogger(os.Stdout)
-		return initializeConfig(cmd)
+
+		if flagDebug {
+			level.Debug(logger).Log("msg", "debug mode enabled")
+		}
+
+		return nil
 	},
 }
 
@@ -120,11 +129,8 @@ func setupLogger(w io.Writer) log.Logger {
 
 func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if strings.Contains(f.Name, "-") {
-			envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
-			v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix))
-		}
-
+		envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
+		v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix))
 		if !f.Changed && v.IsSet(f.Name) {
 			val := v.Get(f.Name)
 			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
