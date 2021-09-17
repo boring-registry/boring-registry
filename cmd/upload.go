@@ -33,12 +33,16 @@ func init() {
 }
 
 var uploadCmd = &cobra.Command{
-	Use: "upload [flags] MODULE",
+	Use:   "upload [flags] MODULE",
 	Short: "Upload modules",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		registry, err := setupRegistry()
 		if err != nil {
 			return errors.Wrap(err, "failed to setup registry")
+		}
+
+		if len(args) == 0 {
+			return fmt.Errorf("missing argument")
 		}
 
 		if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {

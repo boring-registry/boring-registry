@@ -50,7 +50,8 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use: projectName,
+	Use:           projectName,
+	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		logger = setupLogger(os.Stdout)
 		return initializeConfig(cmd)
@@ -65,21 +66,20 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "enable json logging")
-	rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "enable debug logging")
+	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Enable json logging")
+	rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	rootCmd.PersistentFlags().StringVar(&flagS3Bucket, "storage-s3-bucket", "", "S3 bucket to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Prefix, "storage-s3-prefix", "", "S3 bucket prefix to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Region, "storage-s3-region", "", "S3 bucket region to use for the registry")
-	rootCmd.PersistentFlags().StringVar(&flagS3Endpoint, "storage-s3-endpoint", "", "S3 bucket endpoit URL (required for MINIO)")
+	rootCmd.PersistentFlags().StringVar(&flagS3Endpoint, "storage-s3-endpoint", "", "S3 bucket endpoint URL (required for MINIO)")
 	rootCmd.PersistentFlags().BoolVar(&flagS3PathStyle, "storage-s3-pathstyle", false, "S3 use PathStyle (required for MINIO)")
-
 	rootCmd.PersistentFlags().StringVar(&flagGCSBucket, "storage-gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	rootCmd.PersistentFlags().StringVar(&flagGCSPrefix, "storage-gcs-prefix", "", "Prefix to use when using the GCS registry type")
-	rootCmd.PersistentFlags().StringVar(&flagGCSServiceAccount, "storage-gcs-sa-email", "", "Google service account email to be used for Application Default Credentials (ADC).\n"+
-		"GOOGLEPersistent_APPLICATION_CREDENTIALS environment variable might be used as alternative.\n"+
-		"For GCPersistentS presigned URLs this SA needs the `iam.serviceAccountTokenCreator` role")
-	rootCmd.PersistentFlags().BoolVar(&flagGCSSignedURL, "storage-gcs-signedurl", false, "Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.\n"+
-		"WARNINPersistentG: only use in combination with `api-key` option")
+	rootCmd.PersistentFlags().StringVar(&flagGCSServiceAccount, "storage-gcs-sa-email", "", `Google service account email to be used for Application Default Credentials (ADC)
+GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
+For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
+	rootCmd.PersistentFlags().BoolVar(&flagGCSSignedURL, "storage-gcs-signedurl", false, `Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
+WARNING: only use in combination with api-key option.`)
 	rootCmd.PersistentFlags().DurationVar(&flagGCSSignedURLExpiry, "storage-gcs-signedurl-expiry", 30*time.Second, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`")
 }
 
