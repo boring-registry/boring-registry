@@ -1,4 +1,4 @@
-FROM golang:1.16 AS build
+FROM golang:1.17 AS build
 
 ENV BASEDIR /go/src/github.com/TierMobility/boring-registry
 
@@ -6,7 +6,7 @@ WORKDIR ${BASEDIR}
 
 ADD . ${BASEDIR}
 
-RUN go install -mod=vendor github.com/TierMobility/boring-registry/cmd/boring-registry/...
+RUN go install -mod=vendor github.com/TierMobility/boring-registry
 
 FROM gcr.io/distroless/base:nonroot
 
