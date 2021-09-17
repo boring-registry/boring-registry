@@ -20,7 +20,7 @@ jobs:
       # The github ref is in the 'refs/tags/<tag_name>' format, therefore we strip until the <tag_name>
       - name: set tag_name
         run: |
-          tag_name="${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "tag_name=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
       - uses: docker/build-push-action@v2
         with:
