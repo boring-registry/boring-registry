@@ -25,4 +25,4 @@ jobs:
       - uses: docker/build-push-action@v2
         with:
           push: true
-          tags: ghcr.io/TierMobility/boring-registry:${{ env.tag_name }}
+          tags: ghcr.io/tiermobility/boring-registry:${{ env.tag_name }}
