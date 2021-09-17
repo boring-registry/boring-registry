@@ -3,7 +3,7 @@ name: container
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build-container:
@@ -16,8 +16,13 @@ jobs:
           registry: ghcr.io
           username: TierMobility
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The github ref is in the 'refs/tags/<tag_name>' format, therefore we strip until the <tag_name>
+      - name: set tag_name
+        run: |
+          tag_name="${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
       - uses: docker/build-push-action@v2
         with:
           push: true
-          # The github ref is in the 'refs/tags/<tag_name>' format, therefore we strip until the <tag_name>
-          tags: ghcr.io/TierMobility/boring-registry:${GITHUB_REF#refs/*/}
+          tags: ghcr.io/TierMobility/boring-registry:${{ env.tag_name }}
