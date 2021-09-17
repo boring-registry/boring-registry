@@ -51,48 +51,24 @@ To run the server you need to specify which registry to use:
 **Example using the S3 registry:**
 ```bash
 $ boring-registry server \
-  --s3-bucket=terraform-registry-test
+  --storage-s3-bucket=terraform-registry-test
 ```
 
 **Example using the registry with GCS:**
 ```bash
 $ boring-registry server \
-  --gcs-bucket=terraform-registry-test
+  --storage-gcs-bucket=terraform-registry-test
 ```
-
-**Example using the S3 registry with MINIO:**
-```bash
-$ boring-registry server \
-  --s3-bucket=terraform-registry-test \
-  --s3-pathstyle=true \
-  --s3-endpoint=https://minio.example.com
-```
-
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`). 
 
-To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
-
-**Example using the S3 registry:**
-```bash
-$ boring-registry upload \
-  --storage-s3-bucket=terraform-registry-test terraform/modules
-```
-
 **Example using the S3 registry with MINIO:**
 ```bash
-$ boring-registry upload \
+$ boring-registry server \
+  --storage-s3-bucket=terraform-registry-test \
   --storage-s3-pathstyle=true \
   --storage-s3-endpoint=https://minio.example.com
-  --storage-s3-bucket=terraform-registry-test terraform/modules
 ```
-
-**Example using the registry with GCS:**
-```bash
-$ boring-registry upload \
-  --storage-gcs-bucket=terraform-registry-test terraform/modules
-```
-
-Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`, `GOOGLE_APPLICATION_CREDENTIALS`).
+To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
 
 ## Configuration
 
