@@ -16,6 +16,7 @@ import (
 func Syscall9(trap, a1, a2, a3, a4, a5, a6, a7, a8, a9 uintptr) (r1, r2 uintptr, err syscall.Errno)
 
 //sys	dup2(oldfd int, newfd int) (err error)
+//sysnb	EpollCreate(size int) (fd int, err error)
 //sys	EpollWait(epfd int, events []EpollEvent, msec int) (n int, err error)
 //sys	Fadvise(fd int, offset int64, length int64, advice int) (err error) = SYS_FADVISE64
 //sys	Fchown(fd int, uid int, gid int) (err error)
@@ -59,6 +60,7 @@ func Syscall9(trap, a1, a2, a3, a4, a5, a6, a7, a8, a9 uintptr) (r1, r2 uintptr,
 //sys	recvmsg(s int, msg *Msghdr, flags int) (n int, err error)
 //sys	sendmsg(s int, msg *Msghdr, flags int) (n int, err error)
 
+//sysnb	InotifyInit() (fd int, err error)
 //sys	Ioperm(from int, num int, on int) (err error)
 //sys	Iopl(level int) (err error)
 
@@ -155,7 +157,7 @@ type rlimit32 struct {
 //sysnb	getrlimit(resource int, rlim *rlimit32) (err error) = SYS_GETRLIMIT
 
 func Getrlimit(resource int, rlim *Rlimit) (err error) {
-	err = Prlimit(0, resource, nil, rlim)
+	err = prlimit(0, resource, nil, rlim)
 	if err != ENOSYS {
 		return err
 	}
@@ -183,7 +185,7 @@ func Getrlimit(resource int, rlim *Rlimit) (err error) {
 //sysnb	setrlimit(resource int, rlim *rlimit32) (err error) = SYS_SETRLIMIT
 
 func Setrlimit(resource int, rlim *Rlimit) (err error) {
-	err = Prlimit(0, resource, rlim, nil)
+	err = prlimit(0, resource, rlim, nil)
 	if err != ENOSYS {
 		return err
 	}
@@ -225,10 +227,6 @@ func (msghdr *Msghdr) SetIovlen(length int) {
 
 func (cmsg *Cmsghdr) SetLen(length int) {
 	cmsg.Len = uint32(length)
-}
-
-func (rsa *RawSockaddrNFCLLCP) SetServiceNameLen(length int) {
-	rsa.Service_name_len = uint32(length)
 }
 
 //sys	poll(fds *PollFd, nfds int, timeout int) (n int, err error)
