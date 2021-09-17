@@ -80,6 +80,8 @@ To enable debug logging you can either pass the flag: `--debug` or set the envir
 
 To enable json log output you can either pass the flag: `--json` or set the environment variable: `BORING_REGISTRY_JSON=true`.
 
+To specify the s3 bucket you can either pass the flag: `--storage-s3-bucket=${bucket}` or set the environment variable: `BORING_REGISTRY_STORAGE_S3_BUCKET=${bucket}`
+
 ### Authentication
 The Boring Registry can be configured with a set of API keys to match for by using the `--api-key="very-secure-token"` flag or by providing it as an environment variable `BORING_REGISTRY_API_KEY="very-secure-token"`
 
