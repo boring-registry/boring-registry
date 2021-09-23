@@ -11,10 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	httptransport "github.com/go-kit/kit/transport/http"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/go-kit/kit/transport"
-	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/pkg/errors"
 
 	"golang.org/x/sync/errgroup"
@@ -31,7 +32,8 @@ const (
 )
 
 var (
-	prefix = fmt.Sprintf(`/%s`, apiVersion)
+	prefix        = fmt.Sprintf("/%s", apiVersion)
+	prefixModules = fmt.Sprintf("%s/modules", prefix)
 )
 
 var (
@@ -57,9 +59,13 @@ var serverCmd = &cobra.Command{
 			service = module.LoggingMiddleware(logger)(service)
 		}
 
-		mux := serveMux(service)
 		ctx, cancel := context.WithCancel(context.Background())
 		group, ctx := errgroup.WithContext(ctx)
+
+		mux, err := serveMux()
+		if err != nil {
+			return errors.Wrap(err, "failed to setup server")
+		}
 
 		server := &http.Server{
 			Addr:         flagListenAddr,
@@ -174,8 +180,24 @@ func init() {
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 }
 
-func serveMux(service module.Service) *http.ServeMux {
+func serveMux() (*http.ServeMux, error) {
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-type", "application/json")
+		w.Write([]byte(fmt.Sprintf(`{"modules.v1": "%s/"}`, prefix)))
+	})
+
+	registerMetrics(mux)
+
+	if err := registerModule(mux); err != nil {
+		return nil, err
+	}
+
+	return mux, nil
+}
+
+func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -187,11 +209,18 @@ func serveMux(service module.Service) *http.ServeMux {
 	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
 	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+}
 
-	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"modules.v1": "%s/modules"}`, prefix)))
-	})
+func registerModule(mux *http.ServeMux) error {
+	registry, err := setupModuleStorage()
+	if err != nil {
+		return errors.Wrap(err, "failed to setup module storage")
+	}
+
+	service := module.NewService(registry)
+	{
+		service = module.LoggingMiddleware(logger)(service)
+	}
 
 	opts := []httptransport.ServerOption{
 		httptransport.ServerErrorHandler(
@@ -203,22 +232,17 @@ func serveMux(service module.Service) *http.ServeMux {
 		),
 	}
 
-	var apiKeys []string
-	if flagAPIKey != "" {
-		apiKeys = strings.Split(flagAPIKey, ",")
-	}
-
 	mux.Handle(
-		fmt.Sprintf(`%s/`, prefix),
+		fmt.Sprintf(`%s/`, prefixModules),
 		http.StripPrefix(
-			prefix,
+			prefixModules,
 			module.MakeHandler(
 				service,
-				auth.Middleware(apiKeys...),
+				auth.Middleware(strings.Split(flagAPIKey, ",")...),
 				opts...,
 			),
 		),
 	)
 
-	return mux
+	return nil
 }
