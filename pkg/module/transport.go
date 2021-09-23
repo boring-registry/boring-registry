@@ -26,7 +26,7 @@ const (
 func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
-	r.Methods("GET").Path(`/modules/{namespace}/{name}/{provider}/versions`).Handler(
+	r.Methods("GET").Path(`/{namespace}/{name}/{provider}/versions`).Handler(
 		httptransport.NewServer(
 			auth(listEndpoint(svc)),
 			decodeListRequest,
@@ -39,7 +39,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		),
 	)
 
-	r.Methods("GET").Path(`/modules/{namespace}/{name}/{provider}/{version}/download`).Handler(
+	r.Methods("GET").Path(`/{namespace}/{name}/{provider}/{version}/download`).Handler(
 		httptransport.NewServer(
 			auth(downloadEndpoint(svc)),
 			decodeDownloadRequest,
