@@ -50,6 +50,8 @@ var serverCmd = &cobra.Command{
 	Short: "Starts the server component",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		group, ctx := errgroup.WithContext(ctx)
 
 		mux, err := serveMux()
