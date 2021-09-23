@@ -1,9 +1,10 @@
-package module
+package auth
 
 import (
 	"context"
 	"testing"
 
+	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,19 +23,19 @@ func TestAuthMiddleware(t *testing.T) {
 	}{
 		{
 			name:        "valid request",
-			ctx:         context.WithValue(context.Background(), headerAuthorization, "Bearer foo"),
+			ctx:         context.WithValue(context.Background(), httptransport.ContextKeyRequestAuthorization, "Bearer foo"),
 			secrets:     []string{"foo"},
 			expectError: false,
 		},
 		{
 			name:        "invalid request",
-			ctx:         context.WithValue(context.Background(), headerAuthorization, "Bearer foo"),
+			ctx:         context.WithValue(context.Background(), httptransport.ContextKeyRequestAuthorization, "Bearer foo"),
 			secrets:     []string{"bar"},
 			expectError: true,
 		},
 		{
 			name:        "valid request with multiple keys",
-			ctx:         context.WithValue(context.Background(), headerAuthorization, "Bearer foo"),
+			ctx:         context.WithValue(context.Background(), httptransport.ContextKeyRequestAuthorization, "Bearer foo"),
 			secrets:     []string{"foo", "bar"},
 			expectError: false,
 		},
@@ -43,7 +44,7 @@ func TestAuthMiddleware(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := AuthMiddleware(tc.secrets...)(nopEndpoint)(tc.ctx, nil)
+			_, err := Middleware(tc.secrets...)(nopEndpoint)(tc.ctx, nil)
 			switch tc.expectError {
 			case true:
 				assert.Error(err)
