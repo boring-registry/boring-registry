@@ -25,9 +25,11 @@ type S3Storage struct {
 
 // GetModule retrieves information about a module from the S3 storage.
 func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
+	key := storagePath(s.bucketPrefix, namespace, name, provider, version)
+
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(fmt.Sprintf("namespace=%[1]v/name=%[2]v/provider=%[3]v/version=%[4]v/%[1]v-%[2]v-%[3]v-%[4]v.tar.gz", namespace, name, provider, version)),
+		Key:    aws.String(key),
 	}
 
 	if _, err := s.s3.HeadObject(input); err != nil {
@@ -48,7 +50,7 @@ func (s *S3Storage) ListModuleVersions(ctx context.Context, namespace, name, pro
 
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(fmt.Sprintf("namespace=%s/name=%s/provider=%s", namespace, name, provider)),
+		Prefix: aws.String(storagePrefix(s.bucketPrefix, namespace, name, provider)),
 	}
 
 	fn := func(page *s3.ListObjectsV2Output, last bool) bool {
@@ -99,7 +101,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 		return Module{}, errors.New("version not defined")
 	}
 
-	key := fmt.Sprintf("namespace=%[1]v/name=%[2]v/provider=%[3]v/version=%[4]v/%[1]v-%[2]v-%[3]v-%[4]v.tar.gz", namespace, name, provider, version)
+	key := storagePath(s.bucketPrefix, namespace, name, provider, version)
 
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
 		return Module{}, errors.Wrap(ErrAlreadyExists, key)
@@ -107,7 +109,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 
 	input := &s3manager.UploadInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(key),
+		Key:    aws.String(storagePath(s.bucketPrefix, namespace, name, provider, version)),
 		Body:   body,
 	}
 

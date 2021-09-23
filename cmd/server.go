@@ -52,6 +52,10 @@ var serverCmd = &cobra.Command{
 		}
 
 		service := module.NewService(storage)
+		{
+			service = module.LoggingMiddleware(logger)(service)
+		}
+
 		mux := serveMux(service)
 		ctx, cancel := context.WithCancel(context.Background())
 		group, ctx := errgroup.WithContext(ctx)
