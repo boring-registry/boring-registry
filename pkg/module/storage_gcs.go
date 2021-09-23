@@ -1,20 +1,21 @@
 package module
 
 import (
-	credentials "cloud.google.com/go/iam/credentials/apiv1"
-	"cloud.google.com/go/storage"
 	"context"
 	"fmt"
+	"io"
+	"time"
+
+	credentials "cloud.google.com/go/iam/credentials/apiv1"
+	"cloud.google.com/go/storage"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
-	"io"
-	"time"
 )
 
-// GCSRegistry is a Registry implementation backed by Google Cloud Storage.
-type GCSRegistry struct {
+// GCSStorage is a Storage implementation backed by Google Cloud Storage.
+type GCSStorage struct {
 	sc              *storage.Client
 	bucket          string
 	bucketPrefix    string
@@ -23,7 +24,7 @@ type GCSRegistry struct {
 	serviceAccount  string
 }
 
-func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
+func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
 	o := s.sc.Bucket(s.bucket).Object(moduleObjectKey(namespace, name, provider, version, s.bucketPrefix))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
@@ -50,7 +51,7 @@ func (s *GCSRegistry) GetModule(ctx context.Context, namespace, name, provider, 
 	}, nil
 }
 
-func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
+func (s *GCSStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
 	var modules []Module
 	prefix := moduleObjectKeyBase(namespace, name, provider, s.bucketPrefix)
 
@@ -82,7 +83,7 @@ func (s *GCSRegistry) ListModuleVersions(ctx context.Context, namespace, name, p
 	return modules, nil
 }
 
-func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
+func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
 	if namespace == "" {
 		return Module{}, errors.New("namespace not defined")
 	}
@@ -115,44 +116,44 @@ func (s *GCSRegistry) UploadModule(ctx context.Context, namespace, name, provide
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-// GCSRegistryOption provides additional options for the GCSRegistry.
-type GCSRegistryOption func(*GCSRegistry)
+// GCSStorageOption provides additional options for the GCSStorage.
+type GCSStorageOption func(*GCSStorage)
 
-// WithGCSRegistryBucketPrefix configures the s3 storage to work under a given prefix.
-func WithGCSRegistryBucketPrefix(prefix string) GCSRegistryOption {
-	return func(s *GCSRegistry) {
+// WithGCSStorageBucketPrefix configures the s3 storage to work under a given prefix.
+func WithGCSStorageBucketPrefix(prefix string) GCSStorageOption {
+	return func(s *GCSStorage) {
 		s.bucketPrefix = prefix
 	}
 }
 
-// WithGCSRegistrySignedURL configures the s3 storage to work under a given prefix.
-func WithGCSRegistrySignedURL(set bool) GCSRegistryOption {
-	return func(s *GCSRegistry) {
+// WithGCSStorageSignedURL configures the s3 storage to work under a given prefix.
+func WithGCSStorageSignedURL(set bool) GCSStorageOption {
+	return func(s *GCSStorage) {
 		s.signedURL = set
 	}
 }
 
 // WithGCSServiceAccount configures Application Default Credentials (ADC) service account email.
-func WithGCSServiceAccount(sa string) GCSRegistryOption {
-	return func(s *GCSRegistry) {
+func WithGCSServiceAccount(sa string) GCSStorageOption {
+	return func(s *GCSStorage) {
 		s.serviceAccount = sa
 	}
 }
 
 // WithGCSServiceAccount configures Application Default Credentials (ADC) service account email.
-func WithGCSSignedUrlExpiry(seconds int64) GCSRegistryOption {
-	return func(s *GCSRegistry) {
+func WithGCSSignedUrlExpiry(seconds int64) GCSStorageOption {
+	return func(s *GCSStorage) {
 		s.signedURLExpiry = seconds
 	}
 }
 
-func NewGCSRegistry(bucket string, options ...GCSRegistryOption) (Registry, error) {
+func NewGCSStorage(bucket string, options ...GCSStorageOption) (Storage, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s := &GCSRegistry{
+	s := &GCSStorage{
 		sc:     client,
 		bucket: bucket,
 	}
@@ -164,13 +165,13 @@ func NewGCSRegistry(bucket string, options ...GCSRegistryOption) (Registry, erro
 	return s, nil
 }
 
-func (s *GCSRegistry) generateDownloadURL(bucket, key string) (string, error) {
+func (s *GCSStorage) generateDownloadURL(bucket, key string) (string, error) {
 	return fmt.Sprintf("gcs::https://www.googleapis.com/storage/v1/%s/%s", bucket, key), nil
 }
 
 // https://github.com/GoogleCloudPlatform/golang-samples/blob/73d60a5de091dcdda5e4f753b594ef18eee67906/storage/objects/generate_v4_get_object_signed_url.go#L28
 // generateV4GetObjectSignedURL generates object signed URL with GET method.
-func (s *GCSRegistry) generateV4GetObjectSignedURL(bucket, object string) (string, error) {
+func (s *GCSStorage) generateV4GetObjectSignedURL(bucket, object string) (string, error) {
 	ctx := context.Background()
 	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
 	cred, err := google.FindDefaultCredentials(ctx, "cloud-platform")

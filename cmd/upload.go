@@ -36,9 +36,9 @@ var uploadCmd = &cobra.Command{
 	Use:   "upload [flags] MODULE",
 	Short: "Upload modules",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		registry, err := setupRegistry()
+		storage, err := setupModuleStorage()
 		if err != nil {
-			return errors.Wrap(err, "failed to setup registry")
+			return errors.Wrap(err, "failed to setup storage")
 		}
 
 		if len(args) == 0 {
@@ -67,6 +67,6 @@ var uploadCmd = &cobra.Command{
 			versionConstraintsRegex = constraints
 		}
 
-		return archiveModules(args[0], registry)
+		return archiveModules(args[0], storage)
 	},
 }

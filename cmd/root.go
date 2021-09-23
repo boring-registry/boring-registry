@@ -138,19 +138,19 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 	})
 }
 
-func setupS3Registry() (module.Registry, error) {
-	return module.NewS3Registry(flagS3Bucket,
-		module.WithS3RegistryBucketPrefix(flagS3Prefix),
-		module.WithS3RegistryBucketRegion(flagS3Region),
-		module.WithS3RegistryBucketEndpoint(flagS3Endpoint),
-		module.WithS3RegistryPathStyle(flagS3PathStyle),
+func setupS3ModuleStorage() (module.Storage, error) {
+	return module.NewS3Storage(flagS3Bucket,
+		module.WithS3StorageBucketPrefix(flagS3Prefix),
+		module.WithS3StorageBucketRegion(flagS3Region),
+		module.WithS3StorageBucketEndpoint(flagS3Endpoint),
+		module.WithS3StoragePathStyle(flagS3PathStyle),
 	)
 }
 
-func setupGCSRegistry() (module.Registry, error) {
-	return module.NewGCSRegistry(flagGCSBucket,
-		module.WithGCSRegistryBucketPrefix(flagGCSPrefix),
-		module.WithGCSRegistrySignedURL(flagGCSSignedURL),
+func setupGCSModuleStorage() (module.Storage, error) {
+	return module.NewGCSStorage(flagGCSBucket,
+		module.WithGCSStorageBucketPrefix(flagGCSPrefix),
+		module.WithGCSStorageSignedURL(flagGCSSignedURL),
 		module.WithGCSServiceAccount(flagGCSServiceAccount),
 		module.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),
 	)
