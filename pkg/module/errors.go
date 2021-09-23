@@ -2,7 +2,7 @@ package module
 
 import "errors"
 
-// Registry errors.
+// Storage errors.
 var (
 	ErrAlreadyExists = errors.New("module already exists")
 	ErrNotFound      = errors.New("failed to locate module")

@@ -46,12 +46,16 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Starts the server component",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		registry, err := setupRegistry()
+		storage, err := setupModuleStorage()
 		if err != nil {
-			return errors.Wrap(err, "failed to setup registry")
+			return errors.Wrap(err, "failed to setup storage")
 		}
 
-		service := module.NewService(registry)
+		service := module.NewService(storage)
+		{
+			service = module.LoggingMiddleware(logger)(service)
+		}
+
 		mux := serveMux(service)
 		ctx, cancel := context.WithCancel(context.Background())
 		group, ctx := errgroup.WithContext(ctx)
@@ -149,14 +153,14 @@ var serverCmd = &cobra.Command{
 	},
 }
 
-func setupRegistry() (module.Registry, error) {
+func setupModuleStorage() (module.Storage, error) {
 	switch {
 	case flagS3Bucket != "":
-		return setupS3Registry()
+		return setupS3ModuleStorage()
 	case flagGCSBucket != "":
-		return setupGCSRegistry()
+		return setupGCSModuleStorage()
 	default:
-		return nil, errors.New("please specify a storage provider")
+		return nil, errors.New("please specify a valid storage provider")
 	}
 }
 

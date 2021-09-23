@@ -13,18 +13,18 @@ type Service interface {
 }
 
 type service struct {
-	registry Registry
+	storage Storage
 }
 
 // NewService returns a fully initialized Service.
-func NewService(registry Registry) Service {
+func NewService(storage Storage) Service {
 	return &service{
-		registry: registry,
+		storage: storage,
 	}
 }
 
 func (s *service) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
-	res, err := s.registry.GetModule(ctx, namespace, name, provider, version)
+	res, err := s.storage.GetModule(ctx, namespace, name, provider, version)
 	if err != nil {
 		return Module{}, err
 	}
@@ -33,7 +33,7 @@ func (s *service) GetModule(ctx context.Context, namespace, name, provider, vers
 }
 
 func (s *service) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
-	res, err := s.registry.ListModuleVersions(ctx, namespace, name, provider)
+	res, err := s.storage.ListModuleVersions(ctx, namespace, name, provider)
 	if err != nil {
 		return nil, err
 	}

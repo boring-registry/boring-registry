@@ -22,22 +22,22 @@ const (
 	moduleSpecFileName = "boring-registry.hcl"
 )
 
-func archiveModules(root string, registry module.Registry) error {
+func archiveModules(root string, storage module.Storage) error {
 	var err error
 	if flagRecursive {
 		err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			return processModule(path, registry)
+			return processModule(path, storage)
 		})
 	} else {
-		err = processModule(filepath.Join(root, moduleSpecFileName), registry)
+		err = processModule(filepath.Join(root, moduleSpecFileName), storage)
 	}
 	return err
 }
 
-func processModule(path string, registry module.Registry) error {
+func processModule(path string, storage module.Storage) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func processModule(path string, registry module.Registry) error {
 	}
 
 	ctx := context.Background()
-	if res, err := registry.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+	if res, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
 		if flagIgnoreExistingModule {
 			level.Info(logger).Log(
 				"msg", "module already exists",
@@ -93,7 +93,7 @@ func processModule(path string, registry module.Registry) error {
 		return err
 	}
 
-	res, err := registry.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf)
+	res, err := storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf)
 	if err != nil {
 		return err
 	}

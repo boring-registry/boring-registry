@@ -74,12 +74,12 @@ func TestService_GetModule(t *testing.T) {
 
 		t.Run(tc.name, func(t *testing.T) {
 			var (
-				ctx      = context.Background()
-				registry = NewInmemRegistry()
-				svc      = NewService(registry)
+				ctx     = context.Background()
+				storage = NewInmemStorage()
+				svc     = NewService(storage)
 			)
 
-			_, err := registry.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, tc.data)
+			_, err := storage.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, tc.data)
 			switch tc.expectError {
 			case true:
 				assert.Error(err)

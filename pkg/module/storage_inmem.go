@@ -9,16 +9,16 @@ import (
 	"github.com/pkg/errors"
 )
 
-// InmemRegistry is a Registry implementation
-// This registry is typically used for testing/dev purposes.
-type InmemRegistry struct {
+// InmemStorage is a Storage implementation
+// This storage is typically used for testing purposes.
+type InmemStorage struct {
 	modules    map[string]Module
 	moduleData map[string]io.Reader
 	mu         sync.RWMutex
 }
 
-// GetModule retrieves information about a module from the in-memory registry.
-func (s *InmemRegistry) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
+// GetModule retrieves information about a module from the in-memory storage.
+func (s *InmemStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -30,7 +30,7 @@ func (s *InmemRegistry) GetModule(ctx context.Context, namespace, name, provider
 	return module, nil
 }
 
-func (s *InmemRegistry) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
+func (s *InmemStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -45,7 +45,7 @@ func (s *InmemRegistry) ListModuleVersions(ctx context.Context, namespace, name,
 	return modules, nil
 }
 
-func (s *InmemRegistry) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
+func (s *InmemStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error) {
 	if namespace == "" {
 		return Module{}, errors.New("namespace not defined")
 	}
@@ -82,13 +82,13 @@ func (s *InmemRegistry) UploadModule(ctx context.Context, namespace, name, provi
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-func (s *InmemRegistry) moduleID(namespace, name, provider, version string) string {
+func (s *InmemStorage) moduleID(namespace, name, provider, version string) string {
 	return fmt.Sprintf("namespace=%s/name=%s/provider=%s/version=%s", namespace, name, provider, version)
 }
 
-// NewInmemRegistry returns a fully initialized in-memory registry.
-func NewInmemRegistry() Registry {
-	return &InmemRegistry{
+// NewInmemStorage returns a fully initialized in-memory storage.
+func NewInmemStorage() Storage {
+	return &InmemStorage{
 		modules:    make(map[string]Module),
 		moduleData: make(map[string]io.Reader),
 	}
