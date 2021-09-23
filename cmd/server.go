@@ -49,16 +49,6 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Starts the server component",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storage, err := setupModuleStorage()
-		if err != nil {
-			return errors.Wrap(err, "failed to setup storage")
-		}
-
-		service := module.NewService(storage)
-		{
-			service = module.LoggingMiddleware(logger)(service)
-		}
-
 		ctx, cancel := context.WithCancel(context.Background())
 		group, ctx := errgroup.WithContext(ctx)
 
