@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
@@ -12,18 +13,13 @@ import (
 )
 
 type muxVar string
+type contextKey string
 
 const (
 	varNamespace muxVar = "namespace"
 	varName      muxVar = "name"
 	varProvider  muxVar = "provider"
 	varVersion   muxVar = "version"
-)
-
-type header string
-
-const (
-	headerAuthorization header = "Authorization"
 )
 
 // MakeHandler returns a fully initialized http.Handler.
@@ -116,7 +112,7 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	switch errors.Cause(err) {
 	case ErrVarMissing:
 		w.WriteHeader(http.StatusBadRequest)
-	case ErrInvalidKey:
+	case auth.ErrInvalidKey:
 		w.WriteHeader(http.StatusUnauthorized)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
@@ -131,7 +127,7 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	})
 }
 
-func extractHeaders(keys ...header) httptransport.RequestFunc {
+func extractHeaders(keys ...contextKey) httptransport.RequestFunc {
 	return func(ctx context.Context, r *http.Request) context.Context {
 		for _, k := range keys {
 			if v := r.Header.Get(string(k)); v != "" {

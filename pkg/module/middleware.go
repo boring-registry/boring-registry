@@ -2,10 +2,8 @@ package module
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	"github.com/go-kit/kit/endpoint"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 )
@@ -66,30 +64,4 @@ func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, prov
 	}(time.Now())
 
 	return mw.next.GetModule(ctx, namespace, name, provider, version)
-}
-
-// AuthMiddleware provides basic endpoint auth.
-func AuthMiddleware(keys ...string) endpoint.Middleware {
-	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (interface{}, error) {
-			// If we didn't provide any API keys we stop early here.
-			if len(keys) < 1 {
-				return next(ctx, request)
-			}
-
-			found := false
-
-			for _, key := range keys {
-				if fmt.Sprintf("Bearer %s", key) == ctx.Value(headerAuthorization) {
-					found = true
-				}
-			}
-
-			if !found {
-				return nil, ErrInvalidKey
-			}
-
-			return next(ctx, request)
-		}
-	}
 }

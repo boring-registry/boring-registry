@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -213,7 +214,7 @@ func serveMux(service module.Service) *http.ServeMux {
 			prefix,
 			module.MakeHandler(
 				service,
-				module.AuthMiddleware(apiKeys...),
+				auth.Middleware(apiKeys...),
 				opts...,
 			),
 		),
