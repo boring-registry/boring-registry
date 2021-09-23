@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"strings"
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/module"
+	"github.com/TierMobility/boring-registry/pkg/provider"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/spf13/cobra"
@@ -140,7 +142,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 
 func setupS3ModuleStorage() (module.Storage, error) {
 	return module.NewS3Storage(flagS3Bucket,
-		module.WithS3StorageBucketPrefix(flagS3Prefix),
+		module.WithS3StorageBucketPrefix(path.Join(flagS3Prefix, "modules")),
 		module.WithS3StorageBucketRegion(flagS3Region),
 		module.WithS3StorageBucketEndpoint(flagS3Endpoint),
 		module.WithS3StoragePathStyle(flagS3PathStyle),
@@ -149,9 +151,26 @@ func setupS3ModuleStorage() (module.Storage, error) {
 
 func setupGCSModuleStorage() (module.Storage, error) {
 	return module.NewGCSStorage(flagGCSBucket,
-		module.WithGCSStorageBucketPrefix(flagGCSPrefix),
+		module.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "modules")),
 		module.WithGCSStorageSignedURL(flagGCSSignedURL),
 		module.WithGCSServiceAccount(flagGCSServiceAccount),
 		module.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),
+	)
+}
+
+func setupS3ProviderStorage() (provider.Storage, error) {
+	return provider.NewS3Storage(flagS3Bucket,
+		provider.WithS3StorageBucketPrefix(path.Join(flagS3Prefix, "providers")),
+		provider.WithS3StorageBucketRegion(flagS3Region),
+		provider.WithS3StorageBucketEndpoint(flagS3Endpoint),
+		provider.WithS3StoragePathStyle(flagS3PathStyle),
+	)
+}
+
+func setupGCSProviderStorage() (provider.Storage, error) {
+	return provider.NewGCSStorage(flagGCSBucket,
+		provider.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "providers")),
+		provider.WithGCSServiceAccount(flagGCSServiceAccount),
+		provider.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),
 	)
 }

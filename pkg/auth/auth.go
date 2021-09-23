@@ -12,24 +12,19 @@ import (
 func Middleware(keys ...string) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request interface{}) (interface{}, error) {
-			// If we didn't provide any API keys we stop early here.
 			if len(keys) < 1 {
 				return next(ctx, request)
 			}
 
-			found := false
 			for _, key := range keys {
 				key := fmt.Sprintf("Bearer %s", key)
 				if key == ctx.Value(httptransport.ContextKeyRequestAuthorization) {
-					found = true
+					return next(ctx, request)
 				}
 			}
 
-			if !found {
-				return nil, ErrInvalidKey
-			}
+			return nil, ErrInvalidKey
 
-			return next(ctx, request)
 		}
 	}
 }
