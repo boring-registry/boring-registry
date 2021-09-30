@@ -22,6 +22,7 @@ import (
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/module"
+	"github.com/TierMobility/boring-registry/pkg/provider"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/cobra"
@@ -32,8 +33,9 @@ const (
 )
 
 var (
-	prefix        = fmt.Sprintf("/%s", apiVersion)
-	prefixModules = fmt.Sprintf("%s/modules", prefix)
+	prefix          = fmt.Sprintf("/%s", apiVersion)
+	prefixModules   = fmt.Sprintf("%s/modules", prefix)
+	prefixProviders = fmt.Sprintf("%s/providers", prefix)
 )
 
 var (
@@ -163,6 +165,17 @@ func setupModuleStorage() (module.Storage, error) {
 	}
 }
 
+func setupProviderStorage() (provider.Storage, error) {
+	switch {
+	case flagS3Bucket != "":
+		return setupS3ProviderStorage()
+	case flagGCSBucket != "":
+		return setupGCSProviderStorage()
+	default:
+		return nil, errors.New("please specify a valid storage provider")
+	}
+}
+
 func init() {
 	rootCmd.AddCommand(serverCmd)
 	serverCmd.Flags().StringVar(&flagAPIKey, "api-key", "", "Comma-separated string of static API keys to protect the server with")
@@ -177,12 +190,16 @@ func serveMux() (*http.ServeMux, error) {
 
 	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"modules.v1": "%s/"}`, prefix)))
+		w.Write([]byte(fmt.Sprintf(`{"modules.v1": "%s/", "providers.v1": "%s/"}`, prefixModules, prefixProviders)))
 	})
 
 	registerMetrics(mux)
 
 	if err := registerModule(mux); err != nil {
+		return nil, err
+	}
+
+	if err := registerProvider(mux); err != nil {
 		return nil, err
 	}
 
@@ -204,12 +221,12 @@ func registerMetrics(mux *http.ServeMux) {
 }
 
 func registerModule(mux *http.ServeMux) error {
-	registry, err := setupModuleStorage()
+	storage, err := setupModuleStorage()
 	if err != nil {
 		return errors.Wrap(err, "failed to setup module storage")
 	}
 
-	service := module.NewService(registry)
+	service := module.NewService(storage)
 	{
 		service = module.LoggingMiddleware(logger)(service)
 	}
@@ -230,11 +247,57 @@ func registerModule(mux *http.ServeMux) error {
 			prefixModules,
 			module.MakeHandler(
 				service,
-				auth.Middleware(strings.Split(flagAPIKey, ",")...),
+				auth.Middleware(splitKeys(flagAPIKey)...),
 				opts...,
 			),
 		),
 	)
 
 	return nil
+}
+
+func registerProvider(mux *http.ServeMux) error {
+	storage, err := setupProviderStorage()
+	if err != nil {
+		return errors.Wrap(err, "failed to setup provider storage")
+	}
+
+	service := provider.NewService(storage)
+	{
+		service = provider.LoggingMiddleware(logger)(service)
+	}
+
+	opts := []httptransport.ServerOption{
+		httptransport.ServerErrorHandler(
+			transport.NewLogErrorHandler(logger),
+		),
+		httptransport.ServerErrorEncoder(module.ErrorEncoder),
+		httptransport.ServerBefore(
+			httptransport.PopulateRequestContext,
+		),
+	}
+
+	mux.Handle(
+		fmt.Sprintf(`%s/`, prefixProviders),
+		http.StripPrefix(
+			prefixProviders,
+			provider.MakeHandler(
+				service,
+				auth.Middleware(splitKeys(flagAPIKey)...),
+				opts...,
+			),
+		),
+	)
+
+	return nil
+}
+
+func splitKeys(in string) []string {
+	var keys []string
+
+	if in != "" {
+		keys = strings.Split(in, ",")
+	}
+
+	return keys
 }
