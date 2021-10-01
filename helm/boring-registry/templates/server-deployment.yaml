@@ -1,0 +1,141 @@
+{{- if .Values.server.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "boring-registry.fullname" . }}
+  labels:
+    {{- include "boring-registry.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.server.replicas }}
+  selector:
+    matchLabels:
+      {{- include "boring-registry.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.server.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "boring-registry.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.server.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "boring-registry.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.server.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.server.securityContext | nindent 12 }}
+          image: "{{ .Values.global.image.repository }}:{{ .Values.global.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          args:
+            {{- if .Values.server.extraArgs }}
+              {{- toYaml .Values.server.extraArgs | nindent 12 }}
+            {{- end }}
+          env:
+            - name: BORING_REGISTRY_DEBUG
+              value:  {{ .Values.server.debug | quote }}
+            - name: BORING_REGISTRY_JSON
+              value:  {{ .Values.server.jsonLogFormat | quote }}
+            - name: BORING_REGISTRY_LISTEN_ADDRESS
+              value: {{ printf ":%v" .Values.server.port | quote }}
+            - name: BORING_REGISTRY_LISTEN_TELEMETRY_ADDRESS
+              value: {{ printf ":%v" .Values.server.telemetryPort | quote }}
+
+            - name: BORING_REGISTRY_API_KEY
+            {{- if .Values.server.auth.createSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "boring-registry.fullname" . }}
+                  key: apiKey
+            {{- else if .Values.server.auth.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.auth.existingSecret }}
+                  key: {{ .Values.server.auth.existingSecretKey }}
+            {{- else }}
+              value: {{ .Values.server.auth.value }}
+            {{- end }}
+
+            {{- if .Values.server.tlsCertFile }}
+            - name: BORING_REGISTRY_TLS_CERT_FILE
+              value:  {{ .Values.server.tlsCertFile }}
+            {{- end }}
+
+            {{- if .Values.server.tlsKeyFile }}
+            - name: BORING_REGISTRY_TLS_KEY_FILE
+              value:  {{ .Values.server.tlsKeyFile }}
+            {{- end }}
+
+            # Storage configuration.
+            {{- with .Values.server.storage.s3 }}
+            - name: BORING_REGISTRY_STORAGE_S3_BUCKET
+              value:  {{ .bucket }}
+            {{- if .prefix }}
+            - name: BORING_REGISTRY_STORAGE_S3_PREFIX
+              value:  {{ .prefix }}
+            {{- end }}
+            {{- if .region }}
+            - name: BORING_REGISTRY_STORAGE_S3_REGION
+              value:  {{ .region }}
+            {{- end }}
+            {{- if .endpoint }}
+            - name: BORING_REGISTRY_STORAGE_S3_ENDPOINT
+              value:  {{ .endpoint }}
+            {{- end }}
+            {{- if .pathStyle }}
+            - name: BORING_REGISTRY_STORAGE_S3_PATHSTYLE
+              value:  {{ .pathStyle }}
+            {{- end }}
+            {{- end }}
+
+            {{- with .Values.server.storage.gcs }}
+            - name: BORING_REGISTRY_STORAGE_GCS_BUCKET
+              value:  {{ .bucket }}
+            {{- if .prefix }}
+            - name: BORING_REGISTRY_STORAGE_GCS_PREFIX
+              value:  {{ .prefix }}
+            {{- end }}
+            {{- if .saEmail }}
+            - name: BORING_REGISTRY_STORAGE_GCS_SA_EMAIL
+              value:  {{ .saEmail }}
+            {{- end }}
+            {{- if .signedURL }}
+            - name: BORING_REGISTRY_STORAGE_GCS_SIGNED_URL
+              value:  {{ .signedURL }}
+            {{- end }}
+            {{- end }}
+          ports:
+            - name: api
+              containerPort: {{ .Values.server.port }}
+              protocol: TCP
+            - name: telemetry
+              containerPort: {{ .Values.server.telemetryPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: telemetry
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: telemetry
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
