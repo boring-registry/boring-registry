@@ -5,7 +5,7 @@ before:
     # You may remove this if you don't use go modules.
     - go mod download
 builds:
-  - main: cmd/boring-registry/main.go
+  - main: main.go
     binary: boring-registry
     env:
       - CGO_ENABLED=0
