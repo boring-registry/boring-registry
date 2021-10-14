@@ -1,38 +1,28 @@
 # boring-registry
 
-Boring Registry is an open source Terraform Module Registry.
+Boring Registry is an open source Terraform Provider and Module Registry.
 
-The registry is designed to be simple and only implements the "Module Registry Protocol" and apart from the registry storage backend, there are no external dependencies, it also does not ship with a UI. The endpoints provided are:
+The registry is designed to be simple and implements the "Provider Registry Protocol" and "Module Registry Protocol" and apart from the storage backend, there are no external dependencies, it also does not ship with a UI. 
 
-* GET /v1/modules/{namespace}/{name}/{provider}/versions
-* GET /v1/modules/{namespace}/{name}/{provider}/{version}/download
+## Module Registry Protocol
 
-The storage backend expects a clear path structure to know where modules live.
-Example structure:
-```
-namespace=tier/name=s3/provider=aws/version=1.0.0
-```
+The Boring Registry expects a defined path structure inside the storage backend.
 
-An example bucket looks like this when all modules have been uploaded:
+**Please note**: Modules must be stored under `${storage}/${prefix}/modules/`
 
-```
-$> tree .
-.
+Example tree:
+
+```shell
+bucket/modules
 └── namespace=tier
-    ├── name=s3
-    │   └── provider=aws
-    │       └── version=1.0.0
-    │           └── tier-s3-aws-1.0.0.tar.gz
-    └── name=dynamodb
-        └── provider=aws
-            ├── version=1.0.0
-            │   └── tier-dynamodb-aws-1.0.0.tar.gz
-            └── version=1.0.1
-                └── tier-dynamodb-aws-1.0.1.tar.gz
-
+    └── name=test
+        └── provider=dummy
+            └── version=1.0.0
+                └── tier-test-dummy-1.0.0.tar.gz
 ```
 
-Example Terraform configuration file referencing the registry:
+Example Terraform configuration referencing the registry:
+
 ```hcl
 module "main-s3" {
   source = "boring-registry/tier/s3/aws"
@@ -40,40 +30,96 @@ module "main-s3" {
 }
 ```
 
-## Getting Started
+### Endpoints 
 
-The registry supports two modes:
-  * Server - The server runs the registry API
-  * Upload - Uploads modules to the configured registry
+The endpoints provided by the Module Registry Protocol are:
 
-To run the server you need to specify which registry to use:
+* `GET /v1/modules/:namespace/:name/:provider/versions`
+* `GET /v1/modules/:namespace/:name/:provider/:version/download`
 
-**Example using the S3 registry:**
+
+
+## Provider Registry Protocol
+
+Similar to the Module Registry Protocol, the Boring Registry expects a defined path structure inside the storage backend.
+
+**Please note**: Providers must be stored under `${storage}/${prefix}/providers/`
+
+```shell
+bucket/providers
+└── namespace=tier
+    ├── name=dummy
+    │   └── version=1.0.0
+    │       ├── os=linux
+    │       │   └── arch=amd64
+    │       │       └── terraform-provider-dummy_1.0.0_linux_amd64.zip
+    │       ├── terraform-provider-dummy_1.0.0_SHA256SUMS
+    │       └── terraform-provider-dummy_1.0.0_SHA256SUMS.sig
+    └── signing-keys.json
+```
+
+Example Terraform configuration referencing the registry:
+
+```hcl
+terraform {
+  required_providers {
+    dummy = {
+      source  = "boring-registry/tier/dummy"
+      version = "1.0.0"
+    }
+  }
+}
+```
+
+### Endpoints 
+
+The endpoints provided by the Provider Registry Protocol are:
+
+* `GET /v1/providers/:namespace/:name/versions`
+* `GET /v1/providers/:namespace/:name/:version/download/:os/:arch`
+
+# Getting Started
+
+The Boring Registry comes with a server component that serves both the Module and Provider Registry Protocol but also comes with an upload subcommand that can upload modules to a storage backend:
+
+  * Server - Runs the server component
+  * Upload - Uploads modules to the configured storage backend
+
+To run the server you need to specify which storage backend to use:
+
+**Example using the S3 storage:**
+
 ```bash
 $ boring-registry server \
   --storage-s3-bucket=terraform-registry-test
 ```
 
-**Example using the registry with GCS:**
+**Example using the GCS storage:**
+
 ```bash
 $ boring-registry server \
   --storage-gcs-bucket=terraform-registry-test
 ```
+
 Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOUD_PROJECT`). 
 
-**Example using the S3 registry with MINIO:**
+**Example using the S3 storage with MINIO:**
+
 ```bash
 $ boring-registry server \
   --storage-s3-bucket=terraform-registry-test \
   --storage-s3-pathstyle=true \
   --storage-s3-endpoint=https://minio.example.com
 ```
-To upload modules to the registry you need to specify which registry to use (currently only S3 is supported) and which local directory to work from.
+
+To upload modules to the storage backend you need to specify which storage to use and which local directory to use.
 
 ## Configuration
 
 The Boring Registry does not rely on any configuration files. Instead, everything can be configured using flags or environment variables.
-**Important Note**: Flags have higher priority than environment variables. Environment variables are always prefixed with `BORING_REGISTRY`.
+
+**Important Note**: Flags have higher priority than environment variables. 
+Environment variables are always prefixed with `BORING_REGISTRY`.
 
 **Example:**
 To enable debug logging you can either pass the flag: `--debug` or set the environment variable: `BORING_REGISTRY_DEBUG=true`.
@@ -83,20 +129,27 @@ To enable json log output you can either pass the flag: `--json` or set the envi
 To specify the s3 bucket you can either pass the flag: `--storage-s3-bucket=${bucket}` or set the environment variable: `BORING_REGISTRY_STORAGE_S3_BUCKET=${bucket}`
 
 ### Authentication
+
 The Boring Registry can be configured with a set of API keys to match for by using the `--api-key="very-secure-token"` flag or by providing it as an environment variable `BORING_REGISTRY_API_KEY="very-secure-token"`
 
 This can then be configured inside `~/.terraformrc` like this:
-```
+
+```hcl
 credentials "boring-registry" {
   token = “very-secure-token”
 }
 ```
 
-## Uploading modules
+# Modules
+
+Modules can either be uploaded directly to the storage backend or by using the subcommand `upload`.
+
+## Uploading modules using the CLI
 
 When uploading modules the `upload` command expects a directory. This directory is then walked recursively and looks for files called: `boring-registry.hcl`.
 
 The `boring-registry.hcl` file expects a `metadata` block like this:
+
 ```hcl
 metadata {
   namespace = "tier"
@@ -148,106 +201,74 @@ The `--version-constraints-regex` flag lets you specify a regex that module vers
 In order to only match pre-releases, you can e.g. use `--version-constraints-regex="^[0-9]+\.[0-9]+\.[0-9]+-|\d*[a-zA-Z-][0-9a-zA-Z-]*$"`.
 This would for example be useful to prevent publishing releases from non-`main` branches, while allowing pre-releases to test out e.g. pull-requests.
 
-## Help output
-```
-Usage:
-  boring-registry [command]
 
-Available Commands:
-  completion  generate the autocompletion script for the specified shell
-  help        Help about any command
-  server      Starts the server component
-  upload      Upload modules
-  version     Prints the version of the Boring Registry
 
-Flags:
-      --debug                                        Enable debug logging
-  -h, --help                                         help for boring-registry
-      --json                                         Enable json logging
-      --storage-gcs-bucket string                    Bucket to use when using the GCS registry type
-      --storage-gcs-prefix string                    Prefix to use when using the GCS registry type
-      --storage-gcs-sa-email string                  Google service account email to be used for Application Default Credentials (ADC)
-                                                     GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
-                                                     For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.
-      --storage-gcs-signedurl                        Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
-                                                     WARNING: only use in combination with api-key option.
-      --storage-gcs-signedurl-expiry gcs-signedurl   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
-      --storage-s3-bucket string                     S3 bucket to use for the registry
-      --storage-s3-endpoint string                   S3 bucket endpoint URL (required for MINIO)
-      --storage-s3-pathstyle                         S3 use PathStyle (required for MINIO)
-      --storage-s3-prefix string                     S3 bucket prefix to use for the registry
-      --storage-s3-region string                     S3 bucket region to use for the registry
+# Providers
 
-Use "boring-registry [command] --help" for more information about a command.
+Providers cannot be uploaded using the CLI yet so they need to be uploaded outside of the Boring Registry.
+
+The Boring Registry expects a file called `signing-keys.json` to be placed under the `namespace` level inside the storage backend.
+
+This file should look like this:
+
+```json
+{
+  "key_id": "GPG_KEY_ID",
+  "ascii_armor": "ASCII_ARMOR"
+}
 ```
 
-### Server help output 
+Goreleaser can be used to build providers. Example .goreleaser.yaml configuration file:
 
+```yaml
+# Visit https://goreleaser.com for documentation on how to customize this
+# behavior.
+before:
+  hooks:
+    # this is just an example and not a requirement for provider building/publishing
+    - go mod tidy
+builds:
+  - env:
+      # goreleaser does not work with CGO, it could also complicate
+      # usage by users in CI/CD systems like Terraform Cloud where
+      # they are unable to install libraries.
+      - CGO_ENABLED=0
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - "-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}"
+    goos:
+      - freebsd
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - "386"
+      - arm
+      - arm64
+    ignore:
+      - goos: darwin
+        goarch: "386"
+    binary: "{{ .ProjectName }}_v{{ .Version }}"
+archives:
+  - format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_SHA256SUMS"
+  algorithm: sha256
+signs:
+  - artifacts: checksum
+release:
+  # If you want to manually examine the release before its live, uncomment this line:
+  # draft: true
+changelog:
+  skip: true
 ```
-Starts the server component
 
-Usage:
-  boring-registry server [flags]
-
-Flags:
-      --api-key string                    Comma-separated string of static API keys to protect the server with
-  -h, --help                              help for server
-      --listen-address string             Address to listen on (default ":5601")
-      --listen-telemetry-address string   Telemetry address to listen on (default ":7801")
-      --tls-cert-file string              TLS certificate to serve
-      --tls-key-file string               TLS private key to serve
-
-Global Flags:
-      --debug                                        Enable debug logging
-      --json                                         Enable json logging
-      --storage-gcs-bucket string                    Bucket to use when using the GCS registry type
-      --storage-gcs-prefix string                    Prefix to use when using the GCS registry type
-      --storage-gcs-sa-email string                  Google service account email to be used for Application Default Credentials (ADC)
-                                                     GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
-                                                     For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.
-      --storage-gcs-signedurl                        Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
-                                                     WARNING: only use in combination with api-key option.
-      --storage-gcs-signedurl-expiry gcs-signedurl   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
-      --storage-s3-bucket string                     S3 bucket to use for the registry
-      --storage-s3-endpoint string                   S3 bucket endpoint URL (required for MINIO)
-      --storage-s3-pathstyle                         S3 use PathStyle (required for MINIO)
-      --storage-s3-prefix string                     S3 bucket prefix to use for the registry
-      --storage-s3-region string                     S3 bucket region to use for the registry
-```
-
-### Upload help output
-```
-Upload modules
-
-Usage:
-  boring-registry upload [flags] MODULE
-
-Flags:
-  -h, --help                                help for upload
-      --ignore-existing                     Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version (default true)
-      --recursive                           Recursively traverse <dir> and upload all modules in subdirectories (default true)
-      --version-constraints-regex string    Limit the module versions that are eligible for upload with a regex that a version has to match.
-                                            Can be combined with the -version-constraints-semver flag
-      --version-constraints-semver string   Limit the module versions that are eligible for upload with version constraints.
-                                            The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag
-
-Global Flags:
-      --debug                                        Enable debug logging
-      --json                                         Enable json logging
-      --storage-gcs-bucket string                    Bucket to use when using the GCS registry type
-      --storage-gcs-prefix string                    Prefix to use when using the GCS registry type
-      --storage-gcs-sa-email string                  Google service account email to be used for Application Default Credentials (ADC)
-                                                     GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
-                                                     For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.
-      --storage-gcs-signedurl                        Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
-                                                     WARNING: only use in combination with api-key option.
-      --storage-gcs-signedurl-expiry gcs-signedurl   Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with gcs-signedurl (default 30s)
-      --storage-s3-bucket string                     S3 bucket to use for the registry
-      --storage-s3-endpoint string                   S3 bucket endpoint URL (required for MINIO)
-      --storage-s3-pathstyle                         S3 use PathStyle (required for MINIO)
-      --storage-s3-prefix string                     S3 bucket prefix to use for the registry
-      --storage-s3-region string                     S3 bucket region to use for the registry
-```
+For general information on how to build and publish providers for Terraform see the official docs:
+https://www.terraform.io/docs/registry/providers.
 
 # Roadmap
 
