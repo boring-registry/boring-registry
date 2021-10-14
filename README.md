@@ -25,7 +25,7 @@ Example Terraform configuration referencing the registry:
 
 ```hcl
 module "main-s3" {
-  source = "boring-registry/tier/s3/aws"
+  source = "boring-registry/tier/test/dummy"
   version = "~> 1"
 }
 ```
@@ -153,8 +153,8 @@ The `boring-registry.hcl` file expects a `metadata` block like this:
 ```hcl
 metadata {
   namespace = "tier"
-  name      = "s3"
-  provider  = "aws"
+  name      = "test"
+  provider  = "dummy"
   version   = "1.0.0"
 }
 ```
