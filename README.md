@@ -24,7 +24,7 @@ bucket/modules
 Example Terraform configuration referencing the registry:
 
 ```hcl
-module "main-s3" {
+module "test" {
   source = "boring-registry/tier/test/dummy"
   version = "~> 1"
 }
