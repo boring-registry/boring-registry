@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/mirror"
+	"github.com/TierMobility/boring-registry/pkg/storage"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -36,6 +38,8 @@ var (
 	prefix          = fmt.Sprintf("/%s", apiVersion)
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
+	// TODO(oliviermichaelis): consider switching to another path instead of mirror
+	prefixMirror = fmt.Sprintf("%s/mirror", prefix)
 )
 
 var (
@@ -64,7 +68,7 @@ var serverCmd = &cobra.Command{
 		server := &http.Server{
 			Addr:         flagListenAddr,
 			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 5 * time.Second,
+			WriteTimeout: 30 * time.Second, // TODO(oliviermichaelis): find cleaner solution instead of increasing the WriteTimeout for every endpoint
 			Handler:      mux,
 		}
 
@@ -160,6 +164,8 @@ func setupModuleStorage() (module.Storage, error) {
 		return setupS3ModuleStorage()
 	case flagGCSBucket != "":
 		return setupGCSModuleStorage()
+	case flagDirectoryPath != "":
+		return setupDirectoryModuleStorage()
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}
@@ -171,6 +177,8 @@ func setupProviderStorage() (provider.Storage, error) {
 		return setupS3ProviderStorage()
 	case flagGCSBucket != "":
 		return setupGCSProviderStorage()
+	case flagDirectoryPath != "":
+		return setupDirectoryProviderStorage()
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}
@@ -200,6 +208,10 @@ func serveMux() (*http.ServeMux, error) {
 	}
 
 	if err := registerProvider(mux); err != nil {
+		return nil, err
+	}
+
+	if err := registerMirror(mux); err != nil {
 		return nil, err
 	}
 
@@ -282,6 +294,43 @@ func registerProvider(mux *http.ServeMux) error {
 		http.StripPrefix(
 			prefixProviders,
 			provider.MakeHandler(
+				service,
+				auth.Middleware(splitKeys(flagAPIKey)...),
+				opts...,
+			),
+		),
+	)
+
+	return nil
+}
+
+func registerMirror(mux *http.ServeMux) error {
+	s, err := storage.NewDirectoryStorage(flagDirectoryPath)
+	if err != nil {
+		return err
+	}
+
+	service := mirror.NewService(s)
+	{
+		service = mirror.ProxyingMiddleware(logger)(service)
+		service = mirror.LoggingMiddleware(logger)(service)
+	}
+
+	opts := []httptransport.ServerOption{
+		httptransport.ServerErrorHandler(
+			transport.NewLogErrorHandler(logger),
+		),
+		httptransport.ServerErrorEncoder(mirror.ErrorEncoder),
+		httptransport.ServerBefore(
+			httptransport.PopulateRequestContext,
+		),
+	}
+
+	mux.Handle(
+		fmt.Sprintf(`%s/`, prefixMirror),
+		http.StripPrefix(
+			prefixMirror,
+			mirror.MakeHandler(
 				service,
 				auth.Middleware(splitKeys(flagAPIKey)...),
 				opts...,

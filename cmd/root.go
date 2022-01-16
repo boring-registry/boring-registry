@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/storage"
 	"io"
 	"os"
 	"path"
@@ -45,6 +46,9 @@ var (
 	flagGCSServiceAccount  string
 	flagGCSSignedURL       bool
 	flagGCSSignedURLExpiry time.Duration
+
+	// Directory options.
+	flagDirectoryPath string
 )
 
 var (
@@ -92,6 +96,7 @@ For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().BoolVar(&flagGCSSignedURL, "storage-gcs-signedurl", false, `Generate GCS signedURL (public) instead of relying on GCP credentials being set on terraform init.
 WARNING: only use in combination with api-key option.`)
 	rootCmd.PersistentFlags().DurationVar(&flagGCSSignedURLExpiry, "storage-gcs-signedurl-expiry", 30*time.Second, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with `gcs-signedurl`")
+	rootCmd.PersistentFlags().StringVar(&flagDirectoryPath, "storage-directory-path", "", "Directory to use")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
@@ -173,4 +178,14 @@ func setupGCSProviderStorage() (provider.Storage, error) {
 		provider.WithGCSServiceAccount(flagGCSServiceAccount),
 		provider.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),
 	)
+}
+
+// TODO(oliviermichaelis): refactor into a single storage backend
+func setupDirectoryModuleStorage() (module.Storage, error) {
+
+	return storage.NewDirectoryStorage(flagDirectoryPath)
+}
+
+func setupDirectoryProviderStorage() (provider.Storage, error) {
+	return storage.NewDirectoryStorage(flagDirectoryPath)
 }
