@@ -233,12 +233,12 @@ func registerMetrics(mux *http.ServeMux) {
 }
 
 func registerModule(mux *http.ServeMux) error {
-	storage, err := setupModuleStorage()
+	s, err := setupModuleStorage()
 	if err != nil {
 		return errors.Wrap(err, "failed to setup module storage")
 	}
 
-	service := module.NewService(storage)
+	service := module.NewService(s)
 	{
 		service = module.LoggingMiddleware(logger)(service)
 	}
@@ -269,12 +269,12 @@ func registerModule(mux *http.ServeMux) error {
 }
 
 func registerProvider(mux *http.ServeMux) error {
-	storage, err := setupProviderStorage()
+	s, err := setupProviderStorage()
 	if err != nil {
 		return errors.Wrap(err, "failed to setup provider storage")
 	}
 
-	service := provider.NewService(storage)
+	service := provider.NewService(s)
 	{
 		service = provider.LoggingMiddleware(logger)(service)
 	}

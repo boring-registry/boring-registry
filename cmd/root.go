@@ -182,7 +182,10 @@ func setupGCSProviderStorage() (provider.Storage, error) {
 
 // TODO(oliviermichaelis): refactor into a single storage backend
 func setupDirectoryModuleStorage() (module.Storage, error) {
+	return storage.NewDirectoryStorage(flagDirectoryPath)
+}
 
+func setupDirectoryStorage() (storage.Storage, error) {
 	return storage.NewDirectoryStorage(flagDirectoryPath)
 }
 

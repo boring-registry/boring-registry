@@ -108,7 +108,7 @@ func (d *DirectoryStorage) ListProviderVersions(ctx context.Context, namespace, 
 
 // StoreProvider should only be used for mirrored providers, as the prefix is hardcoded
 func (d *DirectoryStorage) StoreProvider(ctx context.Context, hostname string, provider core.Provider, reader io.Reader) error {
-	// Acquiring lock, as the methods operation is not an atomic filesystem operation
+	// Acquiring lock, as the operation is not an atomic filesystem operation
 	d.rwMutex.Lock()
 	defer d.rwMutex.Unlock()
 

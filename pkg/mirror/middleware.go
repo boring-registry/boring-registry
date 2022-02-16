@@ -303,6 +303,7 @@ func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, hostname st
 		return nil, err
 	}
 
+	// store the downloaded provider concurrently in the storage backend
 	go func() {
 		err := p.MirrorProvider(ctx, hostname, provider, bytes.NewReader(*b))
 		if err != nil {

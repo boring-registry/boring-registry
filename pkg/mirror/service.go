@@ -24,6 +24,7 @@ type Service interface {
 	RetrieveProviderArchive(ctx context.Context, hostname string, p core.Provider) (io.Reader, error)
 
 	// MirrorProvider stores the provider zip archive in the configured storage backend
+	// The operation has to be idempotent, as a provider could be mirrored multiple times at the same time, possibly also from multiple replicas of the service
 	MirrorProvider(ctx context.Context, hostname string, p core.Provider, reader io.Reader) error
 }
 
