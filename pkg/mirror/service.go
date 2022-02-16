@@ -37,13 +37,13 @@ func (s *service) ListProviderVersions(ctx context.Context, hostname, namespace,
 		return nil, errors.New("invalid parameters")
 	}
 
-	opts := storage.ProviderOpts{
-		Hostname:  hostname,
+	provider := core.Provider{
+		Hostname: hostname,
 		Namespace: namespace,
-		Name:      name,
+		Name: name,
 	}
 
-	providers, err := s.storage.GetMirroredProviders(ctx, opts)
+	providers, err := s.storage.GetMirroredProviders(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +56,14 @@ func (s *service) ListProviderInstallation(ctx context.Context, hostname, namesp
 		return nil, errors.New("invalid parameters")
 	}
 
-	opts := storage.ProviderOpts{
+	queryProvider := core.Provider{
 		Hostname:  hostname,
 		Namespace: namespace,
 		Name:      name,
 		Version:   version,
 	}
 
-	providers, err := s.storage.GetMirroredProviders(ctx, opts)
+	providers, err := s.storage.GetMirroredProviders(ctx, queryProvider)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +99,7 @@ func NewService(storage storage.Storage) Service {
 type EmptyObject struct{}
 
 // TODO(oliviermichaelis): could be renamed as it clashes with the other core.ProviderVersion
+
 // ProviderVersions holds the response that is passed up to the endpoint
 type ProviderVersions struct {
 	Versions map[string]EmptyObject `json:"versions"`

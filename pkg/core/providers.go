@@ -14,6 +14,7 @@ const (
 // Provider copied from provider.Provider
 // Provider represents Terraform provider metadata.
 type Provider struct {
+	Hostname			string 		`json:"hostname,omitempty"`
 	Namespace           string      `json:"namespace,omitempty"`
 	Name                string      `json:"name,omitempty"`
 	Version             string      `json:"version,omitempty"`

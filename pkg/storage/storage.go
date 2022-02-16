@@ -18,17 +18,8 @@ type Storage interface {
 	ListProviderVersions(ctx context.Context, namespace, name string) ([]provider.ProviderVersion, error)
 	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (provider.Provider, error)
 
-	GetMirroredProviders(ctx context.Context, opts ProviderOpts) (*[]core.Provider, error)
-	GetCustomProviders(ctx context.Context, opts ProviderOpts) (*[]core.Provider, error)
+	GetMirroredProviders(ctx context.Context, provider core.Provider) (*[]core.Provider, error)
+	GetCustomProviders(ctx context.Context, provider core.Provider) (*[]core.Provider, error)
 	GetProviderArchive(ctx context.Context, hostname string, p core.Provider) (io.ReadCloser, error)
 	StoreProvider(ctx context.Context, hostname string, provider core.Provider, reader io.Reader) error
-}
-
-type ProviderOpts struct {
-	Hostname  string
-	Namespace string
-	Name      string
-	Version   string
-	OS        string
-	Arch      string
 }
