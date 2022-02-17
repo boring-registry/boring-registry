@@ -28,7 +28,6 @@ type upstreamArchiveResult struct {
 	shasumSignature *[]byte
 }
 
-// TODO(oliviermichaelis): split out into a separate file
 type proxyRegistry struct {
 	next   Service // serve most requests via this service
 	logger log.Logger
@@ -147,11 +146,10 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 					}
 					key := fmt.Sprintf("%s_%s", platform.OS, platform.Arch)
 					upstreamArchives.Archives[key] = Archive{
-						Url:    p.ArchiveFileName(),
+						Url: p.ArchiveFileName(),
 						// Computing the hash is unfortunately quite complex
 						// https://www.terraform.io/language/files/dependency-lock#new-provider-package-checksums
 						Hashes: nil,
-
 					}
 				}
 			}

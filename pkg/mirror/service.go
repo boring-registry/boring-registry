@@ -49,7 +49,7 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider core.Pr
 	for _, p := range *providers {
 		key := fmt.Sprintf("%s_%s", p.OS, p.Arch)
 		archives.Archives[key] = Archive{
-			Url:    p.ArchiveFileName(),
+			Url: p.ArchiveFileName(),
 			// Computing the hash is unfortunately quite complex
 			// https://www.terraform.io/language/files/dependency-lock#new-provider-package-checksums
 			Hashes: nil,

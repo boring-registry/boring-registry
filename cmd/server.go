@@ -38,7 +38,7 @@ var (
 	prefix          = fmt.Sprintf("/%s", apiVersion)
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
-	prefixMirror = fmt.Sprintf("%s/mirror", prefix)
+	prefixMirror    = fmt.Sprintf("%s/mirror", prefix)
 )
 
 var (
@@ -65,8 +65,8 @@ var serverCmd = &cobra.Command{
 		}
 
 		server := &http.Server{
-			Addr:         flagListenAddr,
-			ReadTimeout:  5 * time.Second,
+			Addr:        flagListenAddr,
+			ReadTimeout: 5 * time.Second,
 			// WriteTimeout is specifically set to 0 in order to disable the timeout. Downloading large binaries
 			// through the pull-through cache from slow upstream servers might exceed any timeout set here.
 			// This is definitely not ideal, as it impacts robustness.
@@ -217,7 +217,6 @@ func serveMux() (*http.ServeMux, error) {
 	if err := registerMirror(mux); err != nil {
 		return nil, err
 	}
-
 
 	return mux, nil
 }
