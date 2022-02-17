@@ -35,8 +35,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		httptransport.NewServer(
 			auth(listProviderVersionsEndpoint(svc)),
 			decodeListVersionsRequest,
-			// TODO(oliviermichaelis): httptransport.EncodeJSONResponse sets charset header, we might have to use our own encoder
-			httptransport.EncodeJSONResponse,
+			EncodeJSONResponse,
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName)),
@@ -49,7 +48,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		httptransport.NewServer(
 			auth(listProviderInstallationEndpoint(svc)),
 			decodeListInstallationRequest,
-			httptransport.EncodeJSONResponse,
+			EncodeJSONResponse,
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion)),
@@ -167,6 +166,27 @@ func decodeRetrieveProviderArchiveRequest(ctx context.Context, _ *http.Request) 
 
 }
 
+// EncodeJSONResponse is a duplicate of httptransport.EncodeJSONResponse but uses the content-type expected by Terraform
+func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+	w.Header().Set("Content-Type", "application/json")
+	if headerer, ok := response.(httptransport.Headerer); ok {
+		for k, values := range headerer.Headers() {
+			for _, v := range values {
+				w.Header().Add(k, v)
+			}
+		}
+	}
+	code := http.StatusOK
+	if sc, ok := response.(httptransport.StatusCoder); ok {
+		code = sc.StatusCode()
+	}
+	w.WriteHeader(code)
+	if code == http.StatusNoContent {
+		return nil
+	}
+	return json.NewEncoder(w).Encode(response)
+}
+
 func EncodeZipResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	w.Header().Set("Content-Type", "application/zip")
 	if headerer, ok := response.(httptransport.Headerer); ok {
@@ -241,9 +261,7 @@ func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
 	}
 }
 
-// TODO(oliviermichaelis): rename function
-//func encodeArchiveUrlRequest(provider core.Provider) httptransport.EncodeRequestFunc {
-func encodeArchiveUrlRequest(_ context.Context, r *http.Request, request interface{}) error {
+func encodeUpstreamArchiveDownloadRequest(_ context.Context, r *http.Request, request interface{}) error {
 	req := request.(retrieveProviderArchiveRequest)
 	var buf bytes.Buffer
 	r.URL.Path = fmt.Sprintf("/v1/providers/%s/%s/%s/download/%s/%s", req.Namespace, req.Name, req.Version, req.OS, req.Architecture)
@@ -254,7 +272,7 @@ func encodeArchiveUrlRequest(_ context.Context, r *http.Request, request interfa
 	return nil
 }
 
-func decodeArchiveUrlResponse(_ context.Context, r *http.Response) (interface{}, error) {
+func decodeUpstreamArchiveDownloadResponse(_ context.Context, r *http.Response) (interface{}, error) {
 	var response downloadResponse
 
 	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
@@ -294,11 +312,3 @@ func decodeUpstreamListProviderVersionsResponse(_ context.Context, r *http.Respo
 	}
 	return response, nil
 }
-
-//func decodeProviderResponse(_ context.Context, r *http.Response) (interface{}, error) {
-//	var p core.Provider
-//	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-//		return nil, err
-//	}
-//	return p, nil
-//}

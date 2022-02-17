@@ -358,7 +358,7 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 			return nil, err
 		}
 
-		clientEndpoint = httptransport.NewClient(http.MethodGet, baseURL, encodeArchiveUrlRequest, decodeArchiveUrlResponse).Endpoint()
+		clientEndpoint = httptransport.NewClient(http.MethodGet, baseURL, encodeUpstreamArchiveDownloadRequest, decodeUpstreamArchiveDownloadResponse).Endpoint()
 		p.upstreamRegistries[provider.Hostname] = clientEndpoint
 	}
 
