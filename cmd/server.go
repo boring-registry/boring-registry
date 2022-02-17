@@ -38,7 +38,6 @@ var (
 	prefix          = fmt.Sprintf("/%s", apiVersion)
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
-	// TODO(oliviermichaelis): consider switching to another path instead of mirror
 	prefixMirror = fmt.Sprintf("%s/mirror", prefix)
 )
 
@@ -68,7 +67,10 @@ var serverCmd = &cobra.Command{
 		server := &http.Server{
 			Addr:         flagListenAddr,
 			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 30 * time.Second, // TODO(oliviermichaelis): find cleaner solution instead of increasing the WriteTimeout for every endpoint
+			// WriteTimeout is specifically set to 0 in order to disable the timeout. Downloading large binaries
+			// through the pull-through cache from slow upstream servers might exceed any timeout set here.
+			// This is definitely not ideal, as it impacts robustness.
+			WriteTimeout: 0,
 			Handler:      mux,
 		}
 
@@ -203,6 +205,7 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
+	// TODO(oliviermichaelis): instantiate storage backend here and pass reference to modules
 	if err := registerModule(mux); err != nil {
 		return nil, err
 	}
@@ -214,6 +217,7 @@ func serveMux() (*http.ServeMux, error) {
 	if err := registerMirror(mux); err != nil {
 		return nil, err
 	}
+
 
 	return mux, nil
 }
