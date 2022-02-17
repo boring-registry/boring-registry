@@ -2,10 +2,8 @@ package mirror
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/TierMobility/boring-registry/pkg/storage"
 	"io"
 )
 
@@ -14,36 +12,26 @@ import (
 type Service interface {
 	// ListProviderVersions determines which versions are currently available for a particular provider
 	// https://www.terraform.io/docs/internals/provider-network-mirror-protocol.html#list-available-versions
-	ListProviderVersions(ctx context.Context, hostname, namespace, name string) (*ProviderVersions, error)
+	ListProviderVersions(ctx context.Context, provider core.Provider) (*ProviderVersions, error)
 
 	// ListProviderInstallation returns download URLs and associated metadata for the distribution packages for a particular version of a provider
 	// https://www.terraform.io/docs/internals/provider-network-mirror-protocol.html#list-available-installation-packages
-	ListProviderInstallation(ctx context.Context, hostname, namespace, name, version string) (*Archives, error)
+	ListProviderInstallation(ctx context.Context, provider core.Provider) (*Archives, error)
 
 	// RetrieveProviderArchive returns an io.Reader of a zip archive containing the provider binary for a given provider
-	RetrieveProviderArchive(ctx context.Context, hostname string, p core.Provider) (io.Reader, error)
+	RetrieveProviderArchive(ctx context.Context, provider core.Provider) (io.Reader, error)
 
 	// MirrorProvider stores the provider zip archive in the configured storage backend
 	// The operation has to be idempotent, as a provider could be mirrored multiple times at the same time, possibly also from multiple replicas of the service
-	MirrorProvider(ctx context.Context, hostname string, p core.Provider, reader io.Reader) error
+	MirrorProvider(ctx context.Context, provider core.Provider, reader io.Reader) error
 }
 
 type service struct {
-	storage storage.Storage
+	storage Storage
 }
 
-func (s *service) ListProviderVersions(ctx context.Context, hostname, namespace, name string) (*ProviderVersions, error) {
-	if hostname == "" || namespace == "" || name == "" {
-		return nil, errors.New("invalid parameters")
-	}
-
-	provider := core.Provider{
-		Hostname: hostname,
-		Namespace: namespace,
-		Name: name,
-	}
-
-	providers, err := s.storage.GetMirroredProviders(ctx, provider)
+func (s *service) ListProviderVersions(ctx context.Context, provider core.Provider) (*ProviderVersions, error) {
+	providers, err := s.storage.EnumerateMirroredProviders(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -51,19 +39,8 @@ func (s *service) ListProviderVersions(ctx context.Context, hostname, namespace,
 	return newProviderVersions(providers), nil
 }
 
-func (s *service) ListProviderInstallation(ctx context.Context, hostname, namespace, name, version string) (*Archives, error) {
-	if hostname == "" || namespace == "" || name == "" || version == "" {
-		return nil, errors.New("invalid parameters")
-	}
-
-	queryProvider := core.Provider{
-		Hostname:  hostname,
-		Namespace: namespace,
-		Name:      name,
-		Version:   version,
-	}
-
-	providers, err := s.storage.GetMirroredProviders(ctx, queryProvider)
+func (s *service) ListProviderInstallation(ctx context.Context, p core.Provider) (*Archives, error) {
+	providers, err := s.storage.EnumerateMirroredProviders(ctx, p)
 	if err != nil {
 		return nil, err
 	}
@@ -80,16 +57,16 @@ func (s *service) ListProviderInstallation(ctx context.Context, hostname, namesp
 	return archives, nil
 }
 
-func (s *service) RetrieveProviderArchive(ctx context.Context, hostname string, p core.Provider) (io.Reader, error) {
-	return s.storage.GetProviderArchive(ctx, hostname, p)
+func (s *service) RetrieveProviderArchive(ctx context.Context, p core.Provider) (io.Reader, error) {
+	return s.storage.RetrieveMirroredProviderArchive(ctx, p)
 }
 
-func (s *service) MirrorProvider(ctx context.Context, hostname string, p core.Provider, reader io.Reader) error {
-	return s.storage.StoreProvider(ctx, hostname, p, reader)
+func (s *service) MirrorProvider(ctx context.Context, p core.Provider, reader io.Reader) error {
+	return s.storage.StoreMirroredProvider(ctx, p, reader)
 }
 
 // NewService returns a fully initialized Service.
-func NewService(storage storage.Storage) Service {
+func NewService(storage Storage) Service {
 	return &service{
 		storage: storage,
 	}

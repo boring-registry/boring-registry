@@ -2,6 +2,7 @@ package mirror
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/go-kit/kit/endpoint"
@@ -28,7 +29,17 @@ func listProviderVersionsEndpoint(svc Service) endpoint.Endpoint {
 			return nil, fmt.Errorf("type assertion failed for listVersionsRequest")
 		}
 
-		versions, err := svc.ListProviderVersions(ctx, req.Hostname, req.Namespace, req.Name)
+		provider := core.Provider{
+			Hostname:  req.Hostname,
+			Namespace: req.Namespace,
+			Name:      req.Name,
+		}
+
+		if provider.Hostname == "" || provider.Namespace == "" || provider.Name == "" {
+			return nil, errors.New("invalid parameters")
+		}
+
+		versions, err := svc.ListProviderVersions(ctx, provider)
 		if err != nil {
 			return nil, err
 		}
@@ -53,7 +64,18 @@ func listProviderInstallationEndpoint(svc Service) endpoint.Endpoint {
 			return nil, fmt.Errorf("type assertion failed for listProviderInstallationRequest")
 		}
 
-		archives, err := svc.ListProviderInstallation(ctx, req.Hostname, req.Namespace, req.Name, req.Version)
+		provider := core.Provider{
+			Hostname:  req.Hostname,
+			Namespace: req.Namespace,
+			Name:      req.Name,
+			Version:   req.Version,
+		}
+
+		if provider.Hostname == "" || provider.Namespace == "" || provider.Name == "" || provider.Version == "" {
+			return nil, errors.New("invalid parameters")
+		}
+
+		archives, err := svc.ListProviderInstallation(ctx, provider)
 		if err != nil {
 			return nil, err
 		}
@@ -79,6 +101,7 @@ func retrieveProviderArchiveEndpoint(svc Service) endpoint.Endpoint {
 		}
 
 		provider := core.Provider{
+			Hostname:  req.Hostname,
 			Namespace: req.Namespace,
 			Name:      req.Name,
 			Version:   req.Version,
@@ -86,7 +109,11 @@ func retrieveProviderArchiveEndpoint(svc Service) endpoint.Endpoint {
 			Arch:      req.Architecture,
 		}
 
-		return svc.RetrieveProviderArchive(ctx, req.Hostname, provider)
+		if provider.Hostname == "" || provider.Namespace == "" || provider.Name == "" || provider.Version == "" || provider.OS == "" || provider.Arch == "" {
+			return nil, errors.New("invalid parameters")
+		}
+
+		return svc.RetrieveProviderArchive(ctx, provider)
 	}
 }
 

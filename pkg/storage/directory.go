@@ -22,9 +22,25 @@ var (
 	customProvidersPrefix = "providers"
 )
 
+// DirectoryStorage implements mirror.Storage
 type DirectoryStorage struct {
 	rwMutex sync.RWMutex
 	path    string
+}
+
+// EnumerateMirroredProviders stems from mirror.Storage
+func (d *DirectoryStorage) EnumerateMirroredProviders(ctx context.Context, provider core.Provider) (*[]core.Provider, error) {
+	return d.GetMirroredProviders(ctx, provider)
+}
+
+// RetrieveMirroredProviderArchive stems from mirror.Storage
+func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, provider core.Provider) (io.ReadCloser, error) {
+	return d.GetProviderArchive(ctx, provider)
+}
+
+// StoreMirroredProvider stems from mirror.Storage
+func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider core.Provider, reader io.Reader) error {
+	return d.StoreProvider(ctx, provider, reader)
 }
 
 func (d *DirectoryStorage) GetMirroredProviders(ctx context.Context, provider core.Provider) (*[]core.Provider, error) {
@@ -35,8 +51,8 @@ func (d *DirectoryStorage) GetCustomProviders(ctx context.Context, provider core
 	return d.getProviders(ctx, customProvidersPrefix, provider)
 }
 
-func (d *DirectoryStorage) GetProviderArchive(ctx context.Context, hostname string, provider core.Provider) (io.ReadCloser, error) {
-	f := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, hostname, provider.Namespace, provider.Name, provider.ArchiveFileName())
+func (d *DirectoryStorage) GetProviderArchive(ctx context.Context, provider core.Provider) (io.ReadCloser, error) {
+	f := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.ArchiveFileName())
 	file, err := os.Open(f)
 	if err != nil {
 		return nil, &ErrProviderNotMirrored{
@@ -49,7 +65,7 @@ func (d *DirectoryStorage) GetProviderArchive(ctx context.Context, hostname stri
 }
 
 // StoreProvider should only be used for mirrored providers, as the prefix is hardcoded
-func (d *DirectoryStorage) StoreProvider(ctx context.Context, hostname string, provider core.Provider, reader io.Reader) error {
+func (d *DirectoryStorage) StoreProvider(ctx context.Context, provider core.Provider, reader io.Reader) error {
 	// Acquiring lock, as the operation is not an atomic filesystem operation
 	d.rwMutex.Lock()
 	defer d.rwMutex.Unlock()
@@ -64,7 +80,7 @@ func (d *DirectoryStorage) StoreProvider(ctx context.Context, hostname string, p
 		return fmt.Errorf("can't store provider as it exists already")
 	}
 
-	p := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, hostname, provider.Namespace, provider.Name, provider.ArchiveFileName())
+	p := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.ArchiveFileName())
 	if err := os.MkdirAll(path.Dir(p), 0755); err != nil {
 		return err
 	}
@@ -174,7 +190,7 @@ func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, prov
 	return &providers, nil
 }
 
-func NewDirectoryStorage(path string) (Storage, error) {
+func NewDirectoryStorage(path string) (*DirectoryStorage, error) {
 	p, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err

@@ -34,7 +34,7 @@ type loggingMiddleware struct {
 	logger log.Logger
 }
 
-func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, hostname, namespace, name string) (providerVersions *ProviderVersions, err error) {
+func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider core.Provider) (providerVersions *ProviderVersions, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -43,19 +43,19 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, hostname, 
 
 		_ = logger.Log(
 			"op", "ListProviderVersions",
-			"hostname", hostname,
-			"namespace", namespace,
-			"name", name,
+			"hostname", provider.Hostname,
+			"namespace", provider.Namespace,
+			"name", provider.Name,
 			"took", time.Since(begin),
 			"err", err,
 		)
 
 	}(time.Now())
 
-	return mw.next.ListProviderVersions(ctx, hostname, namespace, name)
+	return mw.next.ListProviderVersions(ctx, provider)
 }
 
-func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, hostname, namespace, name, version string) (provider *Archives, err error) {
+func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provider core.Provider) (archives *Archives, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -64,19 +64,19 @@ func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, hostna
 
 		_ = logger.Log(
 			"op", "ListProviderInstallation",
-			"hostname", hostname,
-			"namespace", namespace,
-			"name", name,
+			"hostname", provider.Hostname,
+			"namespace", provider.Namespace,
+			"name", provider.Name,
 			"took", time.Since(begin),
 			"err", err,
 		)
 
 	}(time.Now())
 
-	return mw.next.ListProviderInstallation(ctx, hostname, namespace, name, version)
+	return mw.next.ListProviderInstallation(ctx, provider)
 }
 
-func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, hostname string, provider core.Provider) (_ io.Reader, err error) {
+func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, provider core.Provider) (_ io.Reader, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -85,7 +85,7 @@ func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, hostnam
 
 		_ = logger.Log(
 			"op", "RetrieveProviderArchive",
-			"hostname", hostname,
+			"hostname", provider.Hostname,
 			"namespace", provider.Namespace,
 			"name", provider.Name,
 			"version", provider.Version,
@@ -97,10 +97,10 @@ func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, hostnam
 
 	}(time.Now())
 
-	return mw.next.RetrieveProviderArchive(ctx, hostname, provider)
+	return mw.next.RetrieveProviderArchive(ctx, provider)
 }
 
-func (mw loggingMiddleware) MirrorProvider(ctx context.Context, hostname string, provider core.Provider, r io.Reader) (err error) {
+func (mw loggingMiddleware) MirrorProvider(ctx context.Context, provider core.Provider, r io.Reader) (err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -109,7 +109,7 @@ func (mw loggingMiddleware) MirrorProvider(ctx context.Context, hostname string,
 
 		_ = logger.Log(
 			"op", "MirrorProvider",
-			"hostname", hostname,
+			"hostname", provider.Hostname,
 			"namespace", provider.Namespace,
 			"name", provider.Name,
 			"version", provider.Version,
@@ -121,7 +121,7 @@ func (mw loggingMiddleware) MirrorProvider(ctx context.Context, hostname string,
 
 	}(time.Now())
 
-	return mw.next.MirrorProvider(ctx, hostname, provider, r)
+	return mw.next.MirrorProvider(ctx, provider, r)
 }
 
 // LoggingMiddleware is a logging Service middleware.
@@ -145,14 +145,14 @@ type proxyRegistry struct {
 }
 
 // ListProviderVersions returns the available versions fetched from the upstream registry, as well as from the pull-through cache
-func (p *proxyRegistry) ListProviderVersions(ctx context.Context, hostname, namespace, name string) (*ProviderVersions, error) {
+func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.Provider) (*ProviderVersions, error) {
 	// TODO(oliviermichaelis): the errgroup might not be right, as we want to return both errors in case upstream is down and cache does not contain the provider
 	g, _ := errgroup.WithContext(ctx)
 
 	// Get providers from the upstream registry if it is reachable
 	upstreamVersions := &ProviderVersions{}
 	g.Go(func() error {
-		versions, err := p.getUpstreamProviders(ctx, hostname, namespace, name)
+		versions, err := p.getUpstreamProviders(ctx, provider)
 		if err != nil {
 			return err
 		}
@@ -169,7 +169,7 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, hostname, name
 	cachedVersions := &ProviderVersions{Versions: make(map[string]EmptyObject)}
 	// TODO(oliviermichaelis): check for concurrency problems
 	g.Go(func() (err error) {
-		providerVersions, err := p.next.ListProviderVersions(ctx, hostname, namespace, name)
+		providerVersions, err := p.next.ListProviderVersions(ctx, provider)
 		if err != nil {
 			return err
 		}
@@ -198,23 +198,23 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, hostname, name
 	return cachedVersions, nil
 }
 
-func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, hostname, namespace, name, version string) (*Archives, error) {
+func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider core.Provider) (*Archives, error) {
 	// Get archives from the cache
 	eg, groupCtx := errgroup.WithContext(ctx)
 	results := make(chan *Archives, 2)
 
 	eg.Go(func() error {
 		var errProviderNotMirrored *storage.ErrProviderNotMirrored
-		res, err := p.next.ListProviderInstallation(groupCtx, hostname, namespace, name, version)
+		res, err := p.next.ListProviderInstallation(groupCtx, provider)
 		if errors.As(err, &errProviderNotMirrored) {
 			// return from the goroutine without propagating the error, as we've hit an expected error
 			_ = level.Info(p.logger).Log(
 				"op", "ListProviderInstallation",
 				"message", "provider not cached",
-				"hostname", hostname,
-				"namespace", namespace,
-				"name", name,
-				"version", version,
+				"hostname", provider.Hostname,
+				"namespace", provider.Namespace,
+				"name", provider.Name,
+				"version", provider.Version,
 				"err", err,
 			)
 			return nil
@@ -227,12 +227,12 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, hostname, 
 	})
 
 	eg.Go(func() error {
-		versions, err := p.getUpstreamProviders(groupCtx, hostname, namespace, name)
+		versions, err := p.getUpstreamProviders(groupCtx, provider)
 		var opError *net.OpError
 		if errors.As(err, &opError) || os.IsTimeout(err) {
 			// The error is handled gracefully, as we expect the upstream registry to be down.
 			// Therefore we just log the error, but don't return it
-			p.logUpstreamError("ListProviderInstallation", hostname, namespace, name, version, err)
+			p.logUpstreamError("ListProviderInstallation", provider, err)
 			return nil
 		} else if err != nil {
 			return err
@@ -242,18 +242,18 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, hostname, 
 			Archives: make(map[string]Archive),
 		}
 		for _, v := range versions {
-			if v.Version == version {
+			if v.Version == provider.Version {
 				for _, platform := range v.Platforms {
-					provider := core.Provider{
-						Namespace: namespace,
-						Name:      name,
-						Version:   version,
+					p := core.Provider{
+						Namespace: provider.Namespace,
+						Name:      provider.Name,
+						Version:   provider.Version,
 						OS:        platform.OS,
 						Arch:      platform.Arch,
 					}
 					key := fmt.Sprintf("%s_%s", platform.OS, platform.Arch)
 					upstreamArchives.Archives[key] = Archive{
-						Url:    provider.ArchiveFileName(),
+						Url:    p.ArchiveFileName(),
 						Hashes: nil, // TODO(oliviermichaelis): hash is missing
 					}
 				}
@@ -285,9 +285,9 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, hostname, 
 	return &Archives{Archives: mergedArchive}, nil
 }
 
-func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, hostname string, provider core.Provider) (io.Reader, error) {
+func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, provider core.Provider) (io.Reader, error) {
 	// retrieve the provider from the local cache if available
-	reader, err := p.next.RetrieveProviderArchive(ctx, hostname, provider)
+	reader, err := p.next.RetrieveProviderArchive(ctx, provider)
 	var errProviderNotMirrored *storage.ErrProviderNotMirrored
 	if err != nil {
 		if !errors.As(err, &errProviderNotMirrored) { // only return on unexpected errors
@@ -298,18 +298,18 @@ func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, hostname st
 	}
 
 	// download the provider from the upstream registry, as it's not mirrored yet
-	b, err := p.upstreamProviderArchive(ctx, hostname, provider)
+	b, err := p.upstreamProviderArchive(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
 
 	// store the downloaded provider concurrently in the storage backend
 	go func() {
-		err := p.MirrorProvider(ctx, hostname, provider, bytes.NewReader(*b))
+		err := p.MirrorProvider(ctx, provider, bytes.NewReader(*b))
 		if err != nil {
 			_ = level.Error(p.logger).Log(
 				"message", "failed to store provider",
-				"hostname", hostname,
+				"hostname", provider.Hostname,
 				"namespace", provider.Namespace,
 				"name", provider.Name,
 				"version", provider.Version,
@@ -321,13 +321,13 @@ func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, hostname st
 	return bytes.NewReader(*b), nil
 }
 
-func (p *proxyRegistry) MirrorProvider(ctx context.Context, hostname string, provider core.Provider, reader io.Reader) error {
-	return p.next.MirrorProvider(ctx, hostname, provider, reader)
+func (p *proxyRegistry) MirrorProvider(ctx context.Context, provider core.Provider, reader io.Reader) error {
+	return p.next.MirrorProvider(ctx, provider, reader)
 }
 
-func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, hostname, namespace, name string) ([]listResponseVersion, error) {
+func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.Provider) ([]listResponseVersion, error) {
 	// Check if there is already an endpoint.Endpoint for the upstream registry, namespace and name
-	upstreamUrl, err := url.Parse(fmt.Sprintf("https://%s/v1/providers/%s/%s/versions", hostname, namespace, name))
+	upstreamUrl, err := url.Parse(fmt.Sprintf("https://%s/v1/providers/%s/%s/versions", provider.Hostname, provider.Namespace, provider.Name))
 	if err != nil {
 		return nil, err
 	}
@@ -350,20 +350,20 @@ func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, hostname, name
 	return resp.Versions, nil
 }
 
-func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, hostname string, provider core.Provider) (*[]byte, error) {
-	clientEndpoint, ok := p.upstreamRegistries[hostname]
+func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider core.Provider) (*[]byte, error) {
+	clientEndpoint, ok := p.upstreamRegistries[provider.Hostname]
 	if !ok {
-		baseURL, err := url.Parse(fmt.Sprintf("https://%s", hostname))
+		baseURL, err := url.Parse(fmt.Sprintf("https://%s", provider.Hostname))
 		if err != nil {
 			return nil, err
 		}
 
 		clientEndpoint = httptransport.NewClient(http.MethodGet, baseURL, encodeArchiveUrlRequest, decodeArchiveUrlResponse).Endpoint()
-		p.upstreamRegistries[hostname] = clientEndpoint
+		p.upstreamRegistries[provider.Hostname] = clientEndpoint
 	}
 
 	request := retrieveProviderArchiveRequest{
-		Hostname:     hostname,
+		Hostname:     provider.Hostname,
 		Namespace:    provider.Namespace,
 		Name:         provider.Name,
 		Version:      provider.Version,
@@ -394,7 +394,7 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, hostname st
 
 	_ = level.Info(p.logger).Log(
 		"message", "successfully downloaded upstream provider",
-		"hostname", hostname,
+		"hostname", provider.Hostname,
 		"namespace", provider.Namespace,
 		"name", provider.Name,
 		"version", provider.Version,
@@ -411,14 +411,14 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, hostname st
 }
 
 // TODO(oliviermichaelis): change parameters to use core.Provider
-func (p *proxyRegistry) logUpstreamError(op, hostname, namespace, name, version string, err error) {
+func (p *proxyRegistry) logUpstreamError(op string, provider core.Provider, err error) {
 	_ = level.Info(p.logger).Log(
 		"op", op,
 		"message", "couldn't reach upstream registry",
-		"hostname", hostname,
-		"namespace", namespace,
-		"name", name,
-		"version", version,
+		"hostname", provider.Hostname,
+		"namespace", provider.Namespace,
+		"name", provider.Name,
+		"version", provider.Version,
 		"err", err,
 	)
 }

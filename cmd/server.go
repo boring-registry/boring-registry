@@ -305,12 +305,12 @@ func registerProvider(mux *http.ServeMux) error {
 }
 
 func registerMirror(mux *http.ServeMux) error {
-	s, err := storage.NewDirectoryStorage(flagDirectoryPath)
+	directoryStorage, err := storage.NewDirectoryStorage(flagDirectoryPath)
 	if err != nil {
 		return err
 	}
 
-	service := mirror.NewService(s)
+	service := mirror.NewService(directoryStorage)
 	{
 		service = mirror.ProxyingMiddleware(logger)(service)
 		service = mirror.LoggingMiddleware(logger)(service)
