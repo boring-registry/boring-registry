@@ -39,7 +39,7 @@ func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, 
 	file, err := os.Open(f)
 	if err != nil {
 		return nil, &ErrProviderNotMirrored{
-			Err:  err,
+			Err:      err,
 			Provider: provider,
 		}
 	}
@@ -48,7 +48,7 @@ func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, 
 }
 
 // StoreMirroredProvider stems from mirror.Storage
-func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider core.Provider, reader io.Reader) error {
+func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider core.Provider, binary, shasum, shasumSignature io.Reader) error {
 	// Acquiring lock, as the operation is not an atomic filesystem operation
 	d.rwMutex.Lock()
 	defer d.rwMutex.Unlock()
@@ -63,18 +63,42 @@ func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider c
 		return fmt.Errorf("can't store provider as it exists already")
 	}
 
-	p := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.ArchiveFileName())
-	if err := os.MkdirAll(path.Dir(p), 0755); err != nil {
-		return err
+	providerDir := fmt.Sprintf("%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name)
+	inputs := []struct {
+		path   string
+		reader io.Reader
+	}{
+		{
+			path:   fmt.Sprintf("%s/%s", providerDir, provider.ArchiveFileName()),
+			reader: binary,
+		},
+		{
+			path:   fmt.Sprintf("%s/%s", providerDir, provider.ShasumFileName()),
+			reader: shasum,
+		},
+		{
+			path:   fmt.Sprintf("%s/%s", providerDir, provider.ShasumSignatureFileName()),
+			reader: shasumSignature,
+		},
 	}
 
-	f, err := os.Create(p)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(f, reader)
+	for _, input := range inputs {
+		// ensure directory exists
+		if err := os.MkdirAll(path.Dir(input.path), 0755); err != nil {
+			return err
+		}
 
-	return err
+		f, err := os.Create(input.path)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(f, input.reader)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (d *DirectoryStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (module.Module, error) {
@@ -129,7 +153,7 @@ func (d *DirectoryStorage) ListProviderVersions(ctx context.Context, namespace, 
 
 func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, provider core.Provider) (*[]core.Provider, error) {
 	p := fmt.Sprintf("%s/%s/%s/%s/%s", d.path, prefix, provider.Hostname, provider.Namespace, provider.Name)
-	rootDir := filepath.Clean(p) // remove trailing path separators
+	rootDir := filepath.Clean(p) // remove trailing p separators
 	var archives []string
 	err := filepath.Walk(rootDir,
 		func(path string, file fs.FileInfo, err error) error {
@@ -153,7 +177,7 @@ func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, prov
 	if err != nil {
 		return nil, &ErrProviderNotMirrored{
 			Provider: provider,
-			Err:  err,
+			Err:      err,
 		}
 	}
 
@@ -167,6 +191,20 @@ func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, prov
 				continue
 			}
 		}
+
+		// Retrieve the SHASUM if it exists
+		shasumFilePath := fmt.Sprintf("%s/%s", path.Dir(a), p.ShasumFileName())
+		f, err := os.Open(shasumFilePath)
+		if err != nil {
+			return nil, err
+		}
+		p.Shasum, err = ReadSHASums(f, p)
+		if err != nil {
+			// Even though the hash is optional, we're failing the operation here
+			return nil, err
+		}
+		_ = f.Close() // file needs to be closed explicitly instead of deferred to prevent resource leak in loop
+
 		providers = append(providers, p)
 	}
 

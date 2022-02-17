@@ -9,5 +9,5 @@ import (
 type Storage interface {
 	EnumerateMirroredProviders(ctx context.Context, provider core.Provider) (*[]core.Provider, error)
 	RetrieveMirroredProviderArchive(ctx context.Context, provider core.Provider) (io.ReadCloser, error)
-	StoreMirroredProvider(ctx context.Context, provider core.Provider, reader io.Reader) error
+	StoreMirroredProvider(ctx context.Context, provider core.Provider, binary, shasum, shasumSignature io.Reader) error
 }

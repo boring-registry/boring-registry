@@ -33,6 +33,14 @@ func (p *Provider) ArchiveFileName() string {
 	return fmt.Sprintf("%s%s_%s_%s_%s%s", ProviderPrefix, p.Name, p.Version, p.OS, p.Arch, ProviderExtension)
 }
 
+func (p *Provider) ShasumFileName() string {
+	return fmt.Sprintf("%s%s_%s_SHA256SUMS", ProviderPrefix, p.Name, p.Version)
+}
+
+func (p *Provider) ShasumSignatureFileName() string {
+	return fmt.Sprintf("%s%s_%s_SHA256SUMS.sig", ProviderPrefix, p.Name, p.Version)
+}
+
 func NewProviderFromArchive(filename string) Provider {
 	// Criterias for terraform archives:
 	// https://www.terraform.io/docs/registry/providers/publishing.html#manually-preparing-a-release

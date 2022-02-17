@@ -23,7 +23,7 @@ type Service interface {
 
 	// MirrorProvider stores the provider zip archive in the configured storage backend
 	// The operation has to be idempotent, as a provider could be mirrored multiple times at the same time, possibly also from multiple replicas of the service
-	MirrorProvider(ctx context.Context, provider core.Provider, reader io.Reader) error
+	MirrorProvider(ctx context.Context, provider core.Provider, binary, shasum, shasumSignature io.Reader) error
 }
 
 type service struct {
@@ -39,30 +39,32 @@ func (s *service) ListProviderVersions(ctx context.Context, provider core.Provid
 	return newProviderVersions(providers), nil
 }
 
-func (s *service) ListProviderInstallation(ctx context.Context, p core.Provider) (*Archives, error) {
-	providers, err := s.storage.EnumerateMirroredProviders(ctx, p)
+func (s *service) ListProviderInstallation(ctx context.Context, provider core.Provider) (*Archives, error) {
+	providers, err := s.storage.EnumerateMirroredProviders(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
 
 	archives := &Archives{Archives: make(map[string]Archive)}
-	for _, provider := range *providers {
-		key := fmt.Sprintf("%s_%s", provider.OS, provider.Arch)
+	for _, p := range *providers {
+		key := fmt.Sprintf("%s_%s", p.OS, p.Arch)
 		archives.Archives[key] = Archive{
-			Url:    provider.ArchiveFileName(),
-			Hashes: nil, // TODO(oliviermichaelis): store hash somehow
+			Url:    p.ArchiveFileName(),
+			// Computing the hash is unfortunately quite complex
+			// https://www.terraform.io/language/files/dependency-lock#new-provider-package-checksums
+			Hashes: nil,
 		}
 	}
 
 	return archives, nil
 }
 
-func (s *service) RetrieveProviderArchive(ctx context.Context, p core.Provider) (io.Reader, error) {
-	return s.storage.RetrieveMirroredProviderArchive(ctx, p)
+func (s *service) RetrieveProviderArchive(ctx context.Context, provider core.Provider) (io.Reader, error) {
+	return s.storage.RetrieveMirroredProviderArchive(ctx, provider)
 }
 
-func (s *service) MirrorProvider(ctx context.Context, p core.Provider, reader io.Reader) error {
-	return s.storage.StoreMirroredProvider(ctx, p, reader)
+func (s *service) MirrorProvider(ctx context.Context, p core.Provider, binary, shamsum, shasumSignature io.Reader) error {
+	return s.storage.StoreMirroredProvider(ctx, p, binary, shamsum, shasumSignature)
 }
 
 // NewService returns a fully initialized Service.

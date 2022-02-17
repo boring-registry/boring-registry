@@ -212,6 +212,7 @@ func (s *S3Storage) presignedURL(v string) (string, error) {
 	return req.Presign(15 * time.Minute)
 }
 
+// Deprecated: TODO(oliviermichaelis): remove function
 func readSHASums(r io.Reader, name string) (string, error) {
 	scanner := bufio.NewScanner(r)
 

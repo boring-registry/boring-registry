@@ -100,7 +100,7 @@ func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, provide
 	return mw.next.RetrieveProviderArchive(ctx, provider)
 }
 
-func (mw loggingMiddleware) MirrorProvider(ctx context.Context, provider core.Provider, r io.Reader) (err error) {
+func (mw loggingMiddleware) MirrorProvider(ctx context.Context, provider core.Provider, a, b, c io.Reader) (err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -121,7 +121,7 @@ func (mw loggingMiddleware) MirrorProvider(ctx context.Context, provider core.Pr
 
 	}(time.Now())
 
-	return mw.next.MirrorProvider(ctx, provider, r)
+	return mw.next.MirrorProvider(ctx, provider, a, b, c)
 }
 
 // LoggingMiddleware is a logging Service middleware.
@@ -132,6 +132,13 @@ func LoggingMiddleware(logger log.Logger) Middleware {
 			next:   next,
 		}
 	}
+}
+
+// upstreamArchiveResult is a helper used to bundle multiple return values in a single struct
+type upstreamArchiveResult struct {
+	providerBinary  *[]byte
+	shasum          *[]byte
+	shasumSignature *[]byte
 }
 
 // TODO(oliviermichaelis): split out into a separate file
@@ -254,7 +261,10 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 					key := fmt.Sprintf("%s_%s", platform.OS, platform.Arch)
 					upstreamArchives.Archives[key] = Archive{
 						Url:    p.ArchiveFileName(),
-						Hashes: nil, // TODO(oliviermichaelis): hash is missing
+						// Computing the hash is unfortunately quite complex
+						// https://www.terraform.io/language/files/dependency-lock#new-provider-package-checksums
+						Hashes: nil,
+
 					}
 				}
 			}
@@ -298,14 +308,18 @@ func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, provider co
 	}
 
 	// download the provider from the upstream registry, as it's not mirrored yet
-	b, err := p.upstreamProviderArchive(ctx, provider)
+	upstreamResult, err := p.upstreamProviderArchive(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
 
 	// store the downloaded provider concurrently in the storage backend
 	go func() {
-		err := p.MirrorProvider(ctx, provider, bytes.NewReader(*b))
+		err := p.MirrorProvider(ctx, provider,
+			bytes.NewReader(*upstreamResult.providerBinary),
+			bytes.NewReader(*upstreamResult.shasum),
+			bytes.NewReader(*upstreamResult.shasumSignature),
+		)
 		if err != nil {
 			_ = level.Error(p.logger).Log(
 				"message", "failed to store provider",
@@ -318,11 +332,11 @@ func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, provider co
 		}
 	}()
 
-	return bytes.NewReader(*b), nil
+	return bytes.NewReader(*upstreamResult.providerBinary), nil
 }
 
-func (p *proxyRegistry) MirrorProvider(ctx context.Context, provider core.Provider, reader io.Reader) error {
-	return p.next.MirrorProvider(ctx, provider, reader)
+func (p *proxyRegistry) MirrorProvider(ctx context.Context, provider core.Provider, binary, shasum, shasumSignature io.Reader) error {
+	return p.next.MirrorProvider(ctx, provider, binary, shasum, shasumSignature)
 }
 
 func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.Provider) ([]listResponseVersion, error) {
@@ -350,7 +364,7 @@ func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.
 	return resp.Versions, nil
 }
 
-func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider core.Provider) (*[]byte, error) {
+func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider core.Provider) (*upstreamArchiveResult, error) {
 	clientEndpoint, ok := p.upstreamRegistries[provider.Hostname]
 	if !ok {
 		baseURL, err := url.Parse(fmt.Sprintf("https://%s", provider.Hostname))
@@ -383,13 +397,27 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 	// TODO(oliviermichaelis): timeout value depends on the server WriteTimeout
 	begin := time.Now()
 	client := http.Client{Timeout: 30 * time.Second} // need to override default timeout, as the timeout will close the io.ReadCloser from the response body
-	archive, err := client.Get(resp.DownloadURL)     // Go expects us to close the Body once we're done reading from it.
+
+	binaryResponse, err := client.Get(resp.DownloadURL)
 	if err != nil {
 		return nil, err
 	}
 
+	shasumResponse, err := client.Get(resp.ShasumsURL)
+	if err != nil {
+		return nil, err
+	}
+
+	shasumSignatureResponse, err := client.Get(resp.ShasumsSignatureURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Go expects us to close the Body once we're done reading from it
 	defer func() {
-		_ = archive.Body.Close()
+		_ = binaryResponse.Body.Close()
+		_ = shasumResponse.Body.Close()
+		_ = shasumSignatureResponse.Body.Close()
 	}()
 
 	_ = level.Info(p.logger).Log(
@@ -401,13 +429,26 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 		"took", time.Since(begin),
 	)
 
-	b, err := io.ReadAll(archive.Body)
+	binary, err := io.ReadAll(binaryResponse.Body)
 	if err != nil {
 		return nil, err
 	}
 
-	return &b, nil
+	shasum, err := io.ReadAll(shasumResponse.Body)
+	if err != nil {
+		return nil, err
+	}
 
+	shasumSignature, err := io.ReadAll(shasumSignatureResponse.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return &upstreamArchiveResult{
+		providerBinary:  &binary,
+		shasum:          &shasum,
+		shasumSignature: &shasumSignature,
+	}, nil
 }
 
 // TODO(oliviermichaelis): change parameters to use core.Provider
@@ -426,9 +467,9 @@ func (p *proxyRegistry) logUpstreamError(op string, provider core.Provider, err 
 func ProxyingMiddleware(logger log.Logger) Middleware {
 	return func(next Service) Service {
 		return &proxyRegistry{
-			next:                 next,
-			logger:               logger,
-			upstreamRegistries:   make(map[string]endpoint.Endpoint),
+			next:               next,
+			logger:             logger,
+			upstreamRegistries: make(map[string]endpoint.Endpoint),
 		}
 	}
 }
