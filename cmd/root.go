@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/mirror"
 	"github.com/TierMobility/boring-registry/pkg/storage"
 	"io"
 	"os"
@@ -185,7 +186,7 @@ func setupDirectoryModuleStorage() (module.Storage, error) {
 	return storage.NewDirectoryStorage(flagDirectoryPath)
 }
 
-func setupDirectoryStorage() (storage.Storage, error) {
+func setupDirectoryStorage() (mirror.Storage, error) {
 	return storage.NewDirectoryStorage(flagDirectoryPath)
 }
 

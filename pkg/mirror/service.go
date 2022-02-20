@@ -77,8 +77,6 @@ func NewService(storage Storage) Service {
 // EmptyObject exists to return an `{}` JSON object to match the protocol spec
 type EmptyObject struct{}
 
-// TODO(oliviermichaelis): could be renamed as it clashes with the other core.ProviderVersion
-
 // ProviderVersions holds the response that is passed up to the endpoint
 type ProviderVersions struct {
 	Versions map[string]EmptyObject `json:"versions"`

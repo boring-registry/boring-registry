@@ -60,14 +60,13 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 
 	// Get provider versions from the pull-through cache
 	cachedVersions := &ProviderVersions{Versions: make(map[string]EmptyObject)}
-	// TODO(oliviermichaelis): check for concurrency problems
 	g.Go(func() (err error) {
 		providerVersions, err := p.next.ListProviderVersions(ctx, provider)
 		if err != nil {
 			return err
 		}
 
-		// We can only assign cachedVersions once we know that err is non-nil. Otherwise the map is not initialized
+		// We can only assign cachedVersions once we know that err is non-nil. Otherwise, the map is not initialized
 		cachedVersions = providerVersions
 		return nil
 	})
@@ -77,9 +76,23 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 		var errProviderNotMirrored *storage.ErrProviderNotMirrored
 		// Check for net.OpError, as that is an indication for network errors. There is likely a better solution to the problem
 		if errors.As(err, &opError) {
-			fmt.Println(fmt.Errorf("couldn't reach upstream registry: %v", err)) // TODO(oliviermichaelis): use proper logging
+			_ = level.Warn(p.logger).Log(
+				"op", "ListProviderVersions",
+				"message", "couldn't reach upstream registry",
+				"hostname", provider.Hostname,
+				"namespace", provider.Namespace,
+				"name", provider.Name,
+				"err", err,
+				)
 		} else if errors.As(err, &errProviderNotMirrored) {
-			fmt.Println(err.Error())
+			_ = level.Info(p.logger).Log(
+				"op", "ListProviderInstallation",
+				"message", "provider not cached",
+				"hostname", provider.Hostname,
+				"namespace", provider.Namespace,
+				"name", provider.Name,
+				"err", err,
+			)
 		}
 	}
 
@@ -238,7 +251,7 @@ func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.
 
 	clientEndpoint := httptransport.NewClient(http.MethodGet, upstreamUrl, encodeRequest, decodeUpstreamListProviderVersionsResponse, clientOption).Endpoint()
 
-	response, err := clientEndpoint(ctx, listVersionsRequest{}) // TODO(oliviermichaelis): The object is just a placeholder for now, as we don't have a payload
+	response, err := clientEndpoint(ctx, nil) // The request is empty, as we don't have a request body
 	if err != nil {
 		return nil, err
 	}
@@ -279,9 +292,8 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 		return nil, fmt.Errorf("failed type assertion for %v", response)
 	}
 
-	// TODO(oliviermichaelis): timeout value depends on the server WriteTimeout
 	begin := time.Now()
-	client := http.Client{Timeout: 30 * time.Second} // need to override default timeout, as the timeout will close the io.ReadCloser from the response body
+	client := http.Client{Timeout: 30 * time.Second} // Upon timeout expiration, the io.ReadCloser from the response body will be closed
 
 	binaryResponse, err := client.Get(resp.DownloadURL)
 	if err != nil {
@@ -336,7 +348,6 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 	}, nil
 }
 
-// TODO(oliviermichaelis): change parameters to use core.Provider
 func (p *proxyRegistry) logUpstreamError(op string, provider core.Provider, err error) {
 	_ = level.Info(p.logger).Log(
 		"op", op,
