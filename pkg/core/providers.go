@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -29,8 +30,19 @@ type Provider struct {
 	Platforms           []Platform  `json:"platforms,omitempty"`
 }
 
-func (p *Provider) ArchiveFileName() string {
-	return fmt.Sprintf("%s%s_%s_%s_%s%s", ProviderPrefix, p.Name, p.Version, p.OS, p.Arch, ProviderExtension)
+func (p *Provider) ArchiveFileName() (string, error) {
+	// Validate the Provider struct
+	if p.Name == "" {
+		return "", errors.New("provider Name is empty")
+	} else if p.Version == "" {
+		return "", errors.New("provider Version is empty")
+	} else if p.OS == "" {
+		return "", errors.New("provider OS is empty")
+	} else if p.Arch == "" {
+		return "", errors.New("provider Arch is empty")
+	}
+
+	return fmt.Sprintf("%s%s_%s_%s_%s%s", ProviderPrefix, p.Name, p.Version, p.OS, p.Arch, ProviderExtension), nil
 }
 
 func (p *Provider) ShasumFileName() string {

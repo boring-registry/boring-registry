@@ -35,7 +35,12 @@ func (d *DirectoryStorage) EnumerateMirroredProviders(ctx context.Context, provi
 
 // RetrieveMirroredProviderArchive stems from mirror.Storage
 func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, provider core.Provider) (io.ReadCloser, error) {
-	f := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.ArchiveFileName())
+	fileName, err := provider.ArchiveFileName()
+	if err != nil {
+		return nil, err
+	}
+
+	f := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name, fileName)
 	file, err := os.Open(f)
 	if err != nil {
 		return nil, &ErrProviderNotMirrored{
@@ -63,13 +68,18 @@ func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider c
 		return fmt.Errorf("can't store provider as it exists already")
 	}
 
+	fileName, err := provider.ArchiveFileName()
+	if err != nil {
+		return err
+	}
+
 	providerDir := fmt.Sprintf("%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name)
 	inputs := []struct {
 		path   string
 		reader io.Reader
 	}{
 		{
-			path:   fmt.Sprintf("%s/%s", providerDir, provider.ArchiveFileName()),
+			path:   fmt.Sprintf("%s/%s", providerDir, fileName),
 			reader: binary,
 		},
 		{

@@ -47,9 +47,14 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider core.Pr
 
 	archives := &Archives{Archives: make(map[string]Archive)}
 	for _, p := range *providers {
+		fileName, err := p.ArchiveFileName()
+		if err != nil {
+			return nil, err
+		}
+
 		key := fmt.Sprintf("%s_%s", p.OS, p.Arch)
 		archives.Archives[key] = Archive{
-			Url: p.ArchiveFileName(),
+			Url: fileName,
 			// Computing the hash is unfortunately quite complex
 			// https://www.terraform.io/language/files/dependency-lock#new-provider-package-checksums
 			Hashes: nil,

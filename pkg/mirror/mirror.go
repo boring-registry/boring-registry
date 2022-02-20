@@ -73,7 +73,7 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 
 	if err := g.Wait(); err != nil {
 		var opError *net.OpError
-		var errProviderNotMirrored *storage.ErrProviderNotMirrored
+		var errProviderNotMirrored storage.ErrProviderNotMirrored
 		// Check for net.OpError, as that is an indication for network errors. There is likely a better solution to the problem
 		if errors.As(err, &opError) {
 			_ = level.Warn(p.logger).Log(
@@ -83,7 +83,7 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 				"namespace", provider.Namespace,
 				"name", provider.Name,
 				"err", err,
-				)
+			)
 		} else if errors.As(err, &errProviderNotMirrored) {
 			_ = level.Info(p.logger).Log(
 				"op", "ListProviderInstallation",
@@ -93,6 +93,8 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 				"name", provider.Name,
 				"err", err,
 			)
+		} else {
+			return nil, err
 		}
 	}
 
@@ -157,9 +159,15 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 						OS:        platform.OS,
 						Arch:      platform.Arch,
 					}
+
+					providerFileName, err := p.ArchiveFileName()
+					if err != nil {
+						return err
+					}
+
 					key := fmt.Sprintf("%s_%s", platform.OS, platform.Arch)
 					upstreamArchives.Archives[key] = Archive{
-						Url: p.ArchiveFileName(),
+						Url: providerFileName,
 						// Computing the hash is unfortunately quite complex
 						// https://www.terraform.io/language/files/dependency-lock#new-provider-package-checksums
 						Hashes: nil,
