@@ -74,6 +74,15 @@ func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider c
 	}
 
 	providerDir := fmt.Sprintf("%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name)
+	providerShasumFilename, err := provider.ShasumFileName()
+	if err != nil {
+		return err
+	}
+	providerShasumSignatureFilename, err := provider.ShasumSignatureFileName()
+	if err != nil {
+		return err
+	}
+
 	inputs := []struct {
 		path   string
 		reader io.Reader
@@ -83,11 +92,11 @@ func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider c
 			reader: binary,
 		},
 		{
-			path:   fmt.Sprintf("%s/%s", providerDir, provider.ShasumFileName()),
+			path:   fmt.Sprintf("%s/%s", providerDir, providerShasumFilename),
 			reader: shasum,
 		},
 		{
-			path:   fmt.Sprintf("%s/%s", providerDir, provider.ShasumSignatureFileName()),
+			path:   fmt.Sprintf("%s/%s", providerDir, providerShasumSignatureFilename),
 			reader: shasumSignature,
 		},
 	}
@@ -202,8 +211,13 @@ func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, prov
 			}
 		}
 
+		shasumFilename, err := p.ShasumFileName()
+		if err != nil {
+			return nil, err
+		}
+
 		// Retrieve the SHASUM if it exists
-		shasumFilePath := fmt.Sprintf("%s/%s", path.Dir(a), p.ShasumFileName())
+		shasumFilePath := fmt.Sprintf("%s/%s", path.Dir(a), shasumFilename)
 		f, err := os.Open(shasumFilePath)
 		if err != nil {
 			return nil, err

@@ -45,12 +45,24 @@ func (p *Provider) ArchiveFileName() (string, error) {
 	return fmt.Sprintf("%s%s_%s_%s_%s%s", ProviderPrefix, p.Name, p.Version, p.OS, p.Arch, ProviderExtension), nil
 }
 
-func (p *Provider) ShasumFileName() string {
-	return fmt.Sprintf("%s%s_%s_SHA256SUMS", ProviderPrefix, p.Name, p.Version)
+func (p *Provider) ShasumFileName() (string, error) {
+	if p.Name == "" {
+		return "", errors.New("provider Name is empty")
+	} else if p.Version == "" {
+		return "", errors.New("provider Version is empty")
+	}
+
+	return fmt.Sprintf("%s%s_%s_SHA256SUMS", ProviderPrefix, p.Name, p.Version), nil
 }
 
-func (p *Provider) ShasumSignatureFileName() string {
-	return fmt.Sprintf("%s%s_%s_SHA256SUMS.sig", ProviderPrefix, p.Name, p.Version)
+func (p *Provider) ShasumSignatureFileName() (string, error) {
+	if p.Name == "" {
+		return "", errors.New("provider Name is empty")
+	} else if p.Version == "" {
+		return "", errors.New("provider Version is empty")
+	}
+
+	return fmt.Sprintf("%s%s_%s_SHA256SUMS.sig", ProviderPrefix, p.Name, p.Version), nil
 }
 
 func NewProviderFromArchive(filename string) Provider {
