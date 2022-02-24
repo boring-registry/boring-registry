@@ -306,9 +306,14 @@ type platform struct {
 }
 
 func decodeUpstreamListProviderVersionsResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status code is %d instead of 200", r.StatusCode)
+	}
+
 	var response listResponse
 	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
 		return nil, err
 	}
+	_ = r.Body.Close()
 	return response, nil
 }

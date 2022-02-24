@@ -43,7 +43,7 @@ func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, 
 	f := fmt.Sprintf("%s/%s/%s/%s/%s/%s", d.path, mirrorPrefix, provider.Hostname, provider.Namespace, provider.Name, fileName)
 	file, err := os.Open(f)
 	if err != nil {
-		return nil, &ErrProviderNotMirrored{
+		return nil, ErrProviderNotMirrored{
 			Err:      err,
 			Provider: provider,
 		}
@@ -170,7 +170,7 @@ func (d *DirectoryStorage) ListProviderVersions(ctx context.Context, namespace, 
 	return collection.List(), nil
 }
 
-func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, provider core.Provider) (*[]core.Provider, error) {
+func (d *DirectoryStorage) getProviders(_ context.Context, prefix string, provider core.Provider) (*[]core.Provider, error) {
 	p := fmt.Sprintf("%s/%s/%s/%s/%s", d.path, prefix, provider.Hostname, provider.Namespace, provider.Name)
 	rootDir := filepath.Clean(p) // remove trailing p separators
 	var archives []string
@@ -194,7 +194,7 @@ func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, prov
 			return nil
 		})
 	if err != nil {
-		return nil, &ErrProviderNotMirrored{
+		return nil, ErrProviderNotMirrored{
 			Provider: provider,
 			Err:      err,
 		}

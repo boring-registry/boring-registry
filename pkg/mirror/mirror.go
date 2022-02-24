@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -28,26 +29,47 @@ type upstreamArchiveResult struct {
 	shasumSignature *[]byte
 }
 
+type componentAlias string
+
+const (
+	upstreamComponent = componentAlias("upstream")
+	mirrorComponent   = componentAlias("mirror")
+)
+
+type ErrLookup struct {
+	err       error
+	component componentAlias
+}
+
 type proxyRegistry struct {
 	next   Service // serve most requests via this service
 	logger log.Logger
 
-	// upstreamEndpoints uses the hostname as key to re-use clients to the upstream registries.
+	// upstreamRegistries uses the hostname as key to re-use clients to the upstream registries.
 	// The base URL is set, but the path should be set in the httptransport.EncodeRequestFunc
 	upstreamRegistries map[string]endpoint.Endpoint
+	upstreamClient     *http.Client
 }
 
 // ListProviderVersions returns the available versions fetched from the upstream registry, as well as from the pull-through cache
 func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.Provider) (*ProviderVersions, error) {
-	// TODO(oliviermichaelis): the errgroup might not be right, as we want to return both errors in case upstream is down and cache does not contain the provider
-	g, _ := errgroup.WithContext(ctx)
+	// Create a WaitGroup in order to wait until cache and upstream lookup finish
+	var wg sync.WaitGroup
+	wg.Add(2)
+	errCh := make(chan ErrLookup, 2)
 
 	// Get providers from the upstream registry if it is reachable
 	upstreamVersions := &ProviderVersions{}
-	g.Go(func() error {
+	go func() {
+		defer wg.Done()
+
 		versions, err := p.getUpstreamProviders(ctx, provider)
 		if err != nil {
-			return err
+			errCh <- ErrLookup{
+				err:       err,
+				component: upstreamComponent,
+			}
+			return
 		}
 
 		// Convert the response to the desired data format
@@ -55,47 +77,70 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 		for _, version := range versions {
 			upstreamVersions.Versions[version.Version] = EmptyObject{}
 		}
-		return nil
-	})
+	}()
 
 	// Get provider versions from the pull-through cache
 	cachedVersions := &ProviderVersions{Versions: make(map[string]EmptyObject)}
-	g.Go(func() (err error) {
+	go func() {
+		defer wg.Done()
+
 		providerVersions, err := p.next.ListProviderVersions(ctx, provider)
 		if err != nil {
-			return err
+			errCh <- ErrLookup{
+				err:       err,
+				component: mirrorComponent,
+			}
+			return
 		}
 
 		// We can only assign cachedVersions once we know that err is non-nil. Otherwise, the map is not initialized
 		cachedVersions = providerVersions
-		return nil
-	})
+	}()
 
-	if err := g.Wait(); err != nil {
+	wg.Wait()
+	close(errCh) // Closing the channel so that a corresponding range on the channel doesn't block
+
+	var errFail error // this is rather no clean design
+	if len(errCh) >= 2 {
+		errFail = fmt.Errorf("both upstream and mirror failed")
+	}
+
+	for e := range errCh {
+		// TODO(oliviermichaelis): add fs.Patherror handling to directory storage. We should only really expect errProviderNotMirrored and upstream down
 		var opError *net.OpError
 		var errProviderNotMirrored storage.ErrProviderNotMirrored
-		// Check for net.OpError, as that is an indication for network errors. There is likely a better solution to the problem
-		if errors.As(err, &opError) {
-			_ = level.Warn(p.logger).Log(
-				"op", "ListProviderVersions",
-				"message", "couldn't reach upstream registry",
-				"hostname", provider.Hostname,
-				"namespace", provider.Namespace,
-				"name", provider.Name,
-				"err", err,
-			)
-		} else if errors.As(err, &errProviderNotMirrored) {
+		if e.component == upstreamComponent { // Handling upstream specific errors only
+			// Check for net.OpError, as that is an indication for network errors. There is likely a better solution to the problem
+			if errors.As(e.err, &opError) {
+				_ = level.Warn(p.logger).Log(
+					"op", "ListProviderVersions",
+					"message", "couldn't reach upstream registry",
+					"hostname", provider.Hostname,
+					"namespace", provider.Namespace,
+					"name", provider.Name,
+					"err", e.err,
+				)
+			}
+		} else if errors.As(e.err, &errProviderNotMirrored) {
 			_ = level.Info(p.logger).Log(
 				"op", "ListProviderInstallation",
 				"message", "provider not cached",
 				"hostname", provider.Hostname,
 				"namespace", provider.Namespace,
 				"name", provider.Name,
-				"err", err,
+				"err", e.err,
 			)
 		} else {
-			return nil, err
+			return nil, e.err // An unexpected error was hit
 		}
+
+		if errFail != nil {
+			errFail = fmt.Errorf("%v: %v", errFail, e.err)
+		}
+	}
+
+	if errFail != nil { // Returning an error when both upstream and mirror fail
+		return nil, errFail
 	}
 
 	// Merge both maps together
@@ -112,7 +157,7 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 	results := make(chan *Archives, 2)
 
 	eg.Go(func() error {
-		var errProviderNotMirrored *storage.ErrProviderNotMirrored
+		var errProviderNotMirrored storage.ErrProviderNotMirrored
 		res, err := p.next.ListProviderInstallation(groupCtx, provider)
 		if errors.As(err, &errProviderNotMirrored) {
 			// return from the goroutine without propagating the error, as we've hit an expected error
@@ -204,7 +249,7 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, provider core.Provider) (io.Reader, error) {
 	// retrieve the provider from the local cache if available
 	reader, err := p.next.RetrieveProviderArchive(ctx, provider)
-	var errProviderNotMirrored *storage.ErrProviderNotMirrored
+	var errProviderNotMirrored storage.ErrProviderNotMirrored
 	if err != nil {
 		if !errors.As(err, &errProviderNotMirrored) { // only return on unexpected errors
 			return nil, err
@@ -246,23 +291,23 @@ func (p *proxyRegistry) MirrorProvider(ctx context.Context, provider core.Provid
 }
 
 func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.Provider) ([]listResponseVersion, error) {
-	// Check if there is already an endpoint.Endpoint for the upstream registry, namespace and name
 	upstreamUrl, err := url.Parse(fmt.Sprintf("https://%s/v1/providers/%s/%s/versions", provider.Hostname, provider.Namespace, provider.Name))
 	if err != nil {
 		return nil, err
 	}
 
-	// Creating a custom http client with timeout to the upstream registry
-	c := http.DefaultClient
-	c.Timeout = upstreamTimeout
-	clientOption := httptransport.SetClient(c)
-
+	p.upstreamClient.Timeout = upstreamTimeout // The timeout is necessary so that we conclude the request before the downstream client request times out
+	clientOption := httptransport.SetClient(p.upstreamClient)
 	clientEndpoint := httptransport.NewClient(http.MethodGet, upstreamUrl, encodeRequest, decodeUpstreamListProviderVersionsResponse, clientOption).Endpoint()
 
 	response, err := clientEndpoint(ctx, nil) // The request is empty, as we don't have a request body
 	if err != nil {
-		return nil, err
+		return nil, storage.ErrProviderNotMirrored{
+			Provider: provider,
+			Err:      err,
+		}
 	}
+
 	resp, ok := response.(listResponse)
 	if !ok {
 		return nil, fmt.Errorf("failed type assertion for %v", response)
@@ -278,7 +323,10 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 			return nil, err
 		}
 
-		clientEndpoint = httptransport.NewClient(http.MethodGet, baseURL, encodeUpstreamArchiveDownloadRequest, decodeUpstreamArchiveDownloadResponse).Endpoint()
+		c := http.DefaultClient
+		c.Timeout = upstreamTimeout
+		clientOption := httptransport.SetClient(c)
+		clientEndpoint = httptransport.NewClient(http.MethodGet, baseURL, encodeUpstreamArchiveDownloadRequest, decodeUpstreamArchiveDownloadResponse, clientOption).Endpoint()
 		p.upstreamRegistries[provider.Hostname] = clientEndpoint
 	}
 
@@ -374,6 +422,7 @@ func ProxyingMiddleware(logger log.Logger) Middleware {
 			next:               next,
 			logger:             logger,
 			upstreamRegistries: make(map[string]endpoint.Endpoint),
+			upstreamClient:     http.DefaultClient,
 		}
 	}
 }
