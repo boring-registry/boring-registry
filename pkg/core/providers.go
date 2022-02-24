@@ -65,13 +65,16 @@ func (p *Provider) ShasumSignatureFileName() (string, error) {
 	return fmt.Sprintf("%s%s_%s_SHA256SUMS.sig", ProviderPrefix, p.Name, p.Version), nil
 }
 
-func NewProviderFromArchive(filename string) Provider {
+func NewProviderFromArchive(filename string) (Provider, error) {
 	// Criterias for terraform archives:
 	// https://www.terraform.io/docs/registry/providers/publishing.html#manually-preparing-a-release
 	f := filepath.Base(filename) // This is just a precaution
 	trimmed := strings.TrimPrefix(f, ProviderPrefix)
 	trimmed = strings.TrimSuffix(trimmed, ProviderExtension)
 	tokens := strings.Split(trimmed, "_")
+	if len(tokens) != 4 {
+		return Provider{}, fmt.Errorf("couldn't parse provider file name: %s", filename)
+	}
 
 	return Provider{
 		Name:     tokens[0],
@@ -79,7 +82,7 @@ func NewProviderFromArchive(filename string) Provider {
 		OS:       tokens[2],
 		Arch:     tokens[3],
 		Filename: f,
-	}
+	}, nil
 }
 
 type SigningKeys struct {
@@ -92,8 +95,6 @@ type GPGPublicKey struct {
 	Source     string `json:"source,omitempty"`
 	SourceURL  string `json:"source_url,omitempty"`
 }
-
-// Doesn't really belong here, but is used by multiple packages
 
 // The ProviderVersion is a copy from provider.ProviderVersion
 type ProviderVersion struct {

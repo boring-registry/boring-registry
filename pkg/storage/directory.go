@@ -202,7 +202,10 @@ func (d *DirectoryStorage) getProviders(ctx context.Context, prefix string, prov
 
 	var providers []core.Provider
 	for _, a := range archives {
-		p := core.NewProviderFromArchive(a)
+		p, err := core.NewProviderFromArchive(a)
+		if err != nil {
+			return nil, err
+		}
 
 		// Filter out providers that don't match the queried version
 		if provider.Version != "" {

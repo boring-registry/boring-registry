@@ -131,3 +131,48 @@ func TestProvider_ShasumSignatureFileName(t *testing.T) {
 		})
 	}
 }
+
+func TestNewProviderFromArchive(t *testing.T) {
+	t.Parallel()
+	assert := assertion.New(t)
+
+	testCases := []struct {
+		name             string
+		fileName         string
+		expectedProvider Provider
+		expectError      bool
+	}{
+		{
+			name:     "valid filename",
+			fileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
+			expectedProvider: Provider{
+				Name:     "random",
+				Version:  "2.0.0",
+				OS:       "linux",
+				Arch:     "amd64",
+				Filename: "terraform-provider-random_2.0.0_linux_amd64.zip",
+			},
+			expectError: false,
+		},
+		{
+			name:        "invalid filename",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			provider, err := NewProviderFromArchive(tc.fileName)
+			if tc.expectError {
+				assert.Error(err)
+			} else {
+				assert.Equal(tc.fileName, provider.Filename)
+				assert.Equal(tc.expectedProvider.Name, provider.Name)
+				assert.Equal(tc.expectedProvider.Version, provider.Version)
+				assert.Equal(tc.expectedProvider.OS, provider.OS)
+				assert.Equal(tc.expectedProvider.Arch, provider.Arch)
+			}
+		})
+	}
+}
