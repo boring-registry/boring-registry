@@ -61,7 +61,7 @@ func TestProxyRegistry_ListProviderVersions(t *testing.T) {
 				versionsResponse: &ProviderVersions{
 					Versions: map[string]EmptyObject{},
 				},
-				versionsError: storage.ErrProviderNotMirrored{
+				versionsError: &storage.ErrProviderNotMirrored{
 					Err: fmt.Errorf("mocked Error"),
 				},
 			},

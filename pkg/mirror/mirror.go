@@ -9,7 +9,6 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/storage"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"net"
 	"net/http"
@@ -100,47 +99,22 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 	wg.Wait()
 	close(errCh) // Closing the channel so that a corresponding range on the channel doesn't block
 
-	var errFail error // this is rather no clean design
 	if len(errCh) >= 2 {
-		errFail = fmt.Errorf("both upstream and mirror failed")
-	}
-
-	for e := range errCh {
-		// TODO(oliviermichaelis): add fs.Patherror handling to directory storage. We should only really expect errProviderNotMirrored and upstream down
-		var opError *net.OpError
-		var errProviderNotMirrored storage.ErrProviderNotMirrored
-		if e.component == upstreamComponent { // Handling upstream specific errors only
-			// Check for net.OpError, as that is an indication for network errors. There is likely a better solution to the problem
-			if errors.As(e.err, &opError) {
-				_ = level.Warn(p.logger).Log(
-					"op", "ListProviderVersions",
-					"message", "couldn't reach upstream registry",
-					"hostname", provider.Hostname,
-					"namespace", provider.Namespace,
-					"name", provider.Name,
-					"err", e.err,
-				)
-			}
-		} else if errors.As(e.err, &errProviderNotMirrored) {
-			_ = level.Info(p.logger).Log(
-				"op", "ListProviderInstallation",
-				"message", "provider not cached",
-				"hostname", provider.Hostname,
-				"namespace", provider.Namespace,
-				"name", provider.Name,
-				"err", e.err,
-			)
-		} else {
-			return nil, e.err // An unexpected error was hit
+		err := &ErrMirrorFailed{
+			provider,
+			[]error{},
 		}
 
-		if errFail != nil {
-			errFail = fmt.Errorf("%v: %v", errFail, e.err)
+		for e := range errCh {
+			err.errors = append(err.errors, e.err)
 		}
+
+		return nil, err
 	}
 
-	if errFail != nil { // Returning an error when both upstream and mirror fail
-		return nil, errFail
+	// TODO(oliviermichaelis): add fs.Patherror handling to directory storage.
+	if err := p.handleErrors("ListProviderVersions", provider, errCh); err != nil {
+		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
 
 	// Merge both maps together
@@ -152,43 +126,34 @@ func (p *proxyRegistry) ListProviderVersions(ctx context.Context, provider core.
 }
 
 func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider core.Provider) (*Archives, error) {
-	// Get archives from the cache
-	eg, groupCtx := errgroup.WithContext(ctx)
+	// Create a WaitGroup in order to wait until cache and upstream lookup finish
+	var wg sync.WaitGroup
+	wg.Add(2)
+	errCh := make(chan ErrLookup, 2)
 	results := make(chan *Archives, 2)
 
-	eg.Go(func() error {
-		var errProviderNotMirrored storage.ErrProviderNotMirrored
-		res, err := p.next.ListProviderInstallation(groupCtx, provider)
-		if errors.As(err, &errProviderNotMirrored) {
-			// return from the goroutine without propagating the error, as we've hit an expected error
-			_ = level.Info(p.logger).Log(
-				"op", "ListProviderInstallation",
-				"message", "provider not cached",
-				"hostname", provider.Hostname,
-				"namespace", provider.Namespace,
-				"name", provider.Name,
-				"version", provider.Version,
-				"err", err,
-			)
-			return nil
-		} else if err != nil {
-			// return as we've hit an unforeseen error
-			return err
+	go func() {
+		defer wg.Done()
+		res, err := p.next.ListProviderInstallation(ctx, provider)
+		if err != nil {
+			errCh <- ErrLookup{
+				err:       err,
+				component: mirrorComponent,
+			}
+			return
 		}
 		results <- res
-		return nil
-	})
+	}()
 
-	eg.Go(func() error {
-		versions, err := p.getUpstreamProviders(groupCtx, provider)
-		var opError *net.OpError
-		if errors.As(err, &opError) || os.IsTimeout(err) {
-			// The error is handled gracefully, as we expect the upstream registry to be down.
-			// Therefore we just log the error, but don't return it
-			p.logUpstreamError("ListProviderInstallation", provider, err)
-			return nil
-		} else if err != nil {
-			return err
+	go func() {
+		defer wg.Done()
+		versions, err := p.getUpstreamProviders(ctx, provider)
+		if err != nil {
+			errCh <- ErrLookup{
+				err:       err,
+				component: upstreamComponent,
+			}
+			return
 		}
 
 		upstreamArchives := &Archives{
@@ -207,7 +172,11 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 
 					providerFileName, err := p.ArchiveFileName()
 					if err != nil {
-						return err
+						errCh <- ErrLookup{
+							err:       err,
+							component: upstreamComponent,
+						}
+						return
 					}
 
 					key := fmt.Sprintf("%s_%s", platform.OS, platform.Arch)
@@ -222,15 +191,28 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 		}
 
 		results <- upstreamArchives
-		return nil
-	})
+	}()
 
-	if err := eg.Wait(); err != nil {
+	wg.Wait()
+	close(errCh)
+	close(results)
+
+	// Two errors indicate that both mirror and upstream failed. We can safely return an error in that case
+	if len(errCh) >= 2 {
+		err := &ErrMirrorFailed{
+			provider,
+			[]error{},
+		}
+
+		for e := range errCh {
+			err.errors = append(err.errors, e.err)
+		}
+
 		return nil, err
 	}
 
-	if len(results) == 0 {
-		return nil, fmt.Errorf("no results were returned")
+	if err := p.handleErrors("ListProviderInstallation", provider, errCh); err != nil {
+		return nil, fmt.Errorf("unexpected error: %w", err)
 	}
 
 	// Warning, this is potentially overwriting locally cached archives. In case a version was deleted from the upstream, we can potentially not serve it locally anymore
@@ -249,7 +231,7 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 func (p *proxyRegistry) RetrieveProviderArchive(ctx context.Context, provider core.Provider) (io.Reader, error) {
 	// retrieve the provider from the local cache if available
 	reader, err := p.next.RetrieveProviderArchive(ctx, provider)
-	var errProviderNotMirrored storage.ErrProviderNotMirrored
+	var errProviderNotMirrored *storage.ErrProviderNotMirrored
 	if err != nil {
 		if !errors.As(err, &errProviderNotMirrored) { // only return on unexpected errors
 			return nil, err
@@ -302,7 +284,7 @@ func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.
 
 	response, err := clientEndpoint(ctx, nil) // The request is empty, as we don't have a request body
 	if err != nil {
-		return nil, storage.ErrProviderNotMirrored{
+		return nil, &storage.ErrProviderNotMirrored{
 			Provider: provider,
 			Err:      err,
 		}
@@ -404,16 +386,48 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 	}, nil
 }
 
-func (p *proxyRegistry) logUpstreamError(op string, provider core.Provider, err error) {
-	_ = level.Info(p.logger).Log(
-		"op", op,
-		"message", "couldn't reach upstream registry",
-		"hostname", provider.Hostname,
-		"namespace", provider.Namespace,
-		"name", provider.Name,
-		"version", provider.Version,
-		"err", err,
-	)
+// handleErrors handles lookup errors from upstream and the mirror. It returns the first unexpected error
+func (p *proxyRegistry) handleErrors(op string, provider core.Provider, errCh <-chan ErrLookup) error {
+	for e := range errCh {
+		var errProviderNotMirrored *storage.ErrProviderNotMirrored
+		if e.component == upstreamComponent {
+			// Check for net.OpError, as that is an indication for network errors. There is likely a better solution to the problem
+			var opError *net.OpError
+			if errors.As(e.err, &opError) || errors.As(e.err, &errProviderNotMirrored) || os.IsTimeout(e.err) {
+				// The error is handled gracefully, as we expect the upstream registry to be down.
+				// Therefore we just log the error, but don't return it
+				_ = level.Info(p.logger).Log(
+					"op", op,
+					"message", "couldn't reach upstream registry",
+					"hostname", provider.Hostname,
+					"namespace", provider.Namespace,
+					"name", provider.Name,
+					"version", provider.Version,
+					"err", e.err,
+				)
+			} else {
+				return e.err
+			}
+		} else if e.component == mirrorComponent {
+			if errors.As(e.err, &errProviderNotMirrored) {
+				_ = level.Info(p.logger).Log(
+					"op", op,
+					"message", "provider not cached",
+					"hostname", provider.Hostname,
+					"namespace", provider.Namespace,
+					"name", provider.Name,
+					"Version", provider.Version,
+					"err", e.err,
+				)
+			} else {
+				return e.err
+			}
+		} else {
+			return e.err
+		}
+	}
+
+	return nil
 }
 
 func ProxyingMiddleware(logger log.Logger) Middleware {
