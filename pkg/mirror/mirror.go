@@ -211,15 +211,16 @@ func (p *proxyRegistry) ListProviderInstallation(ctx context.Context, provider c
 		return nil, err
 	}
 
-	if err := p.handleErrors("ListProviderInstallation", provider, errCh); err != nil {
-		return nil, fmt.Errorf("unexpected error: %w", err)
+	if len(errCh) > 0 {
+		if err := p.handleErrors("ListProviderInstallation", provider, errCh); err != nil {
+			return nil, fmt.Errorf("unexpected error: %w", err)
+		}
 	}
 
 	// Warning, this is potentially overwriting locally cached archives. In case a version was deleted from the upstream, we can potentially not serve it locally anymore
 	// This could be solved with a more complex merge
 	mergedArchive := make(map[string]Archive)
-	for len(results) > 0 {
-		a := <-results
+	for a := range results {
 		for k, v := range a.Archives {
 			mergedArchive[k] = v
 		}
