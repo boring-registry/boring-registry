@@ -273,8 +273,11 @@ func encodeUpstreamArchiveDownloadRequest(_ context.Context, r *http.Request, re
 }
 
 func decodeUpstreamArchiveDownloadResponse(_ context.Context, r *http.Response) (interface{}, error) {
-	var response downloadResponse
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("status code is %d instead of 200", r.StatusCode)
+	}
 
+	var response downloadResponse
 	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
 		return nil, err
 	}

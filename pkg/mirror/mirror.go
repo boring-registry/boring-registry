@@ -47,7 +47,11 @@ type proxyRegistry struct {
 	// upstreamRegistries uses the hostname as key to re-use clients to the upstream registries.
 	// The base URL is set, but the path should be set in the httptransport.EncodeRequestFunc
 	upstreamRegistries map[string]endpoint.Endpoint
-	upstreamClient     *http.Client
+	defaultClient      *http.Client
+
+	// The downloadClient has a much higher timeout in comparison with the defaultClient.
+	// Downloading larger provider archives from an upstream server will most likely exceed the default timeout.
+	downloadClient *http.Client
 }
 
 // ListProviderVersions returns the available versions fetched from the upstream registry, as well as from the pull-through cache
@@ -279,8 +283,7 @@ func (p *proxyRegistry) getUpstreamProviders(ctx context.Context, provider core.
 		return nil, err
 	}
 
-	p.upstreamClient.Timeout = upstreamTimeout // The timeout is necessary so that we conclude the request before the downstream client request times out
-	clientOption := httptransport.SetClient(p.upstreamClient)
+	clientOption := httptransport.SetClient(p.defaultClient)
 	clientEndpoint := httptransport.NewClient(http.MethodGet, upstreamUrl, encodeRequest, decodeUpstreamListProviderVersionsResponse, clientOption).Endpoint()
 
 	response, err := clientEndpoint(ctx, nil) // The request is empty, as we don't have a request body
@@ -306,9 +309,7 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 			return nil, err
 		}
 
-		c := http.DefaultClient
-		c.Timeout = upstreamTimeout
-		clientOption := httptransport.SetClient(c)
+		clientOption := httptransport.SetClient(p.defaultClient)
 		clientEndpoint = httptransport.NewClient(http.MethodGet, baseURL, encodeUpstreamArchiveDownloadRequest, decodeUpstreamArchiveDownloadResponse, clientOption).Endpoint()
 		p.upstreamRegistries[provider.Hostname] = clientEndpoint
 	}
@@ -332,19 +333,18 @@ func (p *proxyRegistry) upstreamProviderArchive(ctx context.Context, provider co
 	}
 
 	begin := time.Now()
-	client := http.Client{Timeout: 30 * time.Second} // Upon timeout expiration, the io.ReadCloser from the response body will be closed
 
-	binaryResponse, err := client.Get(resp.DownloadURL)
+	binaryResponse, err := p.downloadClient.Get(resp.DownloadURL)
 	if err != nil {
 		return nil, err
 	}
 
-	shasumResponse, err := client.Get(resp.ShasumsURL)
+	shasumResponse, err := p.downloadClient.Get(resp.ShasumsURL)
 	if err != nil {
 		return nil, err
 	}
 
-	shasumSignatureResponse, err := client.Get(resp.ShasumsSignatureURL)
+	shasumSignatureResponse, err := p.downloadClient.Get(resp.ShasumsSignatureURL)
 	if err != nil {
 		return nil, err
 	}
@@ -432,12 +432,18 @@ func (p *proxyRegistry) handleErrors(op string, provider core.Provider, errCh <-
 }
 
 func ProxyingMiddleware(logger log.Logger) Middleware {
+	defaultClient := http.DefaultClient
+	defaultClient.Timeout = upstreamTimeout
+	downloadClient := http.DefaultClient
+	downloadClient.Timeout = 30 * time.Second
+
 	return func(next Service) Service {
 		return &proxyRegistry{
 			next:               next,
 			logger:             logger,
 			upstreamRegistries: make(map[string]endpoint.Endpoint),
-			upstreamClient:     http.DefaultClient,
+			defaultClient:      defaultClient,
+			downloadClient:     downloadClient,
 		}
 	}
 }

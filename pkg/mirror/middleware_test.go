@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/TierMobility/boring-registry/pkg/core"
@@ -19,9 +20,10 @@ import (
 )
 
 type mockedService struct {
-	versionsResponse *ProviderVersions
-	archivesResponse *Archives
-	mockedErr        error
+	versionsResponse      *ProviderVersions
+	archivesResponse      *Archives
+	mockedArchiveResponse io.Reader
+	mockedErr             error
 }
 
 func (m *mockedService) ListProviderVersions(_ context.Context, _ core.Provider) (*ProviderVersions, error) {
@@ -33,11 +35,11 @@ func (m *mockedService) ListProviderInstallation(ctx context.Context, provider c
 }
 
 func (m *mockedService) RetrieveProviderArchive(ctx context.Context, provider core.Provider) (io.Reader, error) {
-	panic("implement me")
+	return m.mockedArchiveResponse, m.mockedErr
 }
 
 func (m *mockedService) MirrorProvider(ctx context.Context, provider core.Provider, binary, shasum, shasumSignature io.Reader) error {
-	panic("implement me")
+	return nil
 }
 
 func TestProxyRegistry_ListProviderVersions(t *testing.T) {
@@ -140,7 +142,7 @@ func TestProxyRegistry_ListProviderVersions(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			p.upstreamClient = c
+			p.defaultClient = c
 
 			provider := tc.provider
 			provider.Hostname = strings.TrimPrefix(ts.URL, "https://") // We need to override the Hostname with the test servers hostname
@@ -178,7 +180,7 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			provider: core.Provider{
 				Namespace: "hashicorp",
 				Name:      "random",
-				Version: "2.0.0",
+				Version:   "2.0.0",
 			},
 			upstreamStatusCode: http.StatusNotFound,
 			service: &mockedService{
@@ -193,14 +195,14 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			provider: core.Provider{
 				Namespace: "hashicorp",
 				Name:      "random",
-				Version: "2.0.0",
+				Version:   "2.0.0",
 			},
 			upstreamStatusCode: http.StatusNotFound,
 			service: &mockedService{
 				archivesResponse: &Archives{
 					Archives: map[string]Archive{
 						"linux_amd64": {
-							Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+							Url: "terraform-provider-random_2.0.0_linux_amd64.zip",
 						},
 					},
 				},
@@ -208,7 +210,7 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			expectedArchives: &Archives{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+						Url: "terraform-provider-random_2.0.0_linux_amd64.zip",
 					},
 				},
 			},
@@ -219,7 +221,7 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			provider: core.Provider{
 				Namespace: "hashicorp",
 				Name:      "random",
-				Version: "2.0.0",
+				Version:   "2.0.0",
 			},
 			upstreamStatusCode: http.StatusOK,
 			service: &mockedService{
@@ -228,7 +230,7 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			expectedArchives: &Archives{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+						Url: "terraform-provider-random_2.0.0_linux_amd64.zip",
 					},
 				},
 			},
@@ -239,14 +241,14 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			provider: core.Provider{
 				Namespace: "hashicorp",
 				Name:      "random",
-				Version: "2.0.0",
+				Version:   "2.0.0",
 			},
 			upstreamStatusCode: http.StatusOK,
 			service: &mockedService{
 				archivesResponse: &Archives{
 					Archives: map[string]Archive{
 						"linux_amd64": {
-							Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+							Url: "terraform-provider-random_2.0.0_linux_amd64.zip",
 						},
 					},
 				},
@@ -254,7 +256,7 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			expectedArchives: &Archives{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+						Url: "terraform-provider-random_2.0.0_linux_amd64.zip",
 					},
 				},
 			},
@@ -288,7 +290,7 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			p.upstreamClient = c
+			p.defaultClient = c
 
 			provider := tc.provider
 			provider.Hostname = strings.TrimPrefix(ts.URL, "https://") // We need to override the Hostname with the test servers hostname
@@ -308,6 +310,121 @@ func TestProxyRegistry_ListProviderInstallation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProxyRegistry_RetrieveProviderArchive(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	testCases := []struct {
+		name               string
+		provider           core.Provider
+		service            *mockedService
+		upstreamStatusCode int
+		expectError        bool
+	}{
+		{
+			name: "provider not in upstream and not in mirror",
+			provider: core.Provider{
+				Namespace: "hashicorp",
+				Name:      "random",
+				Version:   "2.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+			},
+			upstreamStatusCode: http.StatusNotFound,
+			service: &mockedService{
+				mockedErr: &storage.ErrProviderNotMirrored{
+					Err: fmt.Errorf("mocked Error"),
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "provider not in mirror",
+			provider: core.Provider{
+				Namespace: "hashicorp",
+				Name:      "random",
+				Version:   "2.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+			},
+			upstreamStatusCode: http.StatusOK,
+			service: &mockedService{
+				mockedErr: &storage.ErrProviderNotMirrored{Err: errors.New("mocked error")},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := proxyRegistry{
+				next:               tc.service,
+				logger:             log.NewNopLogger(),
+				upstreamRegistries: make(map[string]endpoint.Endpoint),
+			}
+
+			hostname := ""
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(r.Method, http.MethodGet)
+				w.WriteHeader(tc.upstreamStatusCode)
+				if tc.upstreamStatusCode != 200 {
+					_, _ = w.Write([]byte("{\"errors\":[\"Not Found\"]}"))
+					return
+				} else if r.URL.Path == "/v1/providers/hashicorp/random/2.0.0/download/linux/amd64" {
+					f, err := tc.provider.ArchiveFileName()
+					assert.NoError(err)
+					sha, err := tc.provider.ShasumFileName()
+					assert.NoError(err)
+					shaSig, err := tc.provider.ShasumSignatureFileName()
+					assert.NoError(err)
+
+					request := downloadResponse{
+						OS:                  tc.provider.OS,
+						Arch:                tc.provider.Arch,
+						Filename:            f,
+						DownloadURL:         fmt.Sprintf("%s/v1/%s", hostname, f),
+						ShasumsURL:          fmt.Sprintf("%s/v1/%s", hostname, sha),
+						ShasumsSignatureURL: fmt.Sprintf("%s/v1/%s", hostname, shaSig),
+					}
+					b, err := json.Marshal(request)
+					assert.NoError(err)
+					_, _ = w.Write(b)
+				} else if r.URL.Path == "/v1/terraform-provider-random_2.0.0_linux_amd64.zip" ||
+					r.URL.Path == "/v1/terraform-provider-random_2.0.0_SHA256SUMS" ||
+					r.URL.Path == "/v1/terraform-provider-random_2.0.0_SHA256SUMS.sig" {
+					// do nothing
+				} else {
+					assert.Fail("unknown path")
+				}
+			}))
+			defer ts.Close()
+			hostname = ts.URL
+
+			defaultClient, err := createTlsClient(ts)
+			if err != nil {
+				t.Error(err)
+			}
+			p.defaultClient = defaultClient
+
+			downloadClient, err := createTlsClient(ts)
+			if err != nil {
+				t.Error(err)
+			}
+			p.downloadClient = downloadClient
+
+			provider := tc.provider
+			provider.Hostname = strings.TrimPrefix(ts.URL, "https://") // We need to override the Hostname with the test servers hostname
+			reader, err := p.RetrieveProviderArchive(context.Background(), provider)
+			if tc.expectError {
+				assert.Error(err)
+				assert.Nil(reader)
+				return
+			}
+			assert.NotNil(reader)
+		})
+	}
+
 }
 
 // The client uses TLS, thus we need to create certs and pass them to the client
