@@ -1,14 +1,11 @@
 package provider
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -210,28 +207,6 @@ func (s *S3Storage) presignedURL(v string) (string, error) {
 	})
 
 	return req.Presign(15 * time.Minute)
-}
-
-func readSHASums(r io.Reader, name string) (string, error) {
-	scanner := bufio.NewScanner(r)
-
-	sha := ""
-	for scanner.Scan() {
-		parts := strings.Split(scanner.Text(), " ")
-		if len(parts) != 3 {
-			continue
-		}
-
-		if parts[2] == name {
-			sha = parts[0]
-		}
-	}
-
-	if sha == "" {
-		return "", fmt.Errorf("did not find package: %s in shasums file", name)
-	}
-
-	return sha, nil
 }
 
 func (s *S3Storage) download(path string) ([]byte, error) {
