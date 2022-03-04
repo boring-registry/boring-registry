@@ -172,5 +172,6 @@ func setupGCSProviderStorage() (provider.Storage, error) {
 		provider.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "providers")),
 		provider.WithGCSServiceAccount(flagGCSServiceAccount),
 		provider.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),
+		provider.WithGCSUseSignedURL(flagGCSSignedURL),
 	)
 }
