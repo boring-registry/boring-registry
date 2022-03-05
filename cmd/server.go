@@ -48,6 +48,11 @@ var (
 	flagTLSKeyFile          string
 	flagListenAddr          string
 	flagTelemetryListenAddr string
+
+	// flagHttpWriteTimeout holds the configured maximum time.Duration for HTTP responses to succeed.
+	// The mirror component of the boring-registry has to proxy potentially large mirrored binaries which can exceed
+	// common HTTP server timeouts. It's hard to find a sensible timeout for every user, thus we made it configurable.
+	flagHttpWriteTimeout time.Duration
 )
 
 var serverCmd = &cobra.Command{
@@ -65,12 +70,9 @@ var serverCmd = &cobra.Command{
 		}
 
 		server := &http.Server{
-			Addr:        flagListenAddr,
-			ReadTimeout: 5 * time.Second,
-			// WriteTimeout is specifically set to 0 in order to disable the timeout. Downloading large binaries
-			// through the pull-through cache from slow upstream servers might exceed any timeout set here.
-			// This is definitely not ideal, as it impacts robustness.
-			WriteTimeout: 0,
+			Addr:         flagListenAddr,
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: flagHttpWriteTimeout,
 			Handler:      mux,
 		}
 
@@ -193,6 +195,7 @@ func init() {
 	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
 	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
+	serverCmd.Flags().DurationVar(&flagHttpWriteTimeout, "http-write-timeout", 120*time.Second, "Timeout duration for HTTP responses")
 }
 
 func serveMux() (*http.ServeMux, error) {
