@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// deprecated: use core.Provider instead
 // Provider represents Terraform provider metadata.
 type Provider struct {
 	Namespace           string      `json:"namespace,omitempty"`

@@ -28,12 +28,12 @@ type DirectoryStorage struct {
 	path    string
 }
 
-// EnumerateMirroredProviders stems from mirror.Storage
+// EnumerateMirroredProviders is part of the mirror.Storage interface
 func (d *DirectoryStorage) EnumerateMirroredProviders(ctx context.Context, provider core.Provider) (*[]core.Provider, error) {
 	return d.getProviders(ctx, mirrorPrefix, provider)
 }
 
-// RetrieveMirroredProviderArchive stems from mirror.Storage
+// RetrieveMirroredProviderArchive is part of the mirror.Storage interface
 func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, provider core.Provider) (io.ReadCloser, error) {
 	fileName, err := provider.ArchiveFileName()
 	if err != nil {
@@ -52,7 +52,7 @@ func (d *DirectoryStorage) RetrieveMirroredProviderArchive(ctx context.Context, 
 	return io.NopCloser(bufio.NewReader(file)), nil
 }
 
-// StoreMirroredProvider stems from mirror.Storage
+// StoreMirroredProvider is part of the mirror.Storage interface
 func (d *DirectoryStorage) StoreMirroredProvider(ctx context.Context, provider core.Provider, binary, shasum, shasumSignature io.Reader) error {
 	// Acquiring lock, as the operation is not an atomic filesystem operation
 	d.rwMutex.Lock()
@@ -170,9 +170,11 @@ func (d *DirectoryStorage) ListProviderVersions(ctx context.Context, namespace, 
 	return collection.List(), nil
 }
 
+// The core.Provider input parameter has to be non-nil and the Hostname, Namespace and Name attributes have to be set.
+// Optionally, the Version can be set in order to narrow down the search.
 func (d *DirectoryStorage) getProviders(_ context.Context, prefix string, provider core.Provider) (*[]core.Provider, error) {
 	p := fmt.Sprintf("%s/%s/%s/%s/%s", d.path, prefix, provider.Hostname, provider.Namespace, provider.Name)
-	rootDir := filepath.Clean(p) // remove trailing p separators
+	rootDir := filepath.Clean(p) // remove trailing path separators
 	var archives []string
 	err := filepath.Walk(rootDir,
 		func(path string, file fs.FileInfo, err error) error {
@@ -208,10 +210,8 @@ func (d *DirectoryStorage) getProviders(_ context.Context, prefix string, provid
 		}
 
 		// Filter out providers that don't match the queried version
-		if provider.Version != "" {
-			if p.Version != provider.Version {
-				continue
-			}
+		if provider.Version != "" && p.Version != provider.Version {
+			continue
 		}
 
 		shasumFilename, err := p.ShasumFileName()
