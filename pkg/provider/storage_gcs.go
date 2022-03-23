@@ -21,6 +21,7 @@ type GCSStorage struct {
 	sc              *storage.Client
 	bucket          string
 	bucketPrefix    string
+	useSignedURL    bool
 	signedURLExpiry int64
 	serviceAccount  string
 }
@@ -61,6 +62,10 @@ func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name s
 	return result, nil
 }
 
+func (s *GCSStorage) generateAPIURL(key string) (string, error) {
+	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucket, key), nil
+}
+
 func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (Provider, error) {
 	var (
 		pathPkg         = storagePath(s.bucketPrefix, namespace, name, version, os, arch)
@@ -68,18 +73,17 @@ func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, 
 		pathSig         = fmt.Sprintf("%s.sig", pathSha)
 		pathSigningKeys = signingKeysPath(s.bucketPrefix, namespace)
 	)
-
-	shasumsURL, err := s.signedURL(pathSha)
+	shasumsURL, err := s.generateURL(pathSha)
 	if err != nil {
 		return Provider{}, errors.Wrap(err, pathSig)
 	}
 
-	signatureURL, err := s.signedURL(pathSig)
+	signatureURL, err := s.generateURL(pathSig)
 	if err != nil {
 		return Provider{}, err
 	}
 
-	zipURL, err := s.signedURL(pathPkg)
+	zipURL, err := s.generateURL(pathPkg)
 	if err != nil {
 		return Provider{}, err
 	}
@@ -96,7 +100,7 @@ func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, 
 
 	shasums, err := s.download(pathSha)
 	if err != nil {
-		return Provider{}, err
+		return Provider{}, errors.Wrap(err, pathSha)
 	}
 
 	shasum, err := readSHASums(bytes.NewReader(shasums), path.Base(pathPkg))
@@ -138,6 +142,14 @@ func (s *GCSStorage) download(path string) ([]byte, error) {
 	return data, nil
 }
 
+func (s *GCSStorage) generateURL(v string) (string, error) {
+	if s.useSignedURL {
+		return s.signedURL(v)
+	}
+
+	return s.generateAPIURL(v)
+}
+
 func (s *GCSStorage) signedURL(v string) (string, error) {
 	ctx := context.Background()
 	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
@@ -176,6 +188,9 @@ func (s *GCSStorage) signedURL(v string) (string, error) {
 		}
 	} else {
 		conf, err := google.JWTConfigFromJSON(cred.JSON)
+		if err != nil {
+			return "", errors.Wrap(err, "could not get jwt config")
+		}
 		opts := &storage.SignedURLOptions{
 			Scheme:         storage.SigningSchemeV4,
 			Method:         "GET",
@@ -213,6 +228,12 @@ func WithGCSServiceAccount(sa string) GCSStorageOption {
 func WithGCSSignedUrlExpiry(seconds int64) GCSStorageOption {
 	return func(s *GCSStorage) {
 		s.signedURLExpiry = seconds
+	}
+}
+
+func WithGCSUseSignedURL(b bool) GCSStorageOption {
+	return func(s *GCSStorage) {
+		s.useSignedURL = b
 	}
 }
 
