@@ -6,6 +6,7 @@ import (
 )
 
 // Provider represents Terraform provider metadata.
+// Deprecated: in favor of core.Provider
 type Provider struct {
 	Namespace           string      `json:"namespace,omitempty"`
 	Name                string      `json:"name,omitempty"`
@@ -39,6 +40,7 @@ func (p *Provider) Valid() bool {
 		p.Version != ""
 }
 
+// Deprecated: in favor of core.ProviderVersion
 type ProviderVersion struct {
 	Namespace string     `json:"namespace,omitempty"`
 	Name      string     `json:"name,omitempty"`
@@ -46,11 +48,13 @@ type ProviderVersion struct {
 	Platforms []Platform `json:"platforms,omitempty"`
 }
 
+// Deprecated: in favor of core.Platform
 type Platform struct {
 	OS   string `json:"os,omitempty"`
 	Arch string `json:"arch,omitempty"`
 }
 
+// Deprecated: in favor of core.GPGPublicKey
 type GPGPublicKey struct {
 	KeyID      string `json:"key_id,omitempty"`
 	ASCIIArmor string `json:"ascii_armor,omitempty"`
@@ -58,6 +62,7 @@ type GPGPublicKey struct {
 	SourceURL  string `json:"source_url,omitempty"`
 }
 
+// Deprecated: in favor of core.SigningKeys
 type SigningKeys struct {
 	GPGPublicKeys []GPGPublicKey `json:"gpg_public_keys,omitempty"`
 }
