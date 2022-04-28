@@ -43,19 +43,19 @@ The endpoints provided by the Module Registry Protocol are:
 
 Similar to the Module Registry Protocol, the Boring Registry expects a defined path structure inside the storage backend.
 
-**Please note**: Providers must be stored under `${storage}/${prefix}/providers/`
+**Please note**: Providers must be stored under `${storage}/${prefix}/providers/internal`
 
 ```shell
-bucket/providers
-└── namespace=tier
-    ├── name=dummy
-    │   └── version=1.0.0
-    │       ├── os=linux
-    │       │   └── arch=amd64
-    │       │       └── terraform-provider-dummy_1.0.0_linux_amd64.zip
-    │       ├── terraform-provider-dummy_1.0.0_SHA256SUMS
-    │       └── terraform-provider-dummy_1.0.0_SHA256SUMS.sig
-    └── signing-keys.json
+bucket
+└── providers
+    └── internal
+        └── tier
+            ├── signing-keys.json
+            └── dummy
+                ├── terraform-provider-dummy_1.0.0_linux_amd64.zip
+                ├── terraform-provider-dummy_1.0.0_linux_arm64.zip
+                ├── terraform-provider-dummy_1.0.0_SHA256SUMS
+                └── terraform-provider-dummy_1.0.0_SHA256SUMS.sig
 ```
 
 Example Terraform configuration referencing the registry:
@@ -136,7 +136,7 @@ This can then be configured inside `~/.terraformrc` like this:
 
 ```hcl
 credentials "boring-registry" {
-  token = “very-secure-token”
+  token = "very-secure-token"
 }
 ```
 
