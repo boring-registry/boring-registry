@@ -3,10 +3,12 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/storage"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -95,7 +97,7 @@ var serverCmd = &cobra.Command{
 
 			if err := server.Shutdown(ctx); err != nil {
 				if err != context.Canceled {
-					level.Error(logger).Log(
+					_ = level.Error(logger).Log(
 						"msg", "failed to terminate server",
 						"err", err,
 					)
@@ -104,7 +106,7 @@ var serverCmd = &cobra.Command{
 
 			if err := telemetryServer.Shutdown(ctx); err != nil {
 				if err != context.Canceled {
-					level.Error(logger).Log(
+					_ = level.Error(logger).Log(
 						"msg", "failed to terminate telemetry server",
 						"err", err,
 					)
@@ -117,7 +119,7 @@ var serverCmd = &cobra.Command{
 		// Main server.
 		group.Go(func() error {
 			logger := log.With(logger, "listen", flagListenAddr)
-			level.Info(logger).Log("msg", "starting server")
+			_ = level.Info(logger).Log("msg", "starting server")
 			defer level.Info(logger).Log("msg", "shutting down server")
 
 			if flagTLSCertFile != "" || flagTLSKeyFile != "" {
@@ -139,7 +141,7 @@ var serverCmd = &cobra.Command{
 		// Telemetry server.
 		group.Go(func() error {
 			logger := log.With(logger, "listen", flagTelemetryListenAddr)
-			level.Info(logger).Log("msg", "starting telemetry server")
+			_ = level.Info(logger).Log("msg", "starting telemetry server")
 			defer level.Info(logger).Log("msg", "shutting down telemetry server")
 
 			if err := telemetryServer.ListenAndServe(); err != nil {
@@ -154,23 +156,34 @@ var serverCmd = &cobra.Command{
 	},
 }
 
+func setupStorage() (storage.Storage, error) {
+	switch {
+	case flagS3Bucket != "":
+		return storage.NewS3Storage(flagS3Bucket,
+			storage.WithS3StorageBucketPrefix(path.Join(flagS3Prefix, "providers")),
+			storage.WithS3StorageBucketRegion(flagS3Region),
+			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
+			storage.WithS3StoragePathStyle(flagS3PathStyle),
+		)
+	case flagGCSBucket != "":
+		return storage.NewGCSStorage(flagGCSBucket,
+			storage.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "providers")),
+			storage.WithGCSServiceAccount(flagGCSServiceAccount),
+			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
+			storage.WithGCSUseSignedURL(flagGCSSignedURL),
+		)
+	default:
+		return nil, errors.New("please specify a valid storage provider")
+	}
+}
+
+// Deprecated: use setupStorage instead
 func setupModuleStorage() (module.Storage, error) {
 	switch {
 	case flagS3Bucket != "":
 		return setupS3ModuleStorage()
 	case flagGCSBucket != "":
 		return setupGCSModuleStorage()
-	default:
-		return nil, errors.New("please specify a valid storage provider")
-	}
-}
-
-func setupProviderStorage() (provider.Storage, error) {
-	switch {
-	case flagS3Bucket != "":
-		return setupS3ProviderStorage()
-	case flagGCSBucket != "":
-		return setupGCSProviderStorage()
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}
@@ -195,11 +208,16 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
+	s, err := setupStorage()
+	if err != nil {
+		return nil, err
+	}
+
 	if err := registerModule(mux); err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux); err != nil {
+	if err := registerProvider(mux, s); err != nil {
 		return nil, err
 	}
 
@@ -256,13 +274,8 @@ func registerModule(mux *http.ServeMux) error {
 	return nil
 }
 
-func registerProvider(mux *http.ServeMux) error {
-	storage, err := setupProviderStorage()
-	if err != nil {
-		return errors.Wrap(err, "failed to setup provider storage")
-	}
-
-	service := provider.NewService(storage)
+func registerProvider(mux *http.ServeMux, s storage.Storage) error {
+	service := provider.NewService(s)
 	{
 		service = provider.LoggingMiddleware(logger)(service)
 	}

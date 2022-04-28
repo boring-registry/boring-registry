@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/endpoint"
 )
@@ -16,8 +17,8 @@ type listResponse struct {
 }
 
 type listResponseVersion struct {
-	Version   string     `json:"version,omitempty"`
-	Platforms []Platform `json:"platforms,omitempty"`
+	Version   string          `json:"version,omitempty"`
+	Platforms []core.Platform `json:"platforms,omitempty"`
 }
 
 func listEndpoint(svc Service) endpoint.Endpoint {
@@ -53,14 +54,14 @@ type downloadRequest struct {
 }
 
 type downloadResponse struct {
-	OS                  string      `json:"os"`
-	Arch                string      `json:"arch"`
-	Filename            string      `json:"filename"`
-	DownloadURL         string      `json:"download_url"`
-	Shasum              string      `json:"shasum"`
-	ShasumsURL          string      `json:"shasums_url"`
-	ShasumsSignatureURL string      `json:"shasums_signature_url"`
-	SigningKeys         SigningKeys `json:"signing_keys"`
+	OS                  string           `json:"os"`
+	Arch                string           `json:"arch"`
+	Filename            string           `json:"filename"`
+	DownloadURL         string           `json:"download_url"`
+	Shasum              string           `json:"shasum"`
+	ShasumsURL          string           `json:"shasums_url"`
+	ShasumsSignatureURL string           `json:"shasums_signature_url"`
+	SigningKeys         core.SigningKeys `json:"signing_keys"`
 }
 
 func downloadEndpoint(svc Service) endpoint.Endpoint {

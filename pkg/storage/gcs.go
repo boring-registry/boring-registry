@@ -1,4 +1,4 @@
-package provider
+package storage
 
 import (
 	"bytes"
@@ -11,23 +11,89 @@ import (
 
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/storage"
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 )
 
+// GCSStorage implements provider.Storage
 type GCSStorage struct {
 	sc              *storage.Client
 	bucket          string
 	bucketPrefix    string
 	useSignedURL    bool
-	signedURLExpiry int64
+	signedURLExpiry time.Duration
 	serviceAccount  string
 }
 
-func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name string) ([]ProviderVersion, error) {
-	prefix := storagePrefix(s.bucketPrefix, namespace, name)
+// GetProvider implements provider.Storage
+func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
+	archivePath, shasumPath, shasumSigPath, err := internalProviderPath(s.bucketPrefix, namespace, name, version, os, arch)
+	if err != nil {
+		return core.Provider{}, err
+	}
+
+	pathSigningKeys := signingKeysPath(s.bucketPrefix, namespace)
+
+	zipURL, err := s.generateURL(ctx, archivePath)
+	if err != nil {
+		return core.Provider{}, err
+	}
+	shasumsURL, err := s.generateURL(ctx, shasumPath)
+	if err != nil {
+		return core.Provider{}, errors.Wrap(err, shasumPath)
+	}
+	signatureURL, err := s.generateURL(ctx, shasumSigPath)
+	if err != nil {
+		return core.Provider{}, err
+	}
+
+	signingKeysRaw, err := s.download(ctx, pathSigningKeys)
+	if err != nil {
+		return core.Provider{}, errors.Wrap(err, pathSigningKeys)
+	}
+
+	var signingKey core.GPGPublicKey
+	if err := json.Unmarshal(signingKeysRaw, &signingKey); err != nil {
+		return core.Provider{}, err
+	}
+
+	shasumBytes, err := s.download(ctx, shasumPath)
+	if err != nil {
+		return core.Provider{}, err
+	}
+
+	shasum, err := readSHASums(bytes.NewReader(shasumBytes), path.Base(archivePath))
+	if err != nil {
+		return core.Provider{}, err
+	}
+
+	return core.Provider{
+		Namespace:           namespace,
+		Filename:            path.Base(archivePath),
+		Name:                name,
+		Version:             version,
+		OS:                  os,
+		Arch:                arch,
+		Shasum:              shasum,
+		DownloadURL:         zipURL,
+		SHASumsURL:          shasumsURL,
+		SHASumsSignatureURL: signatureURL,
+		SigningKeys: core.SigningKeys{
+			GPGPublicKeys: []core.GPGPublicKey{
+				signingKey,
+			},
+		},
+	}, nil
+}
+
+func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name string) ([]core.ProviderVersion, error) {
+	prefix, err := providerStoragePrefix(s.bucketPrefix, internalProviderType, "", namespace, name)
+	if err != nil {
+		return nil, err
+	}
 
 	query := &storage.Query{
 		Prefix: fmt.Sprintf("%s/", prefix),
@@ -37,15 +103,21 @@ func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name s
 	it := s.sc.Bucket(s.bucket).Objects(ctx, query)
 
 	for {
+		select { // Check if the context has been canceled in every loop iteration
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default: // break out of the select statement by not doing anything
+		}
+
 		attrs, err := it.Next()
-		if err == iterator.Done {
+		if errors.Is(err, iterator.Done) {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
 
-		provider, err := Parse(attrs.Name)
+		provider, err := core.NewProviderFromArchive(attrs.Name)
 		if err != nil {
 			continue
 		}
@@ -66,69 +138,8 @@ func (s *GCSStorage) generateAPIURL(key string) (string, error) {
 	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucket, key), nil
 }
 
-func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (Provider, error) {
-	var (
-		pathPkg         = storagePath(s.bucketPrefix, namespace, name, version, os, arch)
-		pathSha         = shasumsPath(s.bucketPrefix, namespace, name, version)
-		pathSig         = fmt.Sprintf("%s.sig", pathSha)
-		pathSigningKeys = signingKeysPath(s.bucketPrefix, namespace)
-	)
-	shasumsURL, err := s.generateURL(pathSha)
-	if err != nil {
-		return Provider{}, errors.Wrap(err, pathSig)
-	}
-
-	signatureURL, err := s.generateURL(pathSig)
-	if err != nil {
-		return Provider{}, err
-	}
-
-	zipURL, err := s.generateURL(pathPkg)
-	if err != nil {
-		return Provider{}, err
-	}
-
-	signingKeysRaw, err := s.download(pathSigningKeys)
-	if err != nil {
-		return Provider{}, errors.Wrap(err, pathSigningKeys)
-	}
-
-	var signingKey GPGPublicKey
-	if err := json.Unmarshal(signingKeysRaw, &signingKey); err != nil {
-		return Provider{}, err
-	}
-
-	shasums, err := s.download(pathSha)
-	if err != nil {
-		return Provider{}, errors.Wrap(err, pathSha)
-	}
-
-	shasum, err := readSHASums(bytes.NewReader(shasums), path.Base(pathPkg))
-	if err != nil {
-		return Provider{}, err
-	}
-
-	return Provider{
-		Namespace:           namespace,
-		Filename:            path.Base(pathPkg),
-		Name:                name,
-		Version:             version,
-		OS:                  os,
-		Arch:                arch,
-		Shasum:              shasum,
-		DownloadURL:         zipURL,
-		SHASumsURL:          shasumsURL,
-		SHASumsSignatureURL: signatureURL,
-		SigningKeys: SigningKeys{
-			GPGPublicKeys: []GPGPublicKey{
-				signingKey,
-			},
-		},
-	}, nil
-}
-
-func (s *GCSStorage) download(path string) ([]byte, error) {
-	r, err := s.sc.Bucket(s.bucket).Object(path).NewReader(context.Background())
+func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) {
+	r, err := s.sc.Bucket(s.bucket).Object(path).NewReader(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -142,16 +153,15 @@ func (s *GCSStorage) download(path string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *GCSStorage) generateURL(v string) (string, error) {
+func (s *GCSStorage) generateURL(ctx context.Context, v string) (string, error) {
 	if s.useSignedURL {
-		return s.signedURL(v)
+		return s.signedURL(ctx, v)
 	}
 
 	return s.generateAPIURL(v)
 }
 
-func (s *GCSStorage) signedURL(v string) (string, error) {
-	ctx := context.Background()
+func (s *GCSStorage) signedURL(ctx context.Context, v string) (string, error) {
 	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
 	cred, err := google.FindDefaultCredentials(ctx, "cloud-platform")
 	if err != nil {
@@ -170,7 +180,7 @@ func (s *GCSStorage) signedURL(v string) (string, error) {
 			Scheme:         storage.SigningSchemeV4,
 			Method:         "GET",
 			GoogleAccessID: s.serviceAccount,
-			Expires:        time.Now().Add(time.Duration(s.signedURLExpiry) * time.Second),
+			Expires:        time.Now().Add(s.signedURLExpiry * time.Second),
 			SignBytes: func(b []byte) ([]byte, error) {
 				req := &credentialspb.SignBlobRequest{
 					Payload: b,
@@ -196,7 +206,7 @@ func (s *GCSStorage) signedURL(v string) (string, error) {
 			Method:         "GET",
 			GoogleAccessID: conf.Email,
 			PrivateKey:     conf.PrivateKey,
-			Expires:        time.Now().Add(time.Duration(s.signedURLExpiry) * time.Second),
+			Expires:        time.Now().Add(s.signedURLExpiry * time.Second),
 		}
 		url, err = storage.SignedURL(s.bucket, v, opts)
 		if err != nil {
@@ -224,10 +234,10 @@ func WithGCSServiceAccount(sa string) GCSStorageOption {
 	}
 }
 
-// WithGCSServiceAccount configures Application Default Credentials (ADC) service account email.
-func WithGCSSignedUrlExpiry(seconds int64) GCSStorageOption {
+// WithGCSSignedUrlExpiry configures the duration until the signed url expires
+func WithGCSSignedUrlExpiry(t time.Duration) GCSStorageOption {
 	return func(s *GCSStorage) {
-		s.signedURLExpiry = seconds
+		s.signedURLExpiry = t
 	}
 }
 
@@ -237,7 +247,7 @@ func WithGCSUseSignedURL(b bool) GCSStorageOption {
 	}
 }
 
-func NewGCSStorage(bucket string, options ...GCSStorageOption) (Storage, error) {
+func NewGCSStorage(bucket string, options ...GCSStorageOption) (*GCSStorage, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
