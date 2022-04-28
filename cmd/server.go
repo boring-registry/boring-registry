@@ -8,7 +8,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
-	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -160,14 +159,14 @@ func setupStorage() (storage.Storage, error) {
 	switch {
 	case flagS3Bucket != "":
 		return storage.NewS3Storage(flagS3Bucket,
-			storage.WithS3StorageBucketPrefix(path.Join(flagS3Prefix, "providers")),
+			storage.WithS3StorageBucketPrefix(flagS3Prefix),
 			storage.WithS3StorageBucketRegion(flagS3Region),
 			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
 			storage.WithS3StoragePathStyle(flagS3PathStyle),
 		)
 	case flagGCSBucket != "":
 		return storage.NewGCSStorage(flagGCSBucket,
-			storage.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "providers")),
+			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
 			storage.WithGCSServiceAccount(flagGCSServiceAccount),
 			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
 			storage.WithGCSUseSignedURL(flagGCSSignedURL),

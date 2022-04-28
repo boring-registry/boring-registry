@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	internalProviderType = providerType("internal")
+	internalProviderType = providerType("providers")
 	mirrorProviderType   = providerType("mirror")
 )
 

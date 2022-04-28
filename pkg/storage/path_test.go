@@ -30,20 +30,20 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 		},
 		{
 			annotation:    "only prefix is passed",
-			prefix:        "/storage",
+			prefix:        "storage",
 			providerType:  internalProviderType,
 			expectedError: true,
 		},
 		{
 			annotation:    "mirror type and hostname is missing",
-			prefix:        "/storage",
+			prefix:        "storage",
 			providerType:  mirrorProviderType,
 			hostname:      "",
 			expectedError: true,
 		},
 		{
 			annotation:    "mirror type and hostname is missing",
-			prefix:        "/storage",
+			prefix:        "storage",
 			providerType:  mirrorProviderType,
 			hostname:      "registry.terraform.io",
 			namespace:     "hashicorp",
@@ -52,7 +52,7 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 		},
 		{
 			annotation:        "all parameters for mirror storage are set",
-			prefix:            "/storage",
+			prefix:            "storagePrefix",
 			providerType:      mirrorProviderType,
 			hostname:          "registry.terraform.io",
 			namespace:         "hashicorp",
@@ -61,13 +61,13 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 			os:                "linux",
 			arch:              "amd64",
 			expectedError:     false,
-			expectedArchive:   "/storage/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
-			expectedShasum:    "/storage/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
-			expectedShasumSig: "/storage/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
+			expectedArchive:   "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
+			expectedShasum:    "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
+			expectedShasumSig: "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
 		},
 		{
 			annotation:        "all parameters for internal storage are set",
-			prefix:            "/storage",
+			prefix:            "storagePrefix",
 			providerType:      internalProviderType,
 			hostname:          "registry.terraform.io", // is set even though it should be omitted in the output
 			namespace:         "hashicorp",
@@ -76,9 +76,9 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 			os:                "linux",
 			arch:              "amd64",
 			expectedError:     false,
-			expectedArchive:   "/storage/internal/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
-			expectedShasum:    "/storage/internal/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
-			expectedShasumSig: "/storage/internal/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
+			expectedArchive:   "storagePrefix/providers/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
+			expectedShasum:    "storagePrefix/providers/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
+			expectedShasumSig: "storagePrefix/providers/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
 		},
 	}
 
@@ -111,9 +111,9 @@ func TestSigningKeysPath(t *testing.T) {
 	}{
 		{
 			annotation: "with prefix and namespace",
-			prefix:     "provider",
+			prefix:     "prefix",
 			namespace:  "hashicorp",
-			expected:   "provider/internal/hashicorp/signing-keys.json",
+			expected:   "prefix/providers/hashicorp/signing-keys.json",
 		},
 	}
 
