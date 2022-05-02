@@ -270,6 +270,10 @@ changelog:
 For general information on how to build and publish providers for Terraform see the official docs:
 https://www.terraform.io/docs/registry/providers.
 
+# Docker
+
+Images are published to ghcr.io/tiermobility/boring-registry for every tagged release of the project; there is no official image available on Docker Hub.
+
 # Roadmap
 
 The project is in its very early stages and there is a lot of things we want to tackle. This may mean some breaking changes in the future, but once the project is stable enough we will put quite heavy focus on keeping changes backwards compatible. This project started out as a single server (just serving the Module Registry Protocol), but is now becoming a single binary that can host the server and allow operators to manage the registry using a streamlined interface.
