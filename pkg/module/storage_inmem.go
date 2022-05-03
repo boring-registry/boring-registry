@@ -36,10 +36,15 @@ func (s *InmemStorage) ListModuleVersions(ctx context.Context, namespace, name, 
 
 	var modules []Module
 
-	for _, module := range modules {
+	for _, module := range s.modules {
 		if module.Namespace == namespace && module.Name == name && module.Provider == provider {
+			module.DownloadURL = storagePath("inmem", namespace, name, provider, module.Version)
 			modules = append(modules, module)
 		}
+	}
+
+	if len(modules) == 0 {
+		return nil, errors.Errorf("no modules found for namespace=%s name=%s provider=%s", namespace, name, provider)
 	}
 
 	return modules, nil

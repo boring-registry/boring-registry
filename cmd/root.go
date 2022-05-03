@@ -29,8 +29,9 @@ const (
 )
 
 var (
-	flagJSON  bool
-	flagDebug bool
+	flagJSON                bool
+	flagDebug               bool
+	flagModuleArchiveFormat string
 
 	// S3 options.
 	flagS3Bucket    string
@@ -79,6 +80,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Enable json logging")
 	rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "Enable debug logging")
+	rootCmd.PersistentFlags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", module.DefaultArchiveFormat, "Archive file format for modules")
 	rootCmd.PersistentFlags().StringVar(&flagS3Bucket, "storage-s3-bucket", "", "S3 bucket to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Prefix, "storage-s3-prefix", "", "S3 bucket prefix to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Region, "storage-s3-region", "", "S3 bucket region to use for the registry")

@@ -155,6 +155,7 @@ var serverCmd = &cobra.Command{
 }
 
 func setupModuleStorage() (module.Storage, error) {
+	module.SetArchiveFormat(flagModuleArchiveFormat)
 	switch {
 	case flagS3Bucket != "":
 		return setupS3ModuleStorage()
