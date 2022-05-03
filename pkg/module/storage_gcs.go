@@ -19,13 +19,14 @@ type GCSStorage struct {
 	sc              *storage.Client
 	bucket          string
 	bucketPrefix    string
+	archiveFormat   string
 	signedURL       bool
 	signedURLExpiry int64
 	serviceAccount  string
 }
 
 func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
-	o := s.sc.Bucket(s.bucket).Object(storagePath(s.bucketPrefix, namespace, name, provider, version))
+	o := s.sc.Bucket(s.bucket).Object(storagePath(s.bucketPrefix, namespace, name, provider, version, s.archiveFormat))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
 		return Module{}, errors.Wrap(ErrNotFound, err.Error())
@@ -100,7 +101,7 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 		return Module{}, errors.New("version not defined")
 	}
 
-	key := storagePath(s.bucketPrefix, namespace, name, provider, version)
+	key := storagePath(s.bucketPrefix, namespace, name, provider, version, DefaultArchiveFormat)
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
 		return Module{}, errors.Wrap(ErrAlreadyExists, key)
 	}
@@ -123,6 +124,13 @@ type GCSStorageOption func(*GCSStorage)
 func WithGCSStorageBucketPrefix(prefix string) GCSStorageOption {
 	return func(s *GCSStorage) {
 		s.bucketPrefix = prefix
+	}
+}
+
+// WithGCSArchiveFormat configures the module archive format (zip, tar, tgz, etc.)
+func WithGCSArchiveFormat(archiveFormat string) GCSStorageOption {
+	return func(s *GCSStorage) {
+		s.archiveFormat = archiveFormat
 	}
 }
 
@@ -154,8 +162,9 @@ func NewGCSStorage(bucket string, options ...GCSStorageOption) (Storage, error) 
 		return nil, err
 	}
 	s := &GCSStorage{
-		sc:     client,
-		bucket: bucket,
+		sc:            client,
+		bucket:        bucket,
+		archiveFormat: DefaultArchiveFormat,
 	}
 
 	for _, option := range options {

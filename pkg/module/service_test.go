@@ -156,7 +156,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var (
 				ctx     = context.Background()
-				storage = NewInmemStorage()
+				storage = NewInmemStorage(WithInmemArchiveFormat(tc.format))
 				svc     = NewService(storage)
 			)
 
@@ -173,7 +173,6 @@ func TestService_ListModuleVersions(t *testing.T) {
 				}
 			}
 
-			SetArchiveFormat(tc.format)
 			modules, err := svc.ListModuleVersions(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider)
 			switch tc.expectError {
 			case true:

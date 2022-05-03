@@ -45,6 +45,7 @@ var (
 	flagTLSKeyFile          string
 	flagListenAddr          string
 	flagTelemetryListenAddr string
+	flagModuleArchiveFormat string
 )
 
 var serverCmd = &cobra.Command{
@@ -155,7 +156,6 @@ var serverCmd = &cobra.Command{
 }
 
 func setupModuleStorage() (module.Storage, error) {
-	module.SetArchiveFormat(flagModuleArchiveFormat)
 	switch {
 	case flagS3Bucket != "":
 		return setupS3ModuleStorage()
@@ -184,6 +184,7 @@ func init() {
 	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
 	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
+	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", module.DefaultArchiveFormat, "Archive file format for modules")
 }
 
 func serveMux() (*http.ServeMux, error) {
