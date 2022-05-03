@@ -274,7 +274,7 @@ https://www.terraform.io/docs/registry/providers.
 
 ## Docker Image
 
-Images are published to ghcr.io/tiermobility/boring-registry for every tagged release of the project; there is no official image available on Docker Hub.
+Images are published to [`ghcr.io/tiermobility/boring-registry`](https://github.com/tiermobility/boring-registry/pkgs/container/boring-registry) for every tagged release of the project.
 
 ## Local
 
