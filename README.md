@@ -270,9 +270,17 @@ changelog:
 For general information on how to build and publish providers for Terraform see the official docs:
 https://www.terraform.io/docs/registry/providers.
 
-# Docker
+# Installation
+
+## Docker Image
 
 Images are published to ghcr.io/tiermobility/boring-registry for every tagged release of the project; there is no official image available on Docker Hub.
+
+## Local
+
+Run `make` to build the project and install the `boring-registry` executable into `$GOPATH/bin`. Then
+start the server with `$GOPATH/bin/boring-registry`, or if `$GOPATH/bin` is already on your `$PATH`,
+you can simply run `boring-registry`.
 
 # Roadmap
 
