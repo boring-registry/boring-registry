@@ -2,14 +2,14 @@ package module
 
 import (
 	"context"
-	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/core"
 )
 
 // Service implements the Module Registry Protocol.
 // For more information see: https://www.terraform.io/docs/internals/module-registry-protocol.html.
 type Service interface {
-	GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error)
-	ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error)
+	GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error)
+	ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error)
 }
 
 type service struct {
@@ -23,39 +23,20 @@ func NewService(storage Storage) Service {
 	}
 }
 
-func (s *service) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
+func (s *service) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
 	res, err := s.storage.GetModule(ctx, namespace, name, provider, version)
 	if err != nil {
-		return Module{}, err
+		return core.Module{}, err
 	}
 
 	return res, nil
 }
 
-func (s *service) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error) {
+func (s *service) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
 	res, err := s.storage.ListModuleVersions(ctx, namespace, name, provider)
 	if err != nil {
 		return nil, err
 	}
 
 	return res, nil
-}
-
-// Module represents Terraform module metadata.
-type Module struct {
-	Namespace   string `json:"namespace"`
-	Name        string `json:"name"`
-	Provider    string `json:"provider"`
-	Version     string `json:"version"`
-	DownloadURL string `json:"download_url"`
-}
-
-// ID returns the module metadata in a compact format.
-func (m *Module) ID(version bool) string {
-	id := fmt.Sprintf("namespace=%s/name=%s/provider=%s", m.Namespace, m.Name, m.Provider)
-	if version {
-		id = fmt.Sprintf("%s/version=%s", id, m.Version)
-	}
-
-	return id
 }

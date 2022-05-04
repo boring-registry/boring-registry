@@ -5,10 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"io"
 	"path"
 	"time"
 
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -16,17 +17,119 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	s3downloadFormat = "%s.s3-%s.amazonaws.com/%s"
+)
+
 // S3Storage is a Storage implementation backed by S3.
-// S3Storage implements provider.Storage
+// S3Storage implements module.Storage and provider.Storage
 type S3Storage struct {
-	s3             *s3.S3
-	downloader     *s3manager.Downloader
-	uploader       *s3manager.Uploader
-	bucket         string
-	bucketPrefix   string
-	bucketRegion   string
-	pathStyle      bool
-	bucketEndpoint string
+	s3                  *s3.S3
+	downloader          *s3manager.Downloader
+	uploader            *s3manager.Uploader
+	bucket              string
+	bucketPrefix        string
+	bucketRegion        string
+	bucketEndpoint      string
+	moduleArchiveFormat string
+	pathStyle           bool
+}
+
+// GetModule retrieves information about a module from the S3 storage.
+func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
+	key := modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat)
+
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	}
+
+	if _, err := s.s3.HeadObject(input); err != nil {
+		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+	}
+
+	return core.Module{
+		Namespace:   namespace,
+		Name:        name,
+		Provider:    provider,
+		Version:     version,
+		DownloadURL: fmt.Sprintf(s3downloadFormat, s.bucket, s.bucketRegion, *input.Key),
+	}, nil
+}
+
+func (s *S3Storage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
+	var modules []core.Module
+
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(modulePathPrefix(s.bucketPrefix, namespace, name, provider)),
+	}
+
+	fn := func(page *s3.ListObjectsV2Output, last bool) bool {
+		for _, obj := range page.Contents {
+			metadata := objectMetadata(*obj.Key)
+
+			version, ok := metadata["version"]
+			if !ok {
+				continue
+			}
+
+			m := core.Module{
+				Namespace:   namespace,
+				Name:        name,
+				Provider:    provider,
+				Version:     version,
+				DownloadURL: fmt.Sprintf(s3downloadFormat, s.bucket, s.bucketRegion, *obj.Key),
+			}
+
+			modules = append(modules, m)
+		}
+
+		return true
+	}
+
+	if err := s.s3.ListObjectsV2Pages(input, fn); err != nil {
+		return nil, errors.Wrap(ErrModuleListFailed, err.Error())
+	}
+
+	return modules, nil
+}
+
+// UploadModule uploads a module to the S3 storage.
+func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
+	if namespace == "" {
+		return core.Module{}, errors.New("namespace not defined")
+	}
+
+	if name == "" {
+		return core.Module{}, errors.New("name not defined")
+	}
+
+	if provider == "" {
+		return core.Module{}, errors.New("provider not defined")
+	}
+
+	if version == "" {
+		return core.Module{}, errors.New("version not defined")
+	}
+
+	key := modulePath(s.bucketPrefix, namespace, name, provider, version, DefaultModuleArchiveFormat)
+
+	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
+		return core.Module{}, errors.Wrap(ErrModuleAlreadyExists, key)
+	}
+
+	input := &s3manager.UploadInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+		Body:   body,
+	}
+
+	if _, err := s.uploader.Upload(input); err != nil {
+		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
+	}
+
+	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
 // GetProvider retrieves information about a provider from the S3 storage.
@@ -115,7 +218,7 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 	}
 
 	if err := s.s3.ListObjectsV2PagesWithContext(ctx, input, fn); err != nil {
-		return nil, errors.Wrap(ErrListFailed, err.Error())
+		return nil, errors.Wrap(ErrProviderListFailed, err.Error())
 	}
 
 	result := collection.List()
@@ -184,6 +287,13 @@ func WithS3StorageBucketEndpoint(endpoint string) S3StorageOption {
 			s.s3.Client.Endpoint = endpoint
 		}
 		s.bucketEndpoint = "aws sdk default"
+	}
+}
+
+// WithS3ArchiveFormat configures the module archive format (zip, tar, tgz, etc.)
+func WithS3ArchiveFormat(archiveFormat string) S3StorageOption {
+	return func(s *S3Storage) {
+		s.moduleArchiveFormat = archiveFormat
 	}
 }
 

@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"strings"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/spf13/cobra"
@@ -137,24 +135,4 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
 		}
 	})
-}
-
-func setupS3ModuleStorage() (module.Storage, error) {
-	return module.NewS3Storage(flagS3Bucket,
-		module.WithS3StorageBucketPrefix(path.Join(flagS3Prefix, "modules")),
-		module.WithS3ArchiveFormat(flagModuleArchiveFormat),
-		module.WithS3StorageBucketRegion(flagS3Region),
-		module.WithS3StorageBucketEndpoint(flagS3Endpoint),
-		module.WithS3StoragePathStyle(flagS3PathStyle),
-	)
-}
-
-func setupGCSModuleStorage() (module.Storage, error) {
-	return module.NewGCSStorage(flagGCSBucket,
-		module.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "modules")),
-		module.WithGCSArchiveFormat(flagModuleArchiveFormat),
-		module.WithGCSStorageSignedURL(flagGCSSignedURL),
-		module.WithGCSServiceAccount(flagGCSServiceAccount),
-		module.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),
-	)
 }

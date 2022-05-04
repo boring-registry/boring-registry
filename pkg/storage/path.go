@@ -13,9 +13,11 @@ import (
 const (
 	internalProviderType = providerType("providers")
 	mirrorProviderType   = providerType("mirror")
+	internalModuleType   = moduleType("modules")
 )
 
 type providerType string
+type moduleType string
 
 // providerStoragePrefix returns a <prefix>/<internal|mirror>/<hostname>/<namespace>/<name> prefix
 func providerStoragePrefix(prefix string, t providerType, hostname, namespace, name string) (string, error) {
@@ -83,6 +85,16 @@ func mirrorProviderPath(prefix, hostname, namespace, name, version, os, arch str
 	return providerPath(prefix, mirrorProviderType, hostname, namespace, name, version, os, arch)
 }
 
+// modulePathPrefix returns a <prefix>/modules/<namespace>/<name>/<provider> prefix
+func modulePathPrefix(prefix, namespace, name, provider string) string {
+	return path.Join(prefix, string(internalModuleType), namespace, name, provider)
+}
+
+func modulePath(prefix, namespace, name, provider, version, archiveFormat string) string {
+	f := fmt.Sprintf("%s-%s-%s-%s.%s", namespace, name, provider, version, archiveFormat)
+	return path.Join(modulePathPrefix(prefix, namespace, name, provider), f)
+}
+
 func signingKeysPath(prefix string, namespace string) string {
 	return path.Join(
 		prefix,
@@ -113,4 +125,19 @@ func readSHASums(r io.Reader, name string) (string, error) {
 	}
 
 	return sha, nil
+}
+
+func objectMetadata(key string) map[string]string {
+	m := make(map[string]string)
+
+	for _, part := range strings.Split(key, "/") {
+		parts := strings.SplitN(part, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		m[parts[0]] = parts[1]
+	}
+
+	return m
 }

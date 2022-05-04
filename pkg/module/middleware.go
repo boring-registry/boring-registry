@@ -2,6 +2,7 @@ package module
 
 import (
 	"context"
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -26,7 +27,7 @@ func LoggingMiddleware(logger log.Logger) Middleware {
 	}
 }
 
-func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, name, provider string) (modules []Module, err error) {
+func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, name, provider string) (modules []core.Module, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -47,7 +48,7 @@ func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, n
 	return mw.next.ListModuleVersions(ctx, namespace, name, provider)
 }
 
-func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, provider, version string) (module Module, err error) {
+func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, provider, version string) (module core.Module, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
