@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -94,6 +95,99 @@ func TestService_GetModule(t *testing.T) {
 			case false:
 				assert.NoError(err)
 				assert.Equal(tc.module, module)
+			}
+		})
+	}
+}
+
+func TestService_ListModuleVersions(t *testing.T) {
+	assert := assert.New(t)
+
+	testCases := []struct {
+		name        string
+		format      string
+		module      Module
+		versions    []string
+		data        io.Reader
+		expectError bool
+	}{
+		{
+			name: "valid list default format",
+			module: Module{
+				Namespace: "tier",
+				Name:      "s3",
+				Provider:  "aws",
+			},
+			versions: []string{"1.0.0", "2.4.1"},
+			data: testModuleData(map[string]string{
+				"main.tf": `name = "foo"`,
+			}),
+		},
+		{
+			name:   "valid list custom format",
+			format: "zip",
+			module: Module{
+				Namespace: "tier",
+				Name:      "s3",
+				Provider:  "aws",
+			},
+			versions: []string{"1.0.0", "2.4.1"},
+			data: testModuleData(map[string]string{
+				"main.tf": `name = "foo"`,
+			}),
+		},
+		{
+			name: "invalid list",
+			module: Module{
+				Namespace: "tier",
+				Name:      "s3",
+			},
+			versions: []string{"1.0.0"},
+			data: testModuleData(map[string]string{
+				"main.tf": `name = "foo"`,
+			}),
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				ctx     = context.Background()
+				storage = NewInmemStorage(WithInmemArchiveFormat(tc.format))
+				svc     = NewService(storage)
+			)
+
+			// Make sure this test case is actually doing something
+			assert.NotEmpty(tc.versions)
+
+			for _, version := range tc.versions {
+				_, err := storage.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, version, tc.data)
+				switch tc.expectError {
+				case true:
+					assert.Error(err)
+				case false:
+					assert.NoError(err)
+				}
+			}
+
+			modules, err := svc.ListModuleVersions(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider)
+			switch tc.expectError {
+			case true:
+				assert.Error(err)
+			case false:
+				assert.NoError(err)
+				versions := make([]string, 0)
+				for _, module := range modules {
+					assert.True(strings.HasSuffix(module.DownloadURL, "."+tc.format))
+					module.DownloadURL = ""
+					versions = append(versions, module.Version)
+					module.Version = ""
+					assert.Equal(tc.module, module)
+				}
+				assert.ElementsMatch(tc.versions, versions)
 			}
 		})
 	}

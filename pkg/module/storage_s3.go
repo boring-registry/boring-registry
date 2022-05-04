@@ -18,6 +18,7 @@ type S3Storage struct {
 	uploader       *s3manager.Uploader
 	bucket         string
 	bucketPrefix   string
+	archiveFormat  string
 	bucketRegion   string
 	pathStyle      bool
 	bucketEndpoint string
@@ -25,7 +26,7 @@ type S3Storage struct {
 
 // GetModule retrieves information about a module from the S3 storage.
 func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error) {
-	key := storagePath(s.bucketPrefix, namespace, name, provider, version)
+	key := storagePath(s.bucketPrefix, namespace, name, provider, version, s.archiveFormat)
 
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -101,7 +102,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 		return Module{}, errors.New("version not defined")
 	}
 
-	key := storagePath(s.bucketPrefix, namespace, name, provider, version)
+	key := storagePath(s.bucketPrefix, namespace, name, provider, version, DefaultArchiveFormat)
 
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
 		return Module{}, errors.Wrap(ErrAlreadyExists, key)
@@ -109,7 +110,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 
 	input := &s3manager.UploadInput{
 		Bucket: aws.String(s.bucket),
-		Key:    aws.String(storagePath(s.bucketPrefix, namespace, name, provider, version)),
+		Key:    aws.String(storagePath(s.bucketPrefix, namespace, name, provider, version, DefaultArchiveFormat)),
 		Body:   body,
 	}
 
@@ -136,6 +137,13 @@ type S3StorageOption func(*S3Storage)
 func WithS3StorageBucketPrefix(prefix string) S3StorageOption {
 	return func(s *S3Storage) {
 		s.bucketPrefix = prefix
+	}
+}
+
+// WithS3ArchiveFormat configures the module archive format (zip, tar, tgz, etc.)
+func WithS3ArchiveFormat(archiveFormat string) S3StorageOption {
+	return func(s *S3Storage) {
+		s.archiveFormat = archiveFormat
 	}
 }
 
@@ -176,9 +184,10 @@ func NewS3Storage(bucket string, options ...S3StorageOption) (Storage, error) {
 	}
 
 	s := &S3Storage{
-		s3:       s3.New(sess),
-		uploader: s3manager.NewUploader(sess),
-		bucket:   bucket,
+		s3:            s3.New(sess),
+		uploader:      s3manager.NewUploader(sess),
+		bucket:        bucket,
+		archiveFormat: DefaultArchiveFormat,
 	}
 
 	for _, option := range options {

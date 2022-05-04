@@ -142,6 +142,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 func setupS3ModuleStorage() (module.Storage, error) {
 	return module.NewS3Storage(flagS3Bucket,
 		module.WithS3StorageBucketPrefix(path.Join(flagS3Prefix, "modules")),
+		module.WithS3ArchiveFormat(flagModuleArchiveFormat),
 		module.WithS3StorageBucketRegion(flagS3Region),
 		module.WithS3StorageBucketEndpoint(flagS3Endpoint),
 		module.WithS3StoragePathStyle(flagS3PathStyle),
@@ -151,6 +152,7 @@ func setupS3ModuleStorage() (module.Storage, error) {
 func setupGCSModuleStorage() (module.Storage, error) {
 	return module.NewGCSStorage(flagGCSBucket,
 		module.WithGCSStorageBucketPrefix(path.Join(flagGCSPrefix, "modules")),
+		module.WithGCSArchiveFormat(flagModuleArchiveFormat),
 		module.WithGCSStorageSignedURL(flagGCSSignedURL),
 		module.WithGCSServiceAccount(flagGCSServiceAccount),
 		module.WithGCSSignedUrlExpiry(int64(flagGCSSignedURLExpiry.Seconds())),

@@ -12,9 +12,10 @@ import (
 // InmemStorage is a Storage implementation
 // This storage is typically used for testing purposes.
 type InmemStorage struct {
-	modules    map[string]Module
-	moduleData map[string]io.Reader
-	mu         sync.RWMutex
+	modules       map[string]Module
+	moduleData    map[string]io.Reader
+	mu            sync.RWMutex
+	archiveFormat string
 }
 
 // GetModule retrieves information about a module from the in-memory storage.
@@ -36,10 +37,15 @@ func (s *InmemStorage) ListModuleVersions(ctx context.Context, namespace, name, 
 
 	var modules []Module
 
-	for _, module := range modules {
+	for _, module := range s.modules {
 		if module.Namespace == namespace && module.Name == name && module.Provider == provider {
+			module.DownloadURL = storagePath("inmem", namespace, name, provider, module.Version, s.archiveFormat)
 			modules = append(modules, module)
 		}
+	}
+
+	if len(modules) == 0 {
+		return nil, errors.Errorf("no modules found for namespace=%s name=%s provider=%s", namespace, name, provider)
 	}
 
 	return modules, nil
@@ -83,13 +89,30 @@ func (s *InmemStorage) UploadModule(ctx context.Context, namespace, name, provid
 }
 
 func (s *InmemStorage) moduleID(namespace, name, provider, version string) string {
-	return fmt.Sprintf("namespace=%s/name=%s/provider=%s/version=%s", namespace, name, provider, version)
+	return fmt.Sprintf("namespace=%s/name=%s/provider=%s/version=%s/format=%s", namespace, name, provider, version, s.archiveFormat)
+}
+
+// InmemStorageOption provides additional options for the InmemStorage.
+type InmemStorageOption func(*InmemStorage)
+
+// WithInmemArchiveFormat configures the module archive format (zip, tar, tgz, etc.)
+func WithInmemArchiveFormat(archiveFormat string) InmemStorageOption {
+	return func(s *InmemStorage) {
+		s.archiveFormat = archiveFormat
+	}
 }
 
 // NewInmemStorage returns a fully initialized in-memory storage.
-func NewInmemStorage() Storage {
-	return &InmemStorage{
-		modules:    make(map[string]Module),
-		moduleData: make(map[string]io.Reader),
+func NewInmemStorage(options ...InmemStorageOption) Storage {
+	s := &InmemStorage{
+		modules:       make(map[string]Module),
+		moduleData:    make(map[string]io.Reader),
+		archiveFormat: DefaultArchiveFormat,
 	}
+
+	for _, option := range options {
+		option(s)
+	}
+
+	return s
 }
