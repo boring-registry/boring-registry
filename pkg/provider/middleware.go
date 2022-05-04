@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -26,7 +28,7 @@ func LoggingMiddleware(logger log.Logger) Middleware {
 	}
 }
 
-func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace, name string) (providers []ProviderVersion, err error) {
+func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace, name string) (providers []core.ProviderVersion, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -46,7 +48,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace,
 	return mw.next.ListProviderVersions(ctx, namespace, name)
 }
 
-func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (provider Provider, err error) {
+func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (provider core.Provider, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {
@@ -55,7 +57,7 @@ func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, ve
 
 		_ = logger.Log(
 			"op", "GetProvider",
-			"provider", provider.ID(true),
+			"provider", fmt.Sprintf("%s/%s/%s/%s/%s", namespace, name, version, os, arch),
 			"took", time.Since(begin),
 			"err", err,
 		)

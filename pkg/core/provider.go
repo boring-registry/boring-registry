@@ -109,3 +109,14 @@ type Platform struct {
 	OS   string `json:"os,omitempty"`
 	Arch string `json:"arch,omitempty"`
 }
+
+type providerOption struct {
+	Hostname  string `json:"hostname,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Version   string `json:"version,omitempty"`
+	OS        string `json:"os,omitempty"`
+	Arch      string `json:"arch,omitempty"`
+}
+
+type ProviderOption func(option *providerOption)

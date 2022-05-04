@@ -1,14 +1,12 @@
-package provider
+package storage
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -19,6 +17,7 @@ import (
 )
 
 // S3Storage is a Storage implementation backed by S3.
+// S3Storage implements provider.Storage
 type S3Storage struct {
 	s3             *s3.S3
 	downloader     *s3manager.Downloader
@@ -31,78 +30,80 @@ type S3Storage struct {
 }
 
 // GetProvider retrieves information about a provider from the S3 storage.
-func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (Provider, error) {
-	var (
-		pathPkg         = storagePath(s.bucketPrefix, namespace, name, version, os, arch)
-		pathSha         = shasumsPath(s.bucketPrefix, namespace, name, version)
-		pathSig         = fmt.Sprintf("%s.sig", pathSha)
-		pathSigningKeys = signingKeysPath(s.bucketPrefix, namespace)
-	)
-
-	shasumsURL, err := s.presignedURL(pathSha)
+func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
+	archivePath, shasumPath, shasumSigPath, err := internalProviderPath(s.bucketPrefix, namespace, name, version, os, arch)
 	if err != nil {
-		return Provider{}, errors.Wrap(err, pathSig)
+		return core.Provider{}, err
 	}
 
-	signatureURL, err := s.presignedURL(pathSig)
+	pathSigningKeys := signingKeysPath(s.bucketPrefix, namespace)
+
+	zipURL, err := s.presignedURL(archivePath)
 	if err != nil {
-		return Provider{}, err
+		return core.Provider{}, err
+	}
+	shasumsURL, err := s.presignedURL(shasumPath)
+	if err != nil {
+		return core.Provider{}, errors.Wrap(err, shasumPath)
+	}
+	signatureURL, err := s.presignedURL(shasumSigPath)
+	if err != nil {
+		return core.Provider{}, err
 	}
 
-	zipURL, err := s.presignedURL(pathPkg)
+	signingKeysRaw, err := s.download(ctx, pathSigningKeys)
 	if err != nil {
-		return Provider{}, err
+		return core.Provider{}, errors.Wrap(err, pathSigningKeys)
 	}
-
-	signingKeysRaw, err := s.download(pathSigningKeys)
-	if err != nil {
-		return Provider{}, errors.Wrap(err, pathSigningKeys)
-	}
-
-	var signingKey GPGPublicKey
+	var signingKey core.GPGPublicKey
 	if err := json.Unmarshal(signingKeysRaw, &signingKey); err != nil {
-		return Provider{}, err
+		return core.Provider{}, err
 	}
 
-	shasums, err := s.download(pathSha)
+	shasumBytes, err := s.download(ctx, shasumPath)
 	if err != nil {
-		return Provider{}, err
+		return core.Provider{}, err
 	}
 
-	shasum, err := readSHASums(bytes.NewReader(shasums), path.Base(pathPkg))
+	shasum, err := readSHASums(bytes.NewReader(shasumBytes), path.Base(archivePath))
 	if err != nil {
-		return Provider{}, err
+		return core.Provider{}, err
 	}
 
-	return Provider{
+	return core.Provider{
 		Namespace:           namespace,
-		Filename:            path.Base(pathPkg),
 		Name:                name,
 		Version:             version,
 		OS:                  os,
 		Arch:                arch,
 		Shasum:              shasum,
+		Filename:            path.Base(archivePath),
 		DownloadURL:         zipURL,
 		SHASumsURL:          shasumsURL,
 		SHASumsSignatureURL: signatureURL,
-		SigningKeys: SigningKeys{
-			GPGPublicKeys: []GPGPublicKey{
+		SigningKeys: core.SigningKeys{
+			GPGPublicKeys: []core.GPGPublicKey{
 				signingKey,
 			},
 		},
 	}, nil
 }
 
-func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name string) ([]ProviderVersion, error) {
+func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name string) ([]core.ProviderVersion, error) {
+	prefix, err := providerStoragePrefix(s.bucketPrefix, internalProviderType, "", namespace, name)
+	if err != nil {
+		return nil, err
+	}
+
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(fmt.Sprintf("%s/", storagePrefix(s.bucketPrefix, namespace, name))),
+		Prefix: aws.String(fmt.Sprintf("%s/", prefix)),
 	}
 
 	collection := NewCollection()
 	fn := func(page *s3.ListObjectsV2Output, last bool) bool {
 		for _, obj := range page.Contents {
-			provider, err := Parse(*obj.Key)
+			provider, err := core.NewProviderFromArchive(*obj.Key)
 			if err != nil {
 				continue
 			}
@@ -113,7 +114,7 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 		return true
 	}
 
-	if err := s.s3.ListObjectsV2Pages(input, fn); err != nil {
+	if err := s.s3.ListObjectsV2PagesWithContext(ctx, input, fn); err != nil {
 		return nil, errors.Wrap(ErrListFailed, err.Error())
 	}
 
@@ -133,6 +134,29 @@ func (s *S3Storage) determineBucketRegion() (string, error) {
 	}
 
 	return region, nil
+}
+func (s *S3Storage) presignedURL(v string) (string, error) {
+	req, _ := s.s3.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(v),
+	})
+
+	return req.Presign(15 * time.Minute)
+}
+
+func (s *S3Storage) download(ctx context.Context, path string) ([]byte, error) {
+	buf := aws.NewWriteAtBuffer([]byte{})
+
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(path),
+	}
+
+	if _, err := s.downloader.DownloadWithContext(ctx, buf, input); err != nil {
+		return nil, errors.Wrapf(err, "failed to download: %s", path)
+	}
+
+	return buf.Bytes(), nil
 }
 
 // S3StorageOption provides additional options for the S3Storage.
@@ -175,16 +199,17 @@ func WithS3StoragePathStyle(pathStyle bool) S3StorageOption {
 }
 
 // NewS3Storage returns a fully initialized S3 storage.
-func NewS3Storage(bucket string, options ...S3StorageOption) (Storage, error) {
+func NewS3Storage(bucket string, options ...S3StorageOption) (*S3Storage, error) {
 	sess, err := session.NewSession()
 	if err != nil {
 		return nil, err
 	}
 
+	client := s3.New(sess)
 	s := &S3Storage{
-		s3:         s3.New(sess),
-		uploader:   s3manager.NewUploader(sess),
-		downloader: s3manager.NewDownloader(sess),
+		s3:         client,
+		uploader:   s3manager.NewUploaderWithClient(client),
+		downloader: s3manager.NewDownloaderWithClient(client),
 		bucket:     bucket,
 	}
 
@@ -201,50 +226,4 @@ func NewS3Storage(bucket string, options ...S3StorageOption) (Storage, error) {
 	}
 
 	return s, nil
-}
-
-func (s *S3Storage) presignedURL(v string) (string, error) {
-	req, _ := s.s3.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(v),
-	})
-
-	return req.Presign(15 * time.Minute)
-}
-
-func readSHASums(r io.Reader, name string) (string, error) {
-	scanner := bufio.NewScanner(r)
-
-	sha := ""
-	for scanner.Scan() {
-		parts := strings.Split(scanner.Text(), " ")
-		if len(parts) != 3 {
-			continue
-		}
-
-		if parts[2] == name {
-			sha = parts[0]
-		}
-	}
-
-	if sha == "" {
-		return "", fmt.Errorf("did not find package: %s in shasums file", name)
-	}
-
-	return sha, nil
-}
-
-func (s *S3Storage) download(path string) ([]byte, error) {
-	buf := aws.NewWriteAtBuffer([]byte{})
-
-	input := &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(path),
-	}
-
-	if _, err := s.downloader.Download(buf, input); err != nil {
-		return nil, errors.Wrapf(err, "failed to download: %s", path)
-	}
-
-	return buf.Bytes(), nil
 }
