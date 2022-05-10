@@ -13,9 +13,6 @@ nameOverride: ""
 fullnameOverride: ""
 
 server:
-  # If set to true, the server component will be created.
-  enabled: true
-
   replicas: 1
   annotations: {}
   imagePullSecrets: []

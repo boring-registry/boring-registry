@@ -1,4 +1,3 @@
-{{- if .Values.server.enabled }}
 {{- if .Values.server.autoscaling.enabled }}
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
@@ -26,5 +25,4 @@ spec:
         name: memory
         targetAverageUtilization: {{ .Values.server.autoscaling.targetMemoryUtilizationPercentage }}
     {{- end }}
-{{- end }}
 {{- end }}

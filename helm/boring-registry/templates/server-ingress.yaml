@@ -1,4 +1,3 @@
-{{- if .Values.server.enabled }}
 {{- if .Values.server.ingress.enabled -}}
 {{- $fullName := include "boring-registry.fullname" . -}}
 {{- $svcPort := .Values.server.service.port -}}
@@ -59,5 +58,4 @@ spec:
               {{- end }}
           {{- end }}
     {{- end }}
-{{- end }}
 {{- end }}
