@@ -1,0 +1,107 @@
+# Default values for boring-registry.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global options.
+global:
+  image:
+    repository: ghcr.io/tiermobility/boring-registry
+    tag: v0.7.0
+    pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+server:
+  replicas: 1
+  annotations: {}
+  imagePullSecrets: []
+  securityContext: {}
+  podSecurityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  resources: {}
+    # requests:
+    #   cpu: 100m
+    #   memory: 64Mi
+    # limits:
+    #   cpu: 100m
+    #   memory: 64Mi
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 80
+
+  serviceAccount:
+    enabled: true
+    annotations: {}
+
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: chart-example.local
+        paths: []
+    tls: []
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+
+  #
+  # Server configuration.
+  #
+
+  # If set to true, the server will output debug logs.
+  debug: false
+
+  # If set to true, the server will output logs in JSON format.
+  jsonLogFormat: true
+
+  # Authentication configuration.
+  auth:
+    # If set to true, there will be a secret created with the contents of "value".
+    createSecret: true
+
+    # If "createSecret" is set to true, this will add a reference to the created secret inside the deployment.
+    # If "createSecret" is set to false, the value will be placed as-is inside the deployment.
+    value:
+
+    # To use an already existing secret, the below options can be used.
+    existingSecret:
+    existingSecretKey:
+
+  # Extra arguments to pass to the server command.
+  extraArgs: ""
+
+  # Port to listen on.
+  port: 5601
+
+  # Address to listen on (telemetry)
+  telemetryPort: 7801
+
+  # TLS key to serve.
+  tlsKeyFile: ""
+
+  # TLS certificate to serve.
+  tlsCertFile: ""
+
+  # Storage configuration.
+  storage: {}
+    # s3:
+    #   bucket: ""
+    #   prefix: ""
+    #   region: ""
+    #   endpoint: ""
+    #   pathStyle: false
+    # gcs:
+    #   bucket: ""
+    #   prefix: ""
+    #   saEmail: ""
+    #   signedURL: false

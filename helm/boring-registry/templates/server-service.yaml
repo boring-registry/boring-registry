@@ -1,0 +1,17 @@
+{{- if .Values.server.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "boring-registry.fullname" . }}
+  labels:
+    {{- include "boring-registry.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - port: {{ .Values.server.service.port }}
+      targetPort: api
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "boring-registry.selectorLabels" . | nindent 4 }}
+{{- end }}
