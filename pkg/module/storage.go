@@ -2,38 +2,13 @@ package module
 
 import (
 	"context"
-	"fmt"
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"io"
-	"path"
-)
-
-const (
-	DefaultArchiveFormat = "tar.gz"
 )
 
 // Storage represents the repository of Terraform modules.
 type Storage interface {
-	GetModule(ctx context.Context, namespace, name, provider, version string) (Module, error)
-	ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]Module, error)
-	UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (Module, error)
-}
-
-func storagePrefix(prefix, namespace, name, provider string) string {
-	return path.Join(
-		prefix,
-		fmt.Sprintf("namespace=%s", namespace),
-		fmt.Sprintf("name=%s", name),
-		fmt.Sprintf("provider=%s", provider),
-	)
-}
-
-func storagePath(prefix, namespace, name, provider, version, format string) string {
-	return path.Join(
-		prefix,
-		fmt.Sprintf("namespace=%s", namespace),
-		fmt.Sprintf("name=%s", name),
-		fmt.Sprintf("provider=%s", provider),
-		fmt.Sprintf("version=%s", version),
-		fmt.Sprintf("%s-%s-%s-%s.%s", namespace, name, provider, version, format),
-	)
+	GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error)
+	ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error)
+	UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error)
 }

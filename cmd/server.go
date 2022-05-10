@@ -156,6 +156,16 @@ var serverCmd = &cobra.Command{
 	},
 }
 
+func init() {
+	rootCmd.AddCommand(serverCmd)
+	serverCmd.Flags().StringVar(&flagAPIKey, "api-key", "", "Comma-separated string of static API keys to protect the server with")
+	serverCmd.Flags().StringVar(&flagTLSKeyFile, "tls-key-file", "", "TLS private key to serve")
+	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
+	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
+	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
+	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules")
+}
+
 func setupStorage() (storage.Storage, error) {
 	switch {
 	case flagS3Bucket != "":
@@ -164,6 +174,7 @@ func setupStorage() (storage.Storage, error) {
 			storage.WithS3StorageBucketRegion(flagS3Region),
 			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
 			storage.WithS3StoragePathStyle(flagS3PathStyle),
+			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
 		)
 	case flagGCSBucket != "":
 		return storage.NewGCSStorage(flagGCSBucket,
@@ -175,28 +186,6 @@ func setupStorage() (storage.Storage, error) {
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}
-}
-
-// Deprecated: use setupStorage instead
-func setupModuleStorage() (module.Storage, error) {
-	switch {
-	case flagS3Bucket != "":
-		return setupS3ModuleStorage()
-	case flagGCSBucket != "":
-		return setupGCSModuleStorage()
-	default:
-		return nil, errors.New("please specify a valid storage provider")
-	}
-}
-
-func init() {
-	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVar(&flagAPIKey, "api-key", "", "Comma-separated string of static API keys to protect the server with")
-	serverCmd.Flags().StringVar(&flagTLSKeyFile, "tls-key-file", "", "TLS private key to serve")
-	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
-	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
-	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
-	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", module.DefaultArchiveFormat, "Archive file format for modules")
 }
 
 func serveMux() (*http.ServeMux, error) {
@@ -214,7 +203,7 @@ func serveMux() (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	if err := registerModule(mux); err != nil {
+	if err := registerModule(mux, s); err != nil {
 		return nil, err
 	}
 
@@ -239,13 +228,8 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux) error {
-	storage, err := setupModuleStorage()
-	if err != nil {
-		return errors.Wrap(err, "failed to setup module storage")
-	}
-
-	service := module.NewService(storage)
+func registerModule(mux *http.ServeMux, s storage.Storage) error {
+	service := module.NewService(s)
 	{
 		service = module.LoggingMiddleware(logger)(service)
 	}

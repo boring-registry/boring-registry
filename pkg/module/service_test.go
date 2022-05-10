@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"io"
 	"strings"
 	"testing"
@@ -40,13 +41,13 @@ func TestService_GetModule(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		module      Module
+		module      core.Module
 		data        io.Reader
 		expectError bool
 	}{
 		{
 			name: "valid get",
-			module: Module{
+			module: core.Module{
 				Namespace: "tier",
 				Name:      "s3",
 				Provider:  "aws",
@@ -58,7 +59,7 @@ func TestService_GetModule(t *testing.T) {
 		},
 		{
 			name: "invalid get",
-			module: Module{
+			module: core.Module{
 				Namespace: "tier",
 				Name:      "s3",
 				Provider:  "aws",
@@ -106,14 +107,14 @@ func TestService_ListModuleVersions(t *testing.T) {
 	testCases := []struct {
 		name        string
 		format      string
-		module      Module
+		module      core.Module
 		versions    []string
 		data        io.Reader
 		expectError bool
 	}{
 		{
 			name: "valid list default format",
-			module: Module{
+			module: core.Module{
 				Namespace: "tier",
 				Name:      "s3",
 				Provider:  "aws",
@@ -126,7 +127,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 		{
 			name:   "valid list custom format",
 			format: "zip",
-			module: Module{
+			module: core.Module{
 				Namespace: "tier",
 				Name:      "s3",
 				Provider:  "aws",
@@ -138,7 +139,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 		},
 		{
 			name: "invalid list",
-			module: Module{
+			module: core.Module{
 				Namespace: "tier",
 				Name:      "s3",
 			},

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"path"
 	"time"
@@ -18,7 +19,8 @@ import (
 	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 )
 
-// GCSStorage implements provider.Storage
+// GCSStorage is a Storage implementation backed by GCS.
+// GCSStorage implements module.Storage and provider.Storage
 type GCSStorage struct {
 	sc              *storage.Client
 	bucket          string
@@ -26,6 +28,94 @@ type GCSStorage struct {
 	useSignedURL    bool
 	signedURLExpiry time.Duration
 	serviceAccount  string
+	archiveFormat   string
+}
+
+func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
+	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.archiveFormat))
+	attrs, err := o.Attrs(ctx)
+	if err != nil {
+		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+	}
+	url, err := s.generateURL(ctx, attrs.Name)
+	if err != nil {
+		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+	}
+	return core.Module{
+		Namespace: namespace,
+		Name:      attrs.Name,
+		Provider:  provider,
+		Version:   version,
+		/* https://www.terraform.io/docs/internals/module-registry-protocol.html#sample-response-1
+		e.g. "gcs::https://www.googleapis.com/storage/v1/modules/foomodule.zip
+		*/
+		DownloadURL: url,
+	}, nil
+}
+
+func (s *GCSStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
+	var modules []core.Module
+	prefix := modulePathPrefix(s.bucketPrefix, namespace, name, provider)
+
+	query := &storage.Query{
+		Prefix: prefix,
+	}
+	it := s.sc.Bucket(s.bucket).Objects(ctx, query)
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return modules, err
+		}
+		metadata := objectMetadata(attrs.Name)
+
+		version, ok := metadata["version"]
+		if !ok {
+			continue
+		}
+
+		m := core.Module{
+			Version: version,
+		}
+
+		modules = append(modules, m)
+	}
+	return modules, nil
+}
+
+func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
+	if namespace == "" {
+		return core.Module{}, errors.New("namespace not defined")
+	}
+
+	if name == "" {
+		return core.Module{}, errors.New("name not defined")
+	}
+
+	if provider == "" {
+		return core.Module{}, errors.New("provider not defined")
+	}
+
+	if version == "" {
+		return core.Module{}, errors.New("version not defined")
+	}
+
+	key := modulePath(s.bucketPrefix, namespace, name, provider, version, DefaultModuleArchiveFormat)
+	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
+		return core.Module{}, errors.Wrap(ErrModuleAlreadyExists, key)
+	}
+
+	wc := s.sc.Bucket(s.bucket).Object(key).NewWriter(ctx)
+	if _, err := io.Copy(wc, body); err != nil {
+		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
+	}
+	if err := wc.Close(); err != nil {
+		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
+	}
+
+	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
 // GetProvider implements provider.Storage
@@ -134,10 +224,6 @@ func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name s
 	return result, nil
 }
 
-func (s *GCSStorage) generateAPIURL(key string) (string, error) {
-	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucket, key), nil
-}
-
 func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) {
 	r, err := s.sc.Bucket(s.bucket).Object(path).NewReader(ctx)
 	if err != nil {
@@ -153,15 +239,21 @@ func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) 
 	return data, nil
 }
 
-func (s *GCSStorage) generateURL(ctx context.Context, v string) (string, error) {
+func (s *GCSStorage) generateURL(ctx context.Context, object string) (string, error) {
 	if s.useSignedURL {
-		return s.signedURL(ctx, v)
+		return s.generateV4GetObjectSignedURL(ctx, object)
 	}
 
-	return s.generateAPIURL(v)
+	return s.generateAPIURL(object)
 }
 
-func (s *GCSStorage) signedURL(ctx context.Context, v string) (string, error) {
+func (s *GCSStorage) generateAPIURL(key string) (string, error) {
+	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucket, key), nil
+}
+
+// https://github.com/GoogleCloudPlatform/golang-samples/blob/73d60a5de091dcdda5e4f753b594ef18eee67906/storage/objects/generate_v4_get_object_signed_url.go#L28
+// generateV4GetObjectSignedURL generates object signed URL with GET method.
+func (s *GCSStorage) generateV4GetObjectSignedURL(ctx context.Context, object string) (string, error) {
 	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
 	cred, err := google.FindDefaultCredentials(ctx, "cloud-platform")
 	if err != nil {
@@ -176,11 +268,11 @@ func (s *GCSStorage) signedURL(ctx context.Context, v string) (string, error) {
 			return "", fmt.Errorf("credentials.NewIamCredentialsClient: %v", err)
 		}
 
-		url, err = storage.SignedURL(s.bucket, v, &storage.SignedURLOptions{
+		url, err = storage.SignedURL(s.bucket, object, &storage.SignedURLOptions{
 			Scheme:         storage.SigningSchemeV4,
 			Method:         "GET",
 			GoogleAccessID: s.serviceAccount,
-			Expires:        time.Now().Add(s.signedURLExpiry * time.Second),
+			Expires:        time.Now().Add(s.signedURLExpiry),
 			SignBytes: func(b []byte) ([]byte, error) {
 				req := &credentialspb.SignBlobRequest{
 					Payload: b,
@@ -206,9 +298,9 @@ func (s *GCSStorage) signedURL(ctx context.Context, v string) (string, error) {
 			Method:         "GET",
 			GoogleAccessID: conf.Email,
 			PrivateKey:     conf.PrivateKey,
-			Expires:        time.Now().Add(s.signedURLExpiry * time.Second),
+			Expires:        time.Now().Add(s.signedURLExpiry),
 		}
-		url, err = storage.SignedURL(s.bucket, v, opts)
+		url, err = storage.SignedURL(s.bucket, object, opts)
 		if err != nil {
 			return "", fmt.Errorf("storage.signedURL: %v", err)
 		}
