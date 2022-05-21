@@ -1,0 +1,130 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches: # Pull-Requests targeting 'branches'
+      - main
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Set up Go 1.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: ^1.18
+
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v3
+
+    - name: Format
+      run: files="$(gofmt -l pkg cmd)"; if [ -n "$files" ]; then echo -e "Files are not properly formatted:\n$files"; exit 1; fi
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      run: go test -v ./...
+
+  lint-helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@v1
+
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.x'
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.2.1
+
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          if [[ -n "$changed" ]]; then
+            echo "::set-output name=changed::true"
+          fi
+
+      - name: Run chart-testing (lint)
+        run: ct lint --charts helm/boring-registry --target-branch ${{ github.event.repository.default_branch }} --validate-maintainers=false
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.2.0
+        if: steps.list-changed.outputs.changed == 'true'
+
+      - name: Run chart-testing (install)
+        run: ct install --charts helm/boring-registry
+        if: steps.list-changed.outputs.changed == 'true'
+
+  check-helm-publish:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+      - lint-helm
+    if: ${{ github.ref_name == github.event.repository.default_branch }} # https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
+    steps:
+      - run: echo "this is ${{ github.ref_name }} and ${{ github.event.repository.default_branch }}"
+      - uses: actions/checkout@v3
+
+      - name: Install yq
+        run: sudo snap install yq
+
+      - name: Get chart version from Chart.yaml
+        id: local-chart-version
+        run: echo ::set-output name=VERSION::$(helm show chart helm/boring-registry | yq .version)
+
+      - uses: octokit/request-action@v2.x
+        id: get_chart
+        with:
+          route: GET /orgs/tiermobility/packages/container/charts/charts%2Fboring-registry/versions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if tag exists already in ghcr.io
+        id: tag-exists
+        shell: bash
+        run: |
+          echo "detected version in Chart.yaml is: ${{ steps.local-chart-version.outputs.VERSION }}"
+          result=$(echo "${{ steps.get_chart.outputs.data }}" | yq '.[].metadata.container.tags[] | select(. | contains("${{ steps.local-chart-version.outputs.VERSION }}"))')
+          if [[ -z "$result" ]]
+          then
+            echo "IS_PUBLISHED=false"
+            echo "::set-output name=IS_PUBLISHED::false"
+          else
+            echo "IS_PUBLISHED=true"
+            echo "::set-output name=IS_PUBLISHED::true"
+          fi
+    outputs:
+      VERSION: ${{ steps.local-chart-version.outputs.VERSION }}
+      IS_PUBLISHED: ${{ steps.tag-exists.outputs.IS_PUBLISHED }}
+
+  publish-helm-chart:
+    runs-on: ubuntu-latest
+    needs:
+      - check-helm-publish
+    if: ${{ needs.check-helm-publish.outputs.IS_PUBLISHED == 'false' }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: azure/setup-helm@v1
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: https://ghcr.io
+          username: TierMobility
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish helm chart to GitHub Container Registry
+        run: |
+          helm package helm/boring-registry
+          helm push ./boring-registry-${{ needs.check-helm-publish.outputs.VERSION }}.tgz oci://ghcr.io/tiermobility/charts

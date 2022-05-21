@@ -271,6 +271,13 @@ https://www.terraform.io/docs/registry/providers.
 
 # Installation
 
+## Helm
+
+```bash
+helm upgrade --install --wait --namespace default boring-registry \
+oci://ghcr.io/tiermobility/charts/boring-registry
+```
+
 ## Docker Image
 
 Images are published to [`ghcr.io/tiermobility/boring-registry`](https://github.com/tiermobility/boring-registry/pkgs/container/boring-registry) for every tagged release of the project.
