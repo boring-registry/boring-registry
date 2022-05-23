@@ -86,7 +86,7 @@ jobs:
       - uses: octokit/request-action@v2.x
         id: get_chart
         with:
-          route: GET /orgs/tiermobility/packages/container/charts/charts%2Fboring-registry/versions
+          route: GET /orgs/tiermobility/packages/container/charts%2Fboring-registry/versions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
