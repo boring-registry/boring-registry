@@ -17,3 +17,7 @@ main
 dist/
 .idea
 .DS_Store
+
+# Helm related files
+*.tgz
+Chart.lock
