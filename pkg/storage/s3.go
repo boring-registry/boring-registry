@@ -10,21 +10,19 @@ import (
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/pkg/errors"
-)
 
-const (
-	s3downloadFormat = "%s.s3-%s.amazonaws.com/%s"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/pkg/errors"
 )
 
 // S3Storage is a Storage implementation backed by S3.
 // S3Storage implements module.Storage and provider.Storage
 type S3Storage struct {
-	s3                  *s3.S3
+	client              *s3.Client
+	presignClient       *s3.PresignClient
 	downloader          *s3manager.Downloader
 	uploader            *s3manager.Uploader
 	bucket              string
@@ -32,7 +30,9 @@ type S3Storage struct {
 	bucketRegion        string
 	bucketEndpoint      string
 	moduleArchiveFormat string
-	pathStyle           bool
+	forcePathStyle      bool
+	useSignedURL        bool
+	signedURLExpiry     time.Duration
 }
 
 // GetModule retrieves information about a module from the S3 storage.
@@ -44,8 +44,13 @@ func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, ve
 		Key:    aws.String(key),
 	}
 
-	if _, err := s.s3.HeadObject(input); err != nil {
+	if _, err := s.client.HeadObject(ctx, input); err != nil {
 		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+	}
+
+	url, err := s.generateURL(ctx, key)
+	if err != nil {
+		return core.Module{}, err
 	}
 
 	return core.Module{
@@ -53,43 +58,39 @@ func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, ve
 		Name:        name,
 		Provider:    provider,
 		Version:     version,
-		DownloadURL: fmt.Sprintf(s3downloadFormat, s.bucket, s.bucketRegion, *input.Key),
+		DownloadURL: url,
 	}, nil
 }
 
 func (s *S3Storage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
-	var modules []core.Module
-
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
 		Prefix: aws.String(modulePathPrefix(s.bucketPrefix, namespace, name, provider)),
 	}
 
-	fn := func(page *s3.ListObjectsV2Output, last bool) bool {
-		for _, obj := range page.Contents {
-			metadata := objectMetadata(*obj.Key)
+	var modules []core.Module
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, errors.Wrap(ErrModuleListFailed, err.Error())
+		}
 
-			version, ok := metadata["version"]
-			if !ok {
+		for _, obj := range resp.Contents {
+			m, err := moduleFromObject(*obj.Key, s.moduleArchiveFormat)
+			if err != nil {
+				// TODO: we're skipping possible failures silently
 				continue
 			}
 
-			m := core.Module{
-				Namespace:   namespace,
-				Name:        name,
-				Provider:    provider,
-				Version:     version,
-				DownloadURL: fmt.Sprintf(s3downloadFormat, s.bucket, s.bucketRegion, *obj.Key),
+			// The download URL is probably not necessary for ListModules
+			m.DownloadURL, err = s.generateURL(ctx, modulePath(s.bucketPrefix, m.Namespace, m.Name, m.Provider, m.Version, s.moduleArchiveFormat))
+			if err != nil {
+				return []core.Module{}, err
 			}
 
-			modules = append(modules, m)
+			modules = append(modules, *m)
 		}
-
-		return true
-	}
-
-	if err := s.s3.ListObjectsV2Pages(input, fn); err != nil {
-		return nil, errors.Wrap(ErrModuleListFailed, err.Error())
 	}
 
 	return modules, nil
@@ -119,13 +120,13 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 		return core.Module{}, errors.Wrap(ErrModuleAlreadyExists, key)
 	}
 
-	input := &s3manager.UploadInput{
+	input := &s3.PutObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
 		Body:   body,
 	}
 
-	if _, err := s.uploader.Upload(input); err != nil {
+	if _, err := s.uploader.Upload(ctx, input); err != nil {
 		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
 	}
 
@@ -141,15 +142,15 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 
 	pathSigningKeys := signingKeysPath(s.bucketPrefix, namespace)
 
-	zipURL, err := s.presignedURL(archivePath)
+	zipURL, err := s.generateURL(ctx, archivePath)
 	if err != nil {
 		return core.Provider{}, err
 	}
-	shasumsURL, err := s.presignedURL(shasumPath)
+	shasumsURL, err := s.generateURL(ctx, shasumPath)
 	if err != nil {
 		return core.Provider{}, errors.Wrap(err, shasumPath)
 	}
-	signatureURL, err := s.presignedURL(shasumSigPath)
+	signatureURL, err := s.generateURL(ctx, shasumSigPath)
 	if err != nil {
 		return core.Provider{}, err
 	}
@@ -204,8 +205,14 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 	}
 
 	collection := NewCollection()
-	fn := func(page *s3.ListObjectsV2Output, last bool) bool {
-		for _, obj := range page.Contents {
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, errors.Wrap(ErrProviderListFailed, err.Error())
+		}
+
+		for _, obj := range resp.Contents {
 			provider, err := core.NewProviderFromArchive(*obj.Key)
 			if err != nil {
 				continue
@@ -213,12 +220,6 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 
 			collection.Add(provider)
 		}
-
-		return true
-	}
-
-	if err := s.s3.ListObjectsV2PagesWithContext(ctx, input, fn); err != nil {
-		return nil, errors.Wrap(ErrProviderListFailed, err.Error())
 	}
 
 	result := collection.List()
@@ -230,32 +231,36 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 	return result, nil
 }
 
-func (s *S3Storage) determineBucketRegion() (string, error) {
-	region, err := s3manager.GetBucketRegionWithClient(context.Background(), s.s3, s.bucket)
-	if err != nil {
-		return "", err
+func (s *S3Storage) generateURL(ctx context.Context, key string) (string, error) {
+	if s.useSignedURL {
+		presignResult, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(s.bucket),
+			Key:    aws.String(key),
+		},
+			s3.WithPresignExpires(s.signedURLExpiry)) // TODO(oliviermichaelis): check if we need to set it back to 15min
+		return presignResult.URL, err
 	}
 
-	return region, nil
-}
-func (s *S3Storage) presignedURL(v string) (string, error) {
-	req, _ := s.s3.GetObjectRequest(&s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(v),
-	})
+	// If the Endpoint is not empty, we have to assume that the bucket might not be hosted on AWS S3,
+	// but possibly on MinIO
+	if s.bucketEndpoint != "" {
+		return fmt.Sprintf("%s/%s/%s", s.bucketEndpoint, s.bucket, key), nil
+	}
 
-	return req.Presign(15 * time.Minute)
+	// The default case is to assume that the bucket is hosted on AWS S3
+	return fmt.Sprintf("%s.s3-%s.amazonaws.com/%s", s.bucket, s.bucketRegion, key), nil
+
 }
 
 func (s *S3Storage) download(ctx context.Context, path string) ([]byte, error) {
-	buf := aws.NewWriteAtBuffer([]byte{})
+	buf := s3manager.NewWriteAtBuffer([]byte{})
 
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(path),
 	}
 
-	if _, err := s.downloader.DownloadWithContext(ctx, buf, input); err != nil {
+	if _, err := s.downloader.Download(ctx, buf, input); err != nil {
 		return nil, errors.Wrapf(err, "failed to download: %s", path)
 	}
 
@@ -273,6 +278,7 @@ func WithS3StorageBucketPrefix(prefix string) S3StorageOption {
 }
 
 // WithS3StorageBucketRegion configures the region for a given s3 storage.
+// TODO: the AWS signing region could be another one as the bucket location
 func WithS3StorageBucketRegion(region string) S3StorageOption {
 	return func(s *S3Storage) {
 		s.bucketRegion = region
@@ -282,11 +288,7 @@ func WithS3StorageBucketRegion(region string) S3StorageOption {
 // WithS3StorageBucketEndpoint configures the endpoint for a given s3 storage. (needed for MINIO)
 func WithS3StorageBucketEndpoint(endpoint string) S3StorageOption {
 	return func(s *S3Storage) {
-		// default value is "", so don't set and leave to aws sdk
-		if len(endpoint) > 0 {
-			s.s3.Client.Endpoint = endpoint
-		}
-		s.bucketEndpoint = "aws sdk default"
+		s.bucketEndpoint = endpoint
 	}
 }
 
@@ -298,37 +300,65 @@ func WithS3ArchiveFormat(archiveFormat string) S3StorageOption {
 }
 
 // WithS3StoragePathStyle configures if Path Style is used for a given s3 storage. (needed for MINIO)
-func WithS3StoragePathStyle(pathStyle bool) S3StorageOption {
+func WithS3StoragePathStyle(forcePathStyle bool) S3StorageOption {
 	return func(s *S3Storage) {
-		// only set if true, default value is false but leave for aws sdk
-		if pathStyle {
-			s.s3.Client.Config.S3ForcePathStyle = &pathStyle
-		}
-		s.pathStyle = pathStyle
+		s.forcePathStyle = forcePathStyle
+	}
+}
+
+// WithS3StorageUseSignedURL configures if presigned URLs should be used
+// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html
+func WithS3StorageUseSignedURL(b bool) S3StorageOption {
+	return func(s *S3Storage) {
+		s.useSignedURL = b
+	}
+}
+
+// WithS3StorageSignedUrlExpiry configures the duration until the signed url expires
+func WithS3StorageSignedUrlExpiry(t time.Duration) S3StorageOption {
+	return func(s *S3Storage) {
+		s.signedURLExpiry = t
 	}
 }
 
 // NewS3Storage returns a fully initialized S3 storage.
-func NewS3Storage(bucket string, options ...S3StorageOption) (*S3Storage, error) {
-	sess, err := session.NewSession()
-	if err != nil {
-		return nil, err
-	}
-
-	client := s3.New(sess)
+func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption) (*S3Storage, error) {
+	// Required- and default-values should be set here
 	s := &S3Storage{
-		s3:         client,
-		uploader:   s3manager.NewUploaderWithClient(client),
-		downloader: s3manager.NewDownloaderWithClient(client),
-		bucket:     bucket,
+		bucket: bucket,
 	}
 
 	for _, option := range options {
 		option(s)
 	}
 
+	// The EndpointResolver is used for compatibility with MinIO
+	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		if s.bucketEndpoint != "" {
+			return aws.Endpoint{
+				PartitionID:       "aws",
+				URL:               s.bucketEndpoint,
+				HostnameImmutable: true, // Needs to be true for MinIO
+			}, nil
+		}
+
+		// returning EndpointNotFoundError will allow the service to fall back to its default resolution
+		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
+	})
+
+	// Create the S3 client
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(s.bucketRegion), config.WithEndpointResolverWithOptions(customResolver))
+	if err != nil {
+		return nil, err
+	}
+
+	s.client = s3.NewFromConfig(cfg)
+	s.presignClient = s3.NewPresignClient(s.client)
+	s.uploader = s3manager.NewUploader(s.client)
+	s.downloader = s3manager.NewDownloader(s.client)
+
 	if s.bucketRegion == "" {
-		region, err := s.determineBucketRegion()
+		region, err := s3manager.GetBucketRegion(ctx, s.client, s.bucket)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to determine bucket region")
 		}

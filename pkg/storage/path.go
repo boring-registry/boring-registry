@@ -127,17 +127,38 @@ func readSHASums(r io.Reader, name string) (string, error) {
 	return sha, nil
 }
 
-func objectMetadata(key string) map[string]string {
-	m := make(map[string]string)
+func moduleFromObject(key string, fileExtension string) (*core.Module, error) {
+	dir, file := path.Split(key)
 
-	for _, part := range strings.Split(key, "/") {
-		parts := strings.SplitN(part, "=", 2)
-		if len(parts) != 2 {
-			continue
+	dirParts := strings.Split(dir, "/")
+	for _, part := range dirParts {
+		dirParts = dirParts[1:] // Remove the first item
+		if part == string(internalModuleType) {
+			break
 		}
-
-		m[parts[0]] = parts[1]
+	}
+	if len(dirParts) < 3 {
+		return nil, fmt.Errorf("module key is invalid: expected 3 directory parts, but was %d", len(dirParts))
 	}
 
-	return m
+	if !strings.HasSuffix(file, fileExtension) {
+		return nil, fmt.Errorf("expected file extension \"%s\" but found \"%s\"", fileExtension, path.Ext(file))
+	}
+	file = strings.TrimSuffix(file, fileExtension) // Remove the file extension
+
+	filePrefix := fmt.Sprintf("%s-%s-%s-", dirParts[0], dirParts[1], dirParts[2])
+	if !strings.HasPrefix(file, filePrefix) {
+		return nil, fmt.Errorf("expected file prefix \"%s\" but file is \"%s\"", filePrefix, file)
+	}
+	version := strings.TrimPrefix(file, filePrefix) // Remove everything up to the version
+	if version == "" {
+		return nil, fmt.Errorf("module key is invalid, could not parse version")
+	}
+
+	return &core.Module{
+		Namespace: dirParts[0],
+		Name:      dirParts[1],
+		Provider:  dirParts[2],
+		Version:   version,
+	}, nil
 }

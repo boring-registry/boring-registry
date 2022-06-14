@@ -166,15 +166,18 @@ func init() {
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules")
 }
 
-func setupStorage() (storage.Storage, error) {
+func setupStorage(ctx context.Context) (storage.Storage, error) {
 	switch {
 	case flagS3Bucket != "":
-		return storage.NewS3Storage(flagS3Bucket,
+		return storage.NewS3Storage(ctx,
+			flagS3Bucket,
 			storage.WithS3StorageBucketPrefix(flagS3Prefix),
 			storage.WithS3StorageBucketRegion(flagS3Region),
 			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
 			storage.WithS3StoragePathStyle(flagS3PathStyle),
 			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
+			storage.WithS3StorageUseSignedURL(flagS3SignedURL),
+			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
 		)
 	case flagGCSBucket != "":
 		return storage.NewGCSStorage(flagGCSBucket,
@@ -198,7 +201,7 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
-	s, err := setupStorage()
+	s, err := setupStorage(context.TODO())
 	if err != nil {
 		return nil, err
 	}
