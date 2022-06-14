@@ -67,6 +67,8 @@ server:
   # Authentication configuration.
   auth:
     # If set to true, there will be a secret created with the contents of "value".
+    # Don't use the created secret in production, please. The secret will be overwritten on every helm update.
+    # Generate a secure secret with `openssl rand -hex 32 | base64`, save it in a Secret and reference it as an existingSecret.
     createSecret: true
 
     # If "createSecret" is set to true, this will add a reference to the created secret inside the deployment.
