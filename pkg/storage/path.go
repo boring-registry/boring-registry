@@ -141,6 +141,7 @@ func moduleFromObject(key string, fileExtension string) (*core.Module, error) {
 		return nil, fmt.Errorf("module key is invalid: expected 3 directory parts, but was %d", len(dirParts))
 	}
 
+	fileExtension = fmt.Sprintf(".%s", fileExtension) // Add the dot to the file extension
 	if !strings.HasSuffix(file, fileExtension) {
 		return nil, fmt.Errorf("expected file extension \"%s\" but found \"%s\"", fileExtension, path.Ext(file))
 	}

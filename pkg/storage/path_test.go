@@ -229,7 +229,7 @@ func TestModuleFromObject(t *testing.T) {
 		{
 			annotation:    "valid key without prefix",
 			key:           "/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.tar.gz",
-			fileExtension: ".tar.gz",
+			fileExtension: "tar.gz",
 			expectedError: false,
 			result: core.Module{
 				Namespace: "hashicorp",
@@ -241,7 +241,7 @@ func TestModuleFromObject(t *testing.T) {
 		{
 			annotation:    "valid key with prefix",
 			key:           "/boring-registry/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.tar.gz",
-			fileExtension: ".tar.gz",
+			fileExtension: "tar.gz",
 			expectedError: false,
 			result: core.Module{
 				Namespace: "hashicorp",
@@ -253,7 +253,7 @@ func TestModuleFromObject(t *testing.T) {
 		{
 			annotation:    "valid key with longer prefix",
 			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.tar.gz",
-			fileExtension: ".tar.gz",
+			fileExtension: "tar.gz",
 			expectedError: false,
 			result: core.Module{
 				Namespace: "hashicorp",
@@ -265,19 +265,19 @@ func TestModuleFromObject(t *testing.T) {
 		{
 			annotation:    "key with another file extension than provided",
 			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.zip",
-			fileExtension: ".tar.gz",
+			fileExtension: "tar.gz",
 			expectedError: true,
 		},
 		{
 			annotation:    "key with 4 hyphens in the file",
 			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-hashicorp-aws-0.11.0-beta1.tar.gz",
-			fileExtension: ".tar.gz",
+			fileExtension: "tar.gz",
 			expectedError: true,
 		},
 		{
 			annotation:    "key with pre-release version",
 			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0-beta1.tar.gz",
-			fileExtension: ".tar.gz",
+			fileExtension: "tar.gz",
 			expectedError: false,
 			result: core.Module{
 				Namespace: "hashicorp",
