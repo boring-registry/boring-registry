@@ -82,6 +82,15 @@ server:
   # Extra arguments to pass to the server command.
   extraArgs: ""
 
+  extraEnvs: []
+#    - name: AWS_DEFAULT_REGION
+#      value: us-east-1
+#    - name: AWS_ACCESS_KEY_ID
+#      valueFrom:
+#        secretKeyRef:
+#          name: example
+#          key: AWS_ACCESS_KEY_ID
+
   # Port to listen on.
   port: 5601
 
