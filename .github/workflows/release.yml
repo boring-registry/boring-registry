@@ -124,6 +124,9 @@ jobs:
           username: TierMobility
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Helm login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login https://ghcr.io --username TierMobility --password-stdin
+
       - name: Publish helm chart to GitHub Container Registry
         run: |
           helm package helm/boring-registry
