@@ -10,9 +10,11 @@ import (
 	"path"
 	"time"
 
+	"github.com/TierMobility/boring-registry/pkg/core"
+
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/storage"
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
@@ -22,17 +24,17 @@ import (
 // GCSStorage is a Storage implementation backed by GCS.
 // GCSStorage implements module.Storage and provider.Storage
 type GCSStorage struct {
-	sc              *storage.Client
-	bucket          string
-	bucketPrefix    string
-	useSignedURL    bool
-	signedURLExpiry time.Duration
-	serviceAccount  string
-	archiveFormat   string
+	sc                  *storage.Client
+	bucket              string
+	bucketPrefix        string
+	useSignedURL        bool
+	signedURLExpiry     time.Duration
+	serviceAccount      string
+	moduleArchiveFormat string
 }
 
 func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
-	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.archiveFormat))
+	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
 		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
@@ -70,7 +72,7 @@ func (s *GCSStorage) ListModuleVersions(ctx context.Context, namespace, name, pr
 		if err != nil {
 			return modules, err
 		}
-		m, err := moduleFromObject(attrs.Name, s.archiveFormat)
+		m, err := moduleFromObject(attrs.Name, s.moduleArchiveFormat)
 		if err != nil {
 			// TODO: we're skipping possible failures silently
 			continue
@@ -111,6 +113,42 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 	}
 
 	return s.GetModule(ctx, namespace, name, provider, version)
+}
+
+func (s *GCSStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
+	q := &storage.Query{
+		Prefix: modulePathPrefix(s.bucketPrefix, "", "", ""),
+	}
+	it := s.sc.Bucket(s.bucket).Objects(ctx, q)
+	for {
+		attrs, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		// Skip already migrated modules
+		if !isUnmigratedModule(s.bucketPrefix, attrs.Name) {
+			continue
+		}
+
+		targetKey := migrationTargetPath(s.bucketPrefix, s.moduleArchiveFormat, attrs.Name)
+		if dryRun {
+			_ = logger.Log("message", "skipping due to dry-run", "source", attrs.Name, "target", targetKey)
+		} else {
+			src := s.sc.Bucket(s.bucket).Object(attrs.Name)
+			dst := s.sc.Bucket(s.bucket).Object(targetKey).If(storage.Conditions{DoesNotExist: true})
+
+			if _, err = dst.CopierFrom(src).Run(ctx); err != nil {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+
+			_ = logger.Log("message", "copied module", "source", attrs.Name, "target", targetKey)
+		}
+	}
+
+	return nil
 }
 
 // GetProvider implements provider.Storage

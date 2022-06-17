@@ -275,6 +275,18 @@ func TestModuleFromObject(t *testing.T) {
 			expectedError: true,
 		},
 		{
+			annotation:    "module with a hyphen in the name",
+			key:           "/boring-registry/test/modules/hashicorp/private-key/aws/hashicorp-private-key-aws-0.11.0.tar.gz",
+			fileExtension: "tar.gz",
+			expectedError: false,
+			result: core.Module{
+				Namespace: "hashicorp",
+				Name:      "private-key",
+				Provider:  "aws",
+				Version:   "0.11.0",
+			},
+		},
+		{
 			annotation:    "key with pre-release version",
 			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0-beta1.tar.gz",
 			fileExtension: "tar.gz",

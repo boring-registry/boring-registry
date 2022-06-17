@@ -3,11 +3,14 @@ package module
 import (
 	"context"
 	"fmt"
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/pkg/errors"
 	"io"
 	"path"
 	"sync"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
+
+	"github.com/go-kit/kit/log"
+	"github.com/pkg/errors"
 )
 
 // InmemStorage is a Storage implementation
@@ -96,6 +99,11 @@ func (s *InmemStorage) UploadModule(ctx context.Context, namespace, name, provid
 	s.mu.Unlock()
 
 	return s.GetModule(ctx, namespace, name, provider, version)
+}
+
+func (s *InmemStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 // InmemStorageOption provides additional options for the InmemStorage.
