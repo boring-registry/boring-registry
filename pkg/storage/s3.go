@@ -142,8 +142,6 @@ func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRu
 		Prefix: aws.String(path.Join(s.bucketPrefix, string(internalModuleType))),
 	}
 
-	waiter := s3.NewObjectExistsWaiter(s.client)
-
 	paginator := s3.NewListObjectsV2Paginator(s.client, input)
 	for paginator.HasMorePages() {
 		resp, err := paginator.NextPage(ctx)
@@ -168,16 +166,6 @@ func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRu
 				})
 				if err != nil {
 					return err
-				}
-
-				err = waiter.Wait(ctx,
-					&s3.HeadObjectInput{
-						Bucket: aws.String(s.bucket),
-						Key:    targetKey,
-					},
-					20*time.Second)
-				if err != nil {
-					return fmt.Errorf("waited for 20s: %w", err)
 				}
 
 				_ = logger.Log("message", "copied module", "source", *obj.Key, "target", targetKey)
