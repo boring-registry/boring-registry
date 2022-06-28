@@ -107,6 +107,7 @@ Make sure the server has GCP credentials context set properly (e.g. `GOOGLE_CLOU
 ```bash
 $ boring-registry server \
   --storage-s3-bucket=terraform-registry-test \
+  --storage-s3-region=eu-east-1 \
   --storage-s3-pathstyle=true \
   --storage-s3-endpoint=https://minio.example.com
 ```
@@ -204,7 +205,7 @@ This would for example be useful to prevent publishing releases from non-`main` 
 
 # Providers
 
-Providers cannot be uploaded using the CLI yet so they need to be uploaded outside of the Boring Registry.
+Providers cannot be uploaded using the CLI yet, so they need to be uploaded outside the Boring Registry.
 
 The Boring Registry expects a file called `signing-keys.json` to be placed under the `namespace` level inside the storage backend.
 
