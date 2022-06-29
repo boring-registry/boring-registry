@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
@@ -200,6 +201,105 @@ f7605bd1437752114baf601bdf6931debe6dc6bfe3006eb7e9bb9080931dca8a  terraform-prov
 
 			assert.Equal(t, tc.expectedSHASum, result)
 
+		})
+	}
+}
+
+func TestModuleFromObject(t *testing.T) {
+	t.Parallel()
+
+	testCase := []struct {
+		annotation    string
+		key           string
+		fileExtension string
+		expectedError bool
+		result        core.Module
+	}{
+		{
+			annotation:    "empty path",
+			key:           "",
+			expectedError: true,
+		},
+		{
+			annotation:    "empty file extension",
+			key:           "/",
+			fileExtension: "",
+			expectedError: true,
+		},
+		{
+			annotation:    "valid key without prefix",
+			key:           "/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.tar.gz",
+			fileExtension: "tar.gz",
+			expectedError: false,
+			result: core.Module{
+				Namespace: "hashicorp",
+				Name:      "consul",
+				Provider:  "aws",
+				Version:   "0.11.0",
+			},
+		},
+		{
+			annotation:    "valid key with prefix",
+			key:           "/boring-registry/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.tar.gz",
+			fileExtension: "tar.gz",
+			expectedError: false,
+			result: core.Module{
+				Namespace: "hashicorp",
+				Name:      "consul",
+				Provider:  "aws",
+				Version:   "0.11.0",
+			},
+		},
+		{
+			annotation:    "valid key with longer prefix",
+			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.tar.gz",
+			fileExtension: "tar.gz",
+			expectedError: false,
+			result: core.Module{
+				Namespace: "hashicorp",
+				Name:      "consul",
+				Provider:  "aws",
+				Version:   "0.11.0",
+			},
+		},
+		{
+			annotation:    "key with another file extension than provided",
+			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0.zip",
+			fileExtension: "tar.gz",
+			expectedError: true,
+		},
+		{
+			annotation:    "key with 4 hyphens in the file",
+			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-hashicorp-aws-0.11.0-beta1.tar.gz",
+			fileExtension: "tar.gz",
+			expectedError: true,
+		},
+		{
+			annotation:    "key with pre-release version",
+			key:           "/boring-registry/test/modules/hashicorp/consul/aws/hashicorp-consul-aws-0.11.0-beta1.tar.gz",
+			fileExtension: "tar.gz",
+			expectedError: false,
+			result: core.Module{
+				Namespace: "hashicorp",
+				Name:      "consul",
+				Provider:  "aws",
+				Version:   "0.11.0-beta1",
+			},
+		},
+	}
+
+	for _, tc := range testCase {
+		tc := tc
+		t.Run(tc.annotation, func(t *testing.T) {
+			result, err := moduleFromObject(tc.key, tc.fileExtension)
+			if tc.expectedError {
+				assert.Error(t, err)
+				return
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.EqualValues(t, tc.result, *result)
 		})
 	}
 }

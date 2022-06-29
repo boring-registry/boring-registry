@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -36,7 +37,7 @@ var uploadCmd = &cobra.Command{
 	Use:   "upload [flags] MODULE",
 	Short: "Upload modules",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storageBackend, err := setupStorage()
+		storageBackend, err := setupStorage(context.Background())
 		if err != nil {
 			return errors.Wrap(err, "failed to setup storage")
 		}

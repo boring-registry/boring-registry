@@ -54,12 +54,13 @@ func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, v
 }
 
 func (s *GCSStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
-	var modules []core.Module
 	prefix := modulePathPrefix(s.bucketPrefix, namespace, name, provider)
 
 	query := &storage.Query{
 		Prefix: prefix,
 	}
+
+	var modules []core.Module
 	it := s.sc.Bucket(s.bucket).Objects(ctx, query)
 	for {
 		attrs, err := it.Next()
@@ -69,18 +70,12 @@ func (s *GCSStorage) ListModuleVersions(ctx context.Context, namespace, name, pr
 		if err != nil {
 			return modules, err
 		}
-		metadata := objectMetadata(attrs.Name)
-
-		version, ok := metadata["version"]
-		if !ok {
+		m, err := moduleFromObject(attrs.Name, s.archiveFormat)
+		if err != nil {
+			// TODO: we're skipping possible failures silently
 			continue
 		}
-
-		m := core.Module{
-			Version: version,
-		}
-
-		modules = append(modules, m)
+		modules = append(modules, *m)
 	}
 	return modules, nil
 }

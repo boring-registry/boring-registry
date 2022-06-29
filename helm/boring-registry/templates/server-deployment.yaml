@@ -108,6 +108,15 @@ spec:
               value:  {{ .signedURL }}
             {{- end }}
             {{- end }}
+
+            {{- range .Values.server.extraEnvs }}
+            - name: {{ .name }}
+            {{- if .value }}
+              value: {{ .value }}
+            {{- else if .valueFrom }}
+              valueFrom: {{ toYaml .valueFrom | nindent 16 }}
+            {{- end }}
+            {{- end }}
           ports:
             - name: api
               containerPort: {{ .Values.server.port }}

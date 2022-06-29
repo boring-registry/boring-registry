@@ -30,11 +30,13 @@ var (
 	flagDebug bool
 
 	// S3 options.
-	flagS3Bucket    string
-	flagS3Prefix    string
-	flagS3Region    string
-	flagS3Endpoint  string
-	flagS3PathStyle bool
+	flagS3Bucket          string
+	flagS3Prefix          string
+	flagS3Region          string
+	flagS3Endpoint        string
+	flagS3PathStyle       bool
+	flagS3SignedURL       bool
+	flagS3SignedURLExpiry time.Duration
 
 	// GCS options.
 	flagGCSBucket          string
@@ -81,6 +83,9 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&flagS3Region, "storage-s3-region", "", "S3 bucket region to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Endpoint, "storage-s3-endpoint", "", "S3 bucket endpoint URL (required for MINIO)")
 	rootCmd.PersistentFlags().BoolVar(&flagS3PathStyle, "storage-s3-pathstyle", false, "S3 use PathStyle (required for MINIO)")
+	rootCmd.PersistentFlags().BoolVar(&flagS3SignedURL, "storage-s3-signedurl", false, `Generate publicly available signedURLs instead of relying on AWS IAM credentials being set on terraform init.
+WARNING: only use in combination with api-key option.`)
+	rootCmd.PersistentFlags().DurationVar(&flagS3SignedURLExpiry, "storage-s3-signedurl-expiry", 30*time.Second, "Generate S3 signed URL valid for X seconds. Only meaningful if used in combination with `storage-s3-signedurl`")
 	rootCmd.PersistentFlags().StringVar(&flagGCSBucket, "storage-gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	rootCmd.PersistentFlags().StringVar(&flagGCSPrefix, "storage-gcs-prefix", "", "Prefix to use when using the GCS registry type")
 	rootCmd.PersistentFlags().StringVar(&flagGCSServiceAccount, "storage-gcs-sa-email", "", `Google service account email to be used for Application Default Credentials (ADC)
