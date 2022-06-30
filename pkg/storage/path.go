@@ -163,3 +163,33 @@ func moduleFromObject(key string, fileExtension string) (*core.Module, error) {
 		Version:   version,
 	}, nil
 }
+
+// Only necessary for the migration of modules
+func objectMetadata(key string) map[string]string {
+	m := make(map[string]string)
+
+	for _, part := range strings.Split(key, "/") {
+		parts := strings.SplitN(part, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		m[parts[0]] = parts[1]
+	}
+
+	return m
+}
+
+// Only necessary for the migration of modules
+func migrationTargetPath(bucketPrefix, archiveFormat, sourceKey string) string {
+	prefix := path.Join(bucketPrefix, string(internalModuleType))
+	directory := path.Dir(sourceKey)
+	oldKey := path.Clean(strings.TrimPrefix(directory, fmt.Sprintf("%s/", prefix)))
+	m := objectMetadata(oldKey)
+
+	return modulePath(bucketPrefix, m["namespace"], m["name"], m["provider"], m["version"], archiveFormat)
+}
+
+func isUnmigratedModule(bucketPrefix, key string) bool {
+	return strings.HasPrefix(key, path.Join(bucketPrefix, string(internalModuleType), "namespace="))
+}

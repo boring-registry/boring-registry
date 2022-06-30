@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"path"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 )
 
@@ -131,6 +133,47 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 	}
 
 	return s.GetModule(ctx, namespace, name, provider, version)
+}
+
+// MigrateModules is only a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
+func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(path.Join(s.bucketPrefix, string(internalModuleType))),
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to page: %w", err)
+		}
+
+		for _, obj := range resp.Contents {
+			if !isUnmigratedModule(s.bucketPrefix, *obj.Key) {
+				_ = logger.Log("message", "skipping...", "key", *obj.Key)
+				continue
+			}
+
+			targetKey := aws.String(migrationTargetPath(s.bucketPrefix, s.moduleArchiveFormat, *obj.Key))
+			if dryRun {
+				_ = logger.Log("message", "skipping due to dry-run", "source", obj.Key, "target", *targetKey)
+			} else {
+				_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+					Bucket:     aws.String(s.bucket),
+					CopySource: aws.String(url.PathEscape(path.Join(s.bucket, *obj.Key))),
+					Key:        targetKey,
+				})
+				if err != nil {
+					return err
+				}
+
+				_ = logger.Log("message", "copied module", "source", *obj.Key, "target", targetKey)
+			}
+		}
+	}
+
+	return nil
 }
 
 // GetProvider retrieves information about a provider from the S3 storage.
