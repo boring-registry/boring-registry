@@ -10,7 +10,7 @@ import (
 var setsMu sync.RWMutex
 
 func CompileToGetCodeSet(ctx *RuntimeContext, typeptr uintptr) (*OpcodeSet, error) {
-	if typeptr > typeAddr.MaxTypeAddr || typeptr < typeAddr.BaseTypeAddr {
+	if typeptr > typeAddr.MaxTypeAddr {
 		return compileToGetCodeSetSlowPath(typeptr)
 	}
 	index := (typeptr - typeAddr.BaseTypeAddr) >> typeAddr.AddrShift

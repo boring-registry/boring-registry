@@ -87,8 +87,7 @@ type target struct {
 	lastRefresh time.Time
 	nextRefresh time.Time
 
-	wl           Whitelist
-	parseOptions []ParseOption
+	wl Whitelist
 }
 
 type resetTimerReq struct {
@@ -169,15 +168,9 @@ func (af *AutoRefresh) Configure(url string, options ...AutoRefreshOption) {
 	var hasRefreshInterval bool
 	var refreshInterval time.Duration
 	var wl Whitelist
-	var parseOptions []ParseOption
 	minRefreshInterval := time.Hour
 	bo := backoff.Null()
 	for _, option := range options {
-		if v, ok := option.(ParseOption); ok {
-			parseOptions = append(parseOptions, v)
-			continue
-		}
-
 		//nolint:forcetypeassert
 		switch option.Ident() {
 		case identFetchBackoff{}:
@@ -194,34 +187,39 @@ func (af *AutoRefresh) Configure(url string, options ...AutoRefreshOption) {
 		}
 	}
 
+	var doReconfigure bool
 	af.muRegistry.Lock()
 	t, ok := af.registry[url]
 	if ok {
 		if t.httpcl != httpcl {
 			t.httpcl = httpcl
+			doReconfigure = true
 		}
 
 		if t.minRefreshInterval != minRefreshInterval {
 			t.minRefreshInterval = minRefreshInterval
+			doReconfigure = true
 		}
 
 		if t.refreshInterval != nil {
 			if !hasRefreshInterval {
 				t.refreshInterval = nil
+				doReconfigure = true
 			} else if *t.refreshInterval != refreshInterval {
 				*t.refreshInterval = refreshInterval
+				doReconfigure = true
 			}
 		} else {
 			if hasRefreshInterval {
 				t.refreshInterval = &refreshInterval
+				doReconfigure = true
 			}
 		}
 
 		if t.wl != wl {
 			t.wl = wl
+			doReconfigure = true
 		}
-
-		t.parseOptions = parseOptions
 	} else {
 		t = &target{
 			backoff:            bo,
@@ -232,9 +230,8 @@ func (af *AutoRefresh) Configure(url string, options ...AutoRefreshOption) {
 			// This is a placeholder timer so we can call Reset() on it later
 			// Make it sufficiently in the future so that we don't have bogus
 			// events firing
-			timer:        time.NewTimer(24 * time.Hour),
-			wl:           wl,
-			parseOptions: parseOptions,
+			timer: time.NewTimer(24 * time.Hour),
+			wl:    wl,
 		}
 		if hasRefreshInterval {
 			t.refreshInterval = &refreshInterval
@@ -242,11 +239,14 @@ func (af *AutoRefresh) Configure(url string, options ...AutoRefreshOption) {
 
 		// Record this in the registry
 		af.registry[url] = t
+		doReconfigure = true
 	}
 	af.muRegistry.Unlock()
 
-	// Tell the backend to reconfigure itself
-	af.configureCh <- struct{}{}
+	if doReconfigure {
+		// Tell the backend to reconfigure itself
+		af.configureCh <- struct{}{}
+	}
 }
 
 func (af *AutoRefresh) releaseFetching(url string) {
@@ -497,16 +497,16 @@ func (af *AutoRefresh) doRefreshRequest(ctx context.Context, url string, enableB
 
 	// In case the refresh fails due to errors in fetching/parsing the JWKS,
 	// we want to retry. Create a backoff object,
-	parseOptions := t.parseOptions
-	fetchOptions := []FetchOption{WithHTTPClient(t.httpcl)}
+
+	options := []FetchOption{WithHTTPClient(t.httpcl)}
 	if enableBackoff {
-		fetchOptions = append(fetchOptions, WithFetchBackoff(t.backoff))
+		options = append(options, WithFetchBackoff(t.backoff))
 	}
 	if t.wl != nil {
-		fetchOptions = append(fetchOptions, WithFetchWhitelist(t.wl))
+		options = append(options, WithFetchWhitelist(t.wl))
 	}
 
-	res, err := fetch(ctx, url, fetchOptions...)
+	res, err := fetch(ctx, url, options...)
 	if err == nil {
 		if res.StatusCode != http.StatusOK {
 			// now, can there be a remote resource that responds with a status code
@@ -514,7 +514,7 @@ func (af *AutoRefresh) doRefreshRequest(ctx context.Context, url string, enableB
 			err = errors.Errorf(`bad response status code (%d)`, res.StatusCode)
 		} else {
 			defer res.Body.Close()
-			keyset, parseErr := ParseReader(res.Body, parseOptions...)
+			keyset, parseErr := ParseReader(res.Body)
 			if parseErr == nil {
 				// Got a new key set. replace the keyset in the target
 				af.muCache.Lock()

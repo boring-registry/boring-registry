@@ -41,7 +41,7 @@ type symmetricKey struct {
 	x509URL                *string           // https://tools.ietf.org/html/rfc7515#section-4.1.5
 	privateParams          map[string]interface{}
 	mu                     *sync.RWMutex
-	dc                     json.DecodeCtx
+	dc                     DecodeCtx
 }
 
 func NewSymmetricKey() SymmetricKey {
@@ -340,13 +340,13 @@ func (k *symmetricKey) Clone() (Key, error) {
 	return cloneKey(k)
 }
 
-func (k *symmetricKey) DecodeCtx() json.DecodeCtx {
+func (k *symmetricKey) DecodeCtx() DecodeCtx {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	return k.dc
 }
 
-func (k *symmetricKey) SetDecodeCtx(dc json.DecodeCtx) {
+func (k *symmetricKey) SetDecodeCtx(dc DecodeCtx) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.dc = dc

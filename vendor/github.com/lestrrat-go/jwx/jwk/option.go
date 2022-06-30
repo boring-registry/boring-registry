@@ -20,7 +20,6 @@ type identPEM struct{}
 type identTypedField struct{}
 type identLocalRegistry struct{}
 type identFetchWhitelist struct{}
-type identIgnoreParseError struct{}
 
 // AutoRefreshOption is a type of Option that can be passed to the
 // AutoRefresh object.
@@ -36,8 +35,8 @@ type autoRefreshOption struct {
 func (*autoRefreshOption) autoRefreshOption() {}
 
 // FetchOption is a type of Option that can be passed to `jwk.Fetch()`
-// FetchOption also implements the `AutoRefreshOption`, and thus can
-// safely be passed to `(*jwk.AutoRefresh).Configure()`
+// This type also implements the `AutoRefreshOption`, and thus can be
+// safely passed to `(*jwk.AutoRefresh).Configure()`
 type FetchOption interface {
 	AutoRefreshOption
 	fetchOption()
@@ -51,11 +50,8 @@ func (*fetchOption) autoRefreshOption() {}
 func (*fetchOption) fetchOption()       {}
 
 // ParseOption is a type of Option that can be passed to `jwk.Parse()`
-// ParseOption also implmentsthe `ReadFileOPtion` and `AutoRefreshOption`,
-// and thus safely be passed to `jwk.ReadFile` and `(*jwk.AutoRefresh).Configure()`
 type ParseOption interface {
 	ReadFileOption
-	AutoRefreshOption
 	parseOption()
 }
 
@@ -63,9 +59,8 @@ type parseOption struct {
 	Option
 }
 
-func (*parseOption) autoRefreshOption() {}
-func (*parseOption) parseOption()       {}
-func (*parseOption) readFileOption()    {}
+func (*parseOption) parseOption()    {}
+func (*parseOption) readFileOption() {}
 
 // WithHTTPClient allows users to specify the "net/http".Client object that
 // is used when fetching jwk.Set objects.
@@ -171,27 +166,4 @@ func withLocalRegistry(r *json.Registry) ParseOption {
 // to both `jwk.Fetch()`, `jwk.NewAutoRefresh()`, and `(*jwk.AutoRefresh).Configure()`
 func WithFetchWhitelist(w Whitelist) FetchOption {
 	return &fetchOption{option.New(identFetchWhitelist{}, w)}
-}
-
-// WithIgnoreParseError is only applicable when used with `jwk.Parse()`
-// (i.e. to parse JWK sets). If passed to `jwk.ParseKey()`, the function
-// will return an error no matter what the input is.
-//
-// DO NOT USE WITHOUT EXHAUSTING ALL OTHER ROUTES FIRST.
-//
-// The option specifies that errors found during parsing of individual
-// keys are ignored. For example, if you had keys A, B, C where B is
-// invalid (e.g. it does not contain the required fields), then the
-// resulting JWKS will contain keys A and C only.
-//
-// This options exists as an escape hatch for those times when a
-// key in a JWKS that is irrelevant for your use case is causing
-// your JWKS parsing to fail, and you want to get to the rest of the
-// keys in the JWKS.
-//
-// Again, DO NOT USE unless you have exhausted all other routes.
-// When you use this option, you will not be able to tell if you are
-// using a faulty JWKS, except for when there are JSON syntax errors.
-func WithIgnoreParseError(b bool) ParseOption {
-	return &parseOption{option.New(identIgnoreParseError{}, b)}
 }

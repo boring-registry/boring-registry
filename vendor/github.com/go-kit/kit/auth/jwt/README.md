@@ -7,12 +7,12 @@ through [JSON Web Tokens](https://jwt.io/).
 
 NewParser takes a key function and an expected signing method and returns an
 `endpoint.Middleware`. The middleware will parse a token passed into the
-context via the `jwt.JWTContextKey`. If the token is valid, any claims
+context via the `jwt.JWTTokenContextKey`. If the token is valid, any claims
 will be added to the context via the `jwt.JWTClaimsContextKey`.
 
 ```go
 import (
-	stdjwt "github.com/golang-jwt/jwt/v4"
+	stdjwt "github.com/dgrijalva/jwt-go"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -30,11 +30,11 @@ func main() {
 
 NewSigner takes a JWT key ID header, the signing key, signing method, and a
 claims object. It returns an `endpoint.Middleware`. The middleware will build
-the token string and add it to the context via the `jwt.JWTContextKey`.
+the token string and add it to the context via the `jwt.JWTTokenContextKey`.
 
 ```go
 import (
-	stdjwt "github.com/golang-jwt/jwt/v4"
+	stdjwt "github.com/dgrijalva/jwt-go"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -65,7 +65,7 @@ Example of use in a client:
 
 ```go
 import (
-	stdjwt "github.com/golang-jwt/jwt/v4"
+	stdjwt "github.com/dgrijalva/jwt-go"
 
 	grpctransport "github.com/go-kit/kit/transport/grpc"
 	"github.com/go-kit/kit/auth/jwt"
@@ -95,7 +95,7 @@ import (
 	"context"
 
 	"github.com/go-kit/kit/auth/jwt"
-	"github.com/go-kit/log"
+	"github.com/go-kit/kit/log"
 	grpctransport "github.com/go-kit/kit/transport/grpc"
 )
 

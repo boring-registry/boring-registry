@@ -9,7 +9,7 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"encoding/binary"
-	"io"
+	"io/ioutil"
 	"strings"
 	"sync"
 )
@@ -50,7 +50,7 @@ var s256BytePoints = func() func() *bytePointTable {
 		if err != nil {
 			panic(err)
 		}
-		serialized, err := io.ReadAll(r)
+		serialized, err := ioutil.ReadAll(r)
 		if err != nil {
 			panic(err)
 		}

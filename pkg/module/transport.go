@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
+	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
@@ -34,7 +35,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varProvider)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
+				httptransport.ServerBefore(jwt.HTTPToContext()),
 			)...,
 		),
 	)
@@ -47,7 +48,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varProvider, varVersion)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
+				httptransport.ServerBefore(jwt.HTTPToContext()),
 			)...,
 		),
 	)

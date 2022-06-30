@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 
 	"github.com/lestrrat-go/blackmagic"
@@ -23,27 +22,21 @@ func (k *rsaPrivateKey) FromRaw(rawKey *rsa.PrivateKey) error {
 	}
 	k.d = d
 
-	l := len(rawKey.Primes)
-
-	if l < 0 /* I know, I'm being paranoid */ || l > 2 {
-		return fmt.Errorf(`invalid number of primes in rsa.PrivateKey: need 1 or 2, got %d`, len(rawKey.Primes))
+	if len(rawKey.Primes) < 2 {
+		return errors.Errorf(`invalid number of primes in rsa.PrivateKey: need 2, got %d`, len(rawKey.Primes))
 	}
 
-	if l > 0 {
-		p, err := bigIntToBytes(rawKey.Primes[0])
-		if err != nil {
-			return fmt.Errorf(`invalid rsa.PrivateKey: %w`, err)
-		}
-		k.p = p
+	p, err := bigIntToBytes(rawKey.Primes[0])
+	if err != nil {
+		return errors.Wrap(err, `invalid rsa.PrivateKey`)
 	}
+	k.p = p
 
-	if l > 1 {
-		q, err := bigIntToBytes(rawKey.Primes[1])
-		if err != nil {
-			return fmt.Errorf(`invalid rsa.PrivateKey: %w`, err)
-		}
-		k.q = q
+	q, err := bigIntToBytes(rawKey.Primes[1])
+	if err != nil {
+		return errors.Wrap(err, `invalid rsa.PrivateKey`)
 	}
+	k.q = q
 
 	// dp, dq, qi are optional values
 	if v, err := bigIntToBytes(rawKey.Precomputed.Dp); err == nil {

@@ -1,8 +1,9 @@
 package blackmagic
 
 import (
-	"fmt"
 	"reflect"
+
+	"github.com/pkg/errors"
 )
 
 // AssignIfCompatible is a convenience function to safely
@@ -22,12 +23,12 @@ func AssignIfCompatible(dst, src interface{}) error {
 	case reflect.Slice:
 		isSlice = true
 	default:
-		return fmt.Errorf("argument t to AssignIfCompatible must be a pointer or a slice: %T", src)
+		return errors.Errorf("argument t to AssignIfCompatible must be a pointer or a slice: %T", src)
 	}
 
 	rv := reflect.ValueOf(dst)
 	if rv.Kind() != reflect.Ptr {
-		return fmt.Errorf(`argument to AssignIfCompatible() must be a pointer: %T`, dst)
+		return errors.Errorf(`argument to AssignIfCompatible() must be a pointer: %T`, dst)
 	}
 
 	actualDst := rv.Elem()
@@ -42,11 +43,11 @@ func AssignIfCompatible(dst, src interface{}) error {
 		}
 	}
 	if !result.Type().AssignableTo(actualDst.Type()) {
-		return fmt.Errorf(`argument to AssignIfCompatible() must be compatible with %T (was %T)`, orv.Interface(), dst)
+		return errors.Errorf(`argument to AssignIfCompatible() must be compatible with %T (was %T)`, orv.Interface(), dst)
 	}
 
 	if !actualDst.CanSet() {
-		return fmt.Errorf(`argument to AssignIfCompatible() must be settable`)
+		return errors.Errorf(`argument to AssignIfCompatible() must be settable`)
 	}
 	actualDst.Set(result)
 
