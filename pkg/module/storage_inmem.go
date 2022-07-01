@@ -102,8 +102,7 @@ func (s *InmemStorage) UploadModule(ctx context.Context, namespace, name, provid
 }
 
 func (s *InmemStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
-	//TODO implement me
-	panic("implement me")
+	panic("MigrateModules should not be called for InmemStorage")
 }
 
 // InmemStorageOption provides additional options for the InmemStorage.

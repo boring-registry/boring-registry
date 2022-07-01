@@ -7,16 +7,12 @@ import (
 )
 
 var (
-	//flagMigrateRecursive bool
 	flagDryRun bool
-	//flagTargetBucket string
 )
 
 func init() {
 	rootCmd.AddCommand(migrateCmd)
-	//rootCmd.Flags().BoolVar(&flagMigrateRecursive, "recursive", true, "Recursively traverse <dir> and migrate all modules in subdirectories")
 	migrateCmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "Enable dry-run for the migration")
-	//rootCmd.Flags().StringVar(&flagTargetBucket, "target-bucket", "", "Optionally migrate modules to another bucket")
 }
 
 var migrateCmd = &cobra.Command{
