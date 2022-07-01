@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"path"
 	"time"
 
@@ -232,24 +233,41 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 }
 
 func (s *S3Storage) generateURL(ctx context.Context, key string) (string, error) {
-	if s.useSignedURL {
-		presignResult, err := s.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+	presignResult, err := s.presignClient.PresignGetObject(ctx,
+		&s3.GetObjectInput{
 			Bucket: aws.String(s.bucket),
 			Key:    aws.String(key),
 		},
-			s3.WithPresignExpires(s.signedURLExpiry)) // TODO(oliviermichaelis): check if we need to set it back to 15min
-		return presignResult.URL, err
+		s3.WithPresignExpires(s.signedURLExpiry), // TODO(oliviermichaelis): check if we need to set it back to 15min
+	)
+	if err != nil {
+		return "", err
 	}
 
-	// If the Endpoint is not empty, we have to assume that the bucket might not be hosted on AWS S3,
-	// but possibly on MinIO
-	if s.bucketEndpoint != "" {
-		return fmt.Sprintf("%s/%s/%s", s.bucketEndpoint, s.bucket, key), nil
+	if s.useSignedURL {
+		return presignResult.URL, nil
 	}
 
-	// The default case is to assume that the bucket is hosted on AWS S3
-	return fmt.Sprintf("%s.s3-%s.amazonaws.com/%s", s.bucket, s.bucketRegion, key), nil
+	// The URL is parsed and reconstructed to prevent leaking secrets from the presigned URL
+	u, err := url.Parse(presignResult.URL)
+	if err != nil {
+		return "", err
+	}
 
+	u = &url.URL{
+		Scheme: u.Scheme,
+		Host:   u.Host,
+		Path:   u.Path,
+	}
+
+	// A bucketEndpoint would indicate the usage of MinIO, for which the Terraform internal S3 client can not be used without further modification
+	if s.bucketEndpoint == "" {
+		// Adding the s3:: prefix to explicitly use the S3 client with AWS-style authentication
+		// https://www.terraform.io/language/modules/sources#s3-bucket
+		u.Scheme = fmt.Sprintf("s3::%s", u.Scheme)
+	}
+
+	return u.String(), nil
 }
 
 func (s *S3Storage) download(ctx context.Context, path string) ([]byte, error) {
