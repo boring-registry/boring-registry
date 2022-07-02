@@ -19,7 +19,7 @@ const (
 type providerType string
 type moduleType string
 
-// providerStoragePrefix returns a <prefix>/<internal|mirror>/<hostname>/<namespace>/<name> prefix
+// providerStoragePrefix returns a <prefix>/<providers|mirror>/<hostname>/<namespace>/<name> prefix
 func providerStoragePrefix(prefix string, t providerType, hostname, namespace, name string) (string, error) {
 	if t == mirrorProviderType && hostname == "" {
 		return "", errors.New("hostname must not be empty for mirrored provider storage")
@@ -41,10 +41,6 @@ func providerStoragePrefix(prefix string, t providerType, hostname, namespace, n
 
 // internal function
 func providerPath(prefix string, t providerType, hostname, namespace, name, version, os, arch string) (string, string, string, error) {
-	if prefix == "" {
-		return "", "", "", errors.New("prefix is empty")
-	}
-
 	p, err := providerStoragePrefix(prefix, t, hostname, namespace, name)
 	if err != nil {
 		return "", "", "", err
@@ -188,6 +184,24 @@ func migrationTargetPath(bucketPrefix, archiveFormat, sourceKey string) string {
 	m := objectMetadata(oldKey)
 
 	return modulePath(bucketPrefix, m["namespace"], m["name"], m["provider"], m["version"], archiveFormat)
+}
+
+// Only necessary for the migration of providers
+func providerMigrationTargetPath(bucketPrefix, sourceKey string) (string, error) {
+	prefix := path.Join(bucketPrefix, string(internalProviderType))
+	oldKey := path.Clean(strings.TrimPrefix(sourceKey, fmt.Sprintf("%s/", prefix)))
+	directories := path.Dir(oldKey)
+
+	if !strings.HasPrefix(sourceKey, path.Join(prefix, "namespace=")) {
+		return "", fmt.Errorf("file doesn't have prefix %s", path.Join(prefix, "namespace="))
+	}
+
+	m := objectMetadata(directories)
+
+	if strings.HasSuffix(sourceKey, "signing-keys.json") {
+		return path.Clean(path.Join(prefix, m["namespace"])), nil
+	}
+	return providerStoragePrefix(bucketPrefix, internalProviderType, "", m["namespace"], m["name"])
 }
 
 func isUnmigratedModule(bucketPrefix, key string) bool {

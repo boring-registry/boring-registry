@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,10 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("failed to setup storage: %w", err)
 		}
 
-		return storageBackend.MigrateModules(ctx, logger, flagDryRun)
+		if err := storageBackend.MigrateModules(ctx, logger, flagDryRun); err != nil {
+			return err
+		}
+
+		return storageBackend.MigrateProviders(ctx, logger, flagDryRun)
 	},
 }
