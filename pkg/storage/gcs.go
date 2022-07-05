@@ -151,6 +151,44 @@ func (s *GCSStorage) MigrateModules(ctx context.Context, logger log.Logger, dryR
 	return nil
 }
 
+// MigrateProviders is a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
+func (s *GCSStorage) MigrateProviders(ctx context.Context, logger log.Logger, dryRun bool) error {
+	q := &storage.Query{
+		Prefix: modulePathPrefix(s.bucketPrefix, "", "", ""),
+	}
+	it := s.sc.Bucket(s.bucket).Objects(ctx, q)
+	for {
+		attrs, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		directory, err := providerMigrationTargetPath(s.bucketPrefix, attrs.Name)
+		if err != nil {
+			return err
+		}
+
+		targetKey := path.Join(directory, path.Base(attrs.Name))
+
+		if dryRun {
+			_ = logger.Log("message", "skipping due to dry-run", "source", attrs.Name, "target", targetKey)
+		} else {
+			src := s.sc.Bucket(s.bucket).Object(attrs.Name)
+			dst := s.sc.Bucket(s.bucket).Object(targetKey).If(storage.Conditions{DoesNotExist: true})
+
+			if _, err = dst.CopierFrom(src).Run(ctx); err != nil {
+				return fmt.Errorf("migration failed: %w", err)
+			}
+
+			_ = logger.Log("message", "copied module", "source", attrs.Name, "target", targetKey)
+		}
+	}
+
+	return nil
+}
+
 // GetProvider implements provider.Storage
 func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
 	archivePath, shasumPath, shasumSigPath, err := internalProviderPath(s.bucketPrefix, namespace, name, version, os, arch)

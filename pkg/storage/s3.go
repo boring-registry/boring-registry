@@ -176,6 +176,48 @@ func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRu
 	return nil
 }
 
+// MigrateProviders is a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
+func (s *S3Storage) MigrateProviders(ctx context.Context, logger log.Logger, dryRun bool) error {
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(path.Join(s.bucketPrefix, string(internalProviderType))),
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to page: %w", err)
+		}
+
+		for _, obj := range resp.Contents {
+			directory, err := providerMigrationTargetPath(s.bucketPrefix, *obj.Key)
+			if err != nil {
+				return err
+			}
+
+			targetKey := path.Join(directory, path.Base(*obj.Key))
+
+			if dryRun {
+				_ = logger.Log("message", "skipping due to dry-run", "source", obj.Key, "target", targetKey)
+			} else {
+				_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+					Bucket:     aws.String(s.bucket),
+					CopySource: aws.String(url.PathEscape(path.Join(s.bucket, *obj.Key))),
+					Key:        aws.String(targetKey),
+				})
+				if err != nil {
+					return err
+				}
+
+				_ = logger.Log("message", "copied module", "source", *obj.Key, "target", targetKey)
+			}
+		}
+	}
+
+	return nil
+}
+
 // GetProvider retrieves information about a provider from the S3 storage.
 func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
 	archivePath, shasumPath, shasumSigPath, err := internalProviderPath(s.bucketPrefix, namespace, name, version, os, arch)
