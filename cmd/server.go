@@ -8,7 +8,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -194,10 +193,10 @@ func init() {
 
 	// Terraform Login Protocol options.
 	serverCmd.Flags().StringVar(&flagLoginClient, "login-client", "", "The client_id value to use when making requests")
-	serverCmd.Flags().StringSliceVar(&flagLoginGrantTypes, "login-grant-types", nil, "An array describing a set of OAuth 2.0 grant types")
+	serverCmd.Flags().StringSliceVar(&flagLoginGrantTypes, "login-grant-types", []string{"authz_code"}, "An array describing a set of OAuth 2.0 grant types")
 	serverCmd.Flags().StringVar(&flagLoginAuthz, "login-authz", "", "The server's authorization endpoint")
 	serverCmd.Flags().StringVar(&flagLoginToken, "login-token", "", "The server's token endpoint")
-	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", nil, "A two-element JSON array giving an inclusive range of TCP ports")
+	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{10000, 10010}, "Inclusive range of TCP ports that Terraform may use")
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 }
 
@@ -343,7 +342,7 @@ func authMiddleware(logger log.Logger) endpoint.Middleware {
 	}
 
 	if flagAuthOktaIssuer != "" {
-		providers = append(providers, auth.NewOktaProvider(flagAuthOktaIssuer, parseClaims(flagAuthOktaClaims)))
+		providers = append(providers, auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...))
 	}
 
 	return auth.Middleware(logger, providers...)
@@ -378,21 +377,4 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 	)
 
 	return nil
-}
-
-func parseClaims(in []string) map[string]string {
-	m := make(map[string]string)
-
-	for _, claim := range in {
-		parts := strings.Split(claim, "=")
-		if len(parts) != 2 {
-			continue
-		}
-
-		key, val := parts[0], parts[1]
-
-		m[key] = val
-	}
-
-	return m
 }
