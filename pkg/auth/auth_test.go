@@ -1,12 +1,11 @@
-package auth_test
+package auth
 
 import (
 	"context"
 	"testing"
 
-	"github.com/TierMobility/boring-registry/pkg/auth"
-	"github.com/TierMobility/boring-registry/pkg/auth/providers/static"
 	"github.com/go-kit/kit/auth/jwt"
+	"github.com/go-kit/kit/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,7 +39,8 @@ func TestAuthMiddleware(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := auth.Middleware(static.New(tc.token))(nopEndpoint)(tc.ctx, nil)
+			logger := log.NewNopLogger()
+			_, err := Middleware(logger, NewStaticProvider(tc.token))(nopEndpoint)(tc.ctx, nil)
 			switch tc.expectError {
 			case true:
 				assert.Error(err)
