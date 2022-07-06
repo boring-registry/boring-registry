@@ -177,25 +177,27 @@ var serverCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
+
+	// General options.
 	serverCmd.Flags().StringVar(&flagTLSKeyFile, "tls-key-file", "", "TLS private key to serve")
 	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
 	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules, specified without the leading dot")
 
-	// Static auth.
-	serverCmd.Flags().StringArrayVar(&flagAuthStaticTokens, "auth-static-token", nil, "Comma-separated string of static API keys to protect the server with")
+	// Static auth options.
+	serverCmd.Flags().StringArrayVar(&flagAuthStaticTokens, "auth-static-token", nil, "Static API token to protect the boring-registry")
 
-	// Okta auth.
-	serverCmd.Flags().StringVar(&flagAuthOktaIssuer, "auth-okta-issuer", "", "okta issuer")
-	serverCmd.Flags().StringSliceVar(&flagAuthOktaClaims, "auth-okta-claims", nil, "claims to validate")
+	// Okta auth options.
+	serverCmd.Flags().StringVar(&flagAuthOktaIssuer, "auth-okta-issuer", "", "Okta issuer")
+	serverCmd.Flags().StringSliceVar(&flagAuthOktaClaims, "auth-okta-claims", nil, "Okta claims to validate")
 
-	// Login options.
+	// Terraform Login Protocol options.
 	serverCmd.Flags().StringVar(&flagLoginClient, "login-client", "", "The client_id value to use when making requests")
 	serverCmd.Flags().StringSliceVar(&flagLoginGrantTypes, "login-grant-types", nil, "An array describing a set of OAuth 2.0 grant types")
 	serverCmd.Flags().StringVar(&flagLoginAuthz, "login-authz", "", "The server's authorization endpoint")
 	serverCmd.Flags().StringVar(&flagLoginToken, "login-token", "", "The server's token endpoint")
-	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{}, "A two-element JSON array giving an inclusive range of TCP ports")
+	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", nil, "A two-element JSON array giving an inclusive range of TCP ports")
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 }
 
@@ -393,14 +395,4 @@ func parseClaims(in []string) map[string]string {
 	}
 
 	return m
-}
-
-func splitKeys(in string) []string {
-	var keys []string
-
-	if in != "" {
-		keys = strings.Split(in, ",")
-	}
-
-	return keys
 }
