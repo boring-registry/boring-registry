@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
@@ -328,7 +329,9 @@ func (s *S3Storage) generateURL(ctx context.Context, key string) (string, error)
 		return "", err
 	}
 
-	if s.useSignedURL {
+	// The Terraform Provider Registry Protocol only supports HTTP and HTTPS.
+	// In case the URL for a provider is generated, a presigned URL will be returned
+	if s.useSignedURL || strings.HasPrefix(key, path.Join(s.bucketPrefix, string(internalProviderType))) {
 		return presignResult.URL, nil
 	}
 
