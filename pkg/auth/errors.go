@@ -4,5 +4,10 @@ import "errors"
 
 // Middleware errors.
 var (
-	ErrInvalidKey = errors.New("invalid key")
+	ErrUnauthorized = errors.New("unauthorized")
+)
+
+// Provider errors.
+var (
+	ErrInvalidToken = errors.New("failed to verify token")
 )
