@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
+	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
@@ -36,7 +37,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varNamespace, varName)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
+				httptransport.ServerBefore(jwt.HTTPToContext()),
 			)...,
 		),
 	)
@@ -49,7 +50,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varOS, varArch, varVersion)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
+				httptransport.ServerBefore(jwt.HTTPToContext()),
 			)...,
 		),
 	)
@@ -114,7 +115,7 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	switch errors.Cause(err) {
 	case ErrVarMissing:
 		w.WriteHeader(http.StatusBadRequest)
-	case auth.ErrInvalidKey:
+	case auth.ErrUnauthorized:
 		w.WriteHeader(http.StatusUnauthorized)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)

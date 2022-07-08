@@ -2,16 +2,18 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/TierMobility/boring-registry/pkg/storage"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
+	"github.com/TierMobility/boring-registry/pkg/storage"
+
+	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 
 	"github.com/go-kit/kit/log"
@@ -22,6 +24,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
+	"github.com/TierMobility/boring-registry/pkg/discovery"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/TierMobility/boring-registry/pkg/provider"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -41,12 +44,27 @@ var (
 
 var (
 	// General server options.
-	flagAPIKey              string
 	flagTLSCertFile         string
 	flagTLSKeyFile          string
 	flagListenAddr          string
 	flagTelemetryListenAddr string
 	flagModuleArchiveFormat string
+
+	// Login options.
+	flagLoginIssuer     string
+	flagLoginClient     string
+	flagLoginScopes     []string
+	flagLoginGrantTypes []string
+	flagLoginAuthz      string
+	flagLoginToken      string
+	flagLoginPorts      []int
+
+	// Static auth.
+	flagAuthStaticTokens []string
+
+	// Okta auth.
+	flagAuthOktaIssuer string
+	flagAuthOktaClaims []string
 )
 
 var serverCmd = &cobra.Command{
@@ -158,12 +176,28 @@ var serverCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVar(&flagAPIKey, "api-key", "", "Comma-separated string of static API keys to protect the server with")
+
+	// General options.
 	serverCmd.Flags().StringVar(&flagTLSKeyFile, "tls-key-file", "", "TLS private key to serve")
 	serverCmd.Flags().StringVar(&flagTLSCertFile, "tls-cert-file", "", "TLS certificate to serve")
 	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules, specified without the leading dot")
+
+	// Static auth options.
+	serverCmd.Flags().StringArrayVar(&flagAuthStaticTokens, "auth-static-token", nil, "Static API token to protect the boring-registry")
+
+	// Okta auth options.
+	serverCmd.Flags().StringVar(&flagAuthOktaIssuer, "auth-okta-issuer", "", "Okta issuer")
+	serverCmd.Flags().StringSliceVar(&flagAuthOktaClaims, "auth-okta-claims", nil, "Okta claims to validate")
+
+	// Terraform Login Protocol options.
+	serverCmd.Flags().StringVar(&flagLoginClient, "login-client", "", "The client_id value to use when making requests")
+	serverCmd.Flags().StringSliceVar(&flagLoginGrantTypes, "login-grant-types", []string{"authz_code"}, "An array describing a set of OAuth 2.0 grant types")
+	serverCmd.Flags().StringVar(&flagLoginAuthz, "login-authz", "", "The server's authorization endpoint")
+	serverCmd.Flags().StringVar(&flagLoginToken, "login-token", "", "The server's token endpoint")
+	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{10000, 10010}, "Inclusive range of TCP ports that Terraform may use")
+	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 }
 
 func setupStorage(ctx context.Context) (storage.Storage, error) {
@@ -194,9 +228,47 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 func serveMux() (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
+	options := []discovery.Option{
+		discovery.WithModulesV1(fmt.Sprintf("%s/", prefixModules)),
+		discovery.WithProvidersV1(fmt.Sprintf("%s/", prefixProviders)),
+	}
+
+	if flagLoginClient != "" {
+		login := &discovery.LoginV1{
+			Client: flagLoginClient,
+		}
+
+		if flagLoginGrantTypes != nil {
+			login.GrantTypes = flagLoginGrantTypes
+		}
+
+		if flagLoginAuthz != "" {
+			login.Authz = flagLoginAuthz
+		}
+
+		if flagLoginToken != "" {
+			login.Token = flagLoginToken
+		}
+
+		if flagLoginPorts != nil {
+			login.Ports = flagLoginPorts
+		}
+
+		if flagLoginScopes != nil {
+			login.Scopes = flagLoginScopes
+		}
+
+		options = append(options, discovery.WithLoginV1(login))
+	}
+
+	terraformJSON, err := json.Marshal(discovery.New(options...))
+	if err != nil {
+		return nil, err
+	}
+
 	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"modules.v1": "%s/", "providers.v1": "%s/"}`, prefixModules, prefixProviders)))
+		w.Write(terraformJSON)
 	})
 
 	registerMetrics(mux)
@@ -253,13 +325,27 @@ func registerModule(mux *http.ServeMux, s storage.Storage) error {
 			prefixModules,
 			module.MakeHandler(
 				service,
-				auth.Middleware(splitKeys(flagAPIKey)...),
+				authMiddleware(logger),
 				opts...,
 			),
 		),
 	)
 
 	return nil
+}
+
+func authMiddleware(logger log.Logger) endpoint.Middleware {
+	var providers []auth.Provider
+
+	if flagAuthStaticTokens != nil {
+		providers = append(providers, auth.NewStaticProvider(flagAuthStaticTokens...))
+	}
+
+	if flagAuthOktaIssuer != "" {
+		providers = append(providers, auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...))
+	}
+
+	return auth.Middleware(logger, providers...)
 }
 
 func registerProvider(mux *http.ServeMux, s storage.Storage) error {
@@ -284,21 +370,11 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 			prefixProviders,
 			provider.MakeHandler(
 				service,
-				auth.Middleware(splitKeys(flagAPIKey)...),
+				authMiddleware(logger),
 				opts...,
 			),
 		),
 	)
 
 	return nil
-}
-
-func splitKeys(in string) []string {
-	var keys []string
-
-	if in != "" {
-		keys = strings.Split(in, ",")
-	}
-
-	return keys
 }

@@ -2,29 +2,40 @@ package auth
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
-	httptransport "github.com/go-kit/kit/transport/http"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
-// Middleware provides basic endpoint auth.
-func Middleware(keys ...string) endpoint.Middleware {
+func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request interface{}) (interface{}, error) {
-			if len(keys) < 1 {
-				return next(ctx, request)
-			}
+			tokenValue := ctx.Value(jwt.JWTTokenContextKey)
 
-			for _, key := range keys {
-				key := fmt.Sprintf("Bearer %s", key)
-				if key == ctx.Value(httptransport.ContextKeyRequestAuthorization) {
-					return next(ctx, request)
+			if token, ok := tokenValue.(string); ok {
+				for _, provider := range providers {
+					err := provider.Verify(ctx, token)
+					if err != nil {
+						level.Debug(logger).Log(
+							"provider", provider,
+							"msg", "failed to verify token",
+							"err", err,
+						)
+					} else {
+						level.Debug(logger).Log(
+							"provider", provider,
+							"msg", "successfully verified token",
+							"err", err,
+						)
+
+						return next(ctx, request)
+					}
 				}
 			}
 
-			return nil, ErrInvalidKey
-
+			return nil, ErrUnauthorized
 		}
 	}
 }
