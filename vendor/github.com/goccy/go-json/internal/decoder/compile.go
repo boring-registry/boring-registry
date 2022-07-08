@@ -154,6 +154,9 @@ func compileMapKey(typ *runtime.Type, structName, fieldName string, structTypeTo
 	if runtime.PtrTo(typ).Implements(unmarshalTextType) {
 		return newUnmarshalTextDecoder(runtime.PtrTo(typ), structName, fieldName), nil
 	}
+	if typ.Kind() == reflect.String {
+		return newStringDecoder(structName, fieldName), nil
+	}
 	dec, err := compile(typ, structName, fieldName, structTypeToDecoder)
 	if err != nil {
 		return nil, err
@@ -391,6 +394,15 @@ func compileStruct(typ *runtime.Type, structName, fieldName string, structTypeTo
 						allFields = append(allFields, fieldSet)
 					}
 				}
+			} else {
+				fieldSet := &structFieldSet{
+					dec:         dec,
+					offset:      field.Offset,
+					isTaggedKey: tag.IsTaggedKey,
+					key:         field.Name,
+					keyLen:      int64(len(field.Name)),
+				}
+				allFields = append(allFields, fieldSet)
 			}
 		} else {
 			if tag.IsString && isStringTagSupportedType(runtime.Type2RType(field.Type)) {
