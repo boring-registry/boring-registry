@@ -6,7 +6,6 @@ var (
 	Version string = "dev"
 	Commit  string = "none"
 	Date    string = "unknown"
-	BuiltBy string = "unknown"
 )
 
 // String returns a human readable version string.

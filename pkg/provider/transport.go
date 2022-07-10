@@ -2,10 +2,8 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
-	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
@@ -22,8 +20,6 @@ const (
 	varArch      muxVar = "arch"
 	varVersion   muxVar = "version"
 )
-
-type header string
 
 // MakeHandler returns a fully initialized http.Handler.
 func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport.ServerOption) http.Handler {
@@ -108,38 +104,6 @@ func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, e
 		os:        os,
 		arch:      arch,
 	}, nil
-}
-
-// ErrorEncoder translates domain specific errors to HTTP status codes.
-func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
-	switch errors.Cause(err) {
-	case ErrVarMissing:
-		w.WriteHeader(http.StatusBadRequest)
-	case auth.ErrUnauthorized:
-		w.WriteHeader(http.StatusUnauthorized)
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	_ = json.NewEncoder(w).Encode(struct {
-		Error string `json:"error"`
-	}{
-		Error: err.Error(),
-	})
-}
-
-func extractHeaders(keys ...header) httptransport.RequestFunc {
-	return func(ctx context.Context, r *http.Request) context.Context {
-		for _, k := range keys {
-			if v := r.Header.Get(string(k)); v != "" {
-				ctx = context.WithValue(ctx, k, v)
-			}
-		}
-
-		return ctx
-	}
 }
 
 func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {

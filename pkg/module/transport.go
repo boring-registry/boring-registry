@@ -14,7 +14,6 @@ import (
 )
 
 type muxVar string
-type contextKey string
 
 const (
 	varNamespace muxVar = "namespace"
@@ -126,18 +125,6 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	}{
 		Error: err.Error(),
 	})
-}
-
-func extractHeaders(keys ...contextKey) httptransport.RequestFunc {
-	return func(ctx context.Context, r *http.Request) context.Context {
-		for _, k := range keys {
-			if v := r.Header.Get(string(k)); v != "" {
-				ctx = context.WithValue(ctx, k, v)
-			}
-		}
-
-		return ctx
-	}
 }
 
 func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
