@@ -61,7 +61,7 @@ var rootCmd = &cobra.Command{
 		logger = setupLogger(os.Stdout)
 
 		if flagDebug {
-			level.Debug(logger).Log("msg", "debug mode enabled")
+			_ = level.Debug(logger).Log("msg", "debug mode enabled")
 		}
 
 		return nil
@@ -70,7 +70,7 @@ var rootCmd = &cobra.Command{
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -134,10 +134,14 @@ func setupLogger(w io.Writer) log.Logger {
 func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		envVarSuffix := strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
-		v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix))
+		if err := v.BindEnv(f.Name, fmt.Sprintf("%s_%s", envPrefix, envVarSuffix)); err != nil {
+			panic(fmt.Errorf("failed to bind key to environment variable: %w", err))
+		}
 		if !f.Changed && v.IsSet(f.Name) {
 			val := v.Get(f.Name)
-			cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
+			if err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val)); err != nil {
+				panic(fmt.Errorf("failed to set value of flag: %w", err))
+			}
 		}
 	})
 }

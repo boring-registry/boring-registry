@@ -13,7 +13,7 @@ import (
 func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request interface{}) (interface{}, error) {
-			tokenValue := ctx.Value(jwt.JWTTokenContextKey)
+			tokenValue := ctx.Value(jwt.JWTContextKey)
 
 			// Skip any authorization checks, as there are no providers defined
 			if len(providers) == 0 {
@@ -25,13 +25,13 @@ func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 				for _, provider := range providers {
 					err = provider.Verify(ctx, token)
 					if err != nil {
-						level.Debug(logger).Log(
+						_ = level.Debug(logger).Log(
 							"provider", provider,
 							"msg", "failed to verify token",
 							"err", err,
 						)
 					} else {
-						level.Debug(logger).Log(
+						_ = level.Debug(logger).Log(
 							"provider", provider,
 							"msg", "successfully verified token",
 							"err", err,

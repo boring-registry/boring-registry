@@ -43,7 +43,7 @@ func processModule(path string, storage module.Storage) error {
 		return err
 	}
 
-	level.Debug(logger).Log(
+	_ = level.Debug(logger).Log(
 		"msg", "parsed module spec",
 		"path", path,
 		"name", spec.Name(),
@@ -56,7 +56,7 @@ func processModule(path string, storage module.Storage) error {
 			return err
 		} else if !ok {
 			// Skip the module, as it didn't pass the version constraints
-			level.Info(logger).Log("msg", "module doesn't meet semver version constraints, skipped", "name", spec.Name())
+			_ = level.Info(logger).Log("msg", "module doesn't meet semver version constraints, skipped", "name", spec.Name())
 			return nil
 		}
 	}
@@ -64,7 +64,7 @@ func processModule(path string, storage module.Storage) error {
 	if versionConstraintsRegex != nil {
 		if !meetsRegexConstraints(spec) {
 			// Skip the module, as it didn't pass the regex version constraints
-			level.Info(logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
+			_ = level.Info(logger).Log("msg", "module doesn't meet regex version constraints, skipped", "name", spec.Name())
 			return nil
 		}
 	}
@@ -72,13 +72,13 @@ func processModule(path string, storage module.Storage) error {
 	ctx := context.Background()
 	if res, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
 		if flagIgnoreExistingModule {
-			level.Info(logger).Log(
+			_ = level.Info(logger).Log(
 				"msg", "module already exists",
 				"download_url", res.DownloadURL,
 			)
 			return nil
 		} else {
-			level.Error(logger).Log(
+			_ = level.Error(logger).Log(
 				"msg", "module already exists",
 				"download_url", res.DownloadURL,
 			)
@@ -98,7 +98,7 @@ func processModule(path string, storage module.Storage) error {
 		return err
 	}
 
-	level.Info(logger).Log(
+	_ = level.Info(logger).Log(
 		"msg", "module successfully uploaded",
 		"download_url", res.DownloadURL,
 	)

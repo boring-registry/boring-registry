@@ -51,7 +51,7 @@ func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, ve
 		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
 	}
 
-	url, err := s.generateURL(ctx, key)
+	presigned, err := s.generateURL(ctx, key)
 	if err != nil {
 		return core.Module{}, err
 	}
@@ -61,7 +61,7 @@ func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, ve
 		Name:        name,
 		Provider:    provider,
 		Version:     version,
-		DownloadURL: url,
+		DownloadURL: presigned,
 	}, nil
 }
 

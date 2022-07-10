@@ -29,8 +29,8 @@ func testModuleData(files map[string]string) *bytes.Buffer {
 			Size: int64(len(moduleData)),
 		}
 
-		tw.WriteHeader(hdr)
-		tw.Write([]byte(moduleData))
+		_ = tw.WriteHeader(hdr)
+		_, _ = tw.Write([]byte(moduleData))
 	}
 
 	return buf
