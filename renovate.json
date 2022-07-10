@@ -1,1 +1,4 @@
-{"extends": ["github>TierMobility/renovate-config"]}
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [ "config:base" ]
+}
