@@ -48,7 +48,7 @@ The Boring-Registry does not rely on any configuration files. Instead, everythin
 
 To run the server you need to specify which storage backend to use:
 
-**Example using the S3 storage:**
+**Minimal configuration using the S3 storage backend:**
 
 ```bash
 $ boring-registry server \
@@ -57,7 +57,7 @@ $ boring-registry server \
 
 Make sure the server has AWS credentials set (e.g. `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`).
 
-**Example using the GCS storage:**
+**Minimal example using the GCS storage backend:**
 
 ```bash
 $ boring-registry server \
@@ -66,7 +66,7 @@ $ boring-registry server \
 
 Make sure the server has GCP credentials set (e.g. `GOOGLE_CLOUD_PROJECT`).
 
-**Example using the S3 storage with MINIO:**
+**Minimal example using the S3 storage backend with MinIO:**
 
 ```bash
 $ boring-registry server \
@@ -90,7 +90,7 @@ credentials "boring-registry.example.com" {
 }
 ```
 
-## Publishing Modules and Providers
+## Internal Storage Layout
 
 The Boring-Registry is using the following storage layout inside the storage backend:
 
@@ -132,7 +132,7 @@ An example without any placeholders could be the following.
             └── terraform-provider-dummy_0.1.0_linux_arm64.zip
 ```
 
-### Modules
+## Publishing Modules
 
 Example Terraform configuration using a module referenced from the registry:
 
@@ -143,7 +143,7 @@ module "tls-private-key" {
 }
 ```
 
-#### Uploading modules using the CLI
+### Uploading modules using the CLI
 
 Modules can be published to the registry with the `upload` command.
 The command expects a directory as argument, which is then walked recursively in search of `boring-registry.hcl` files.
@@ -161,14 +161,14 @@ metadata {
 
 When running the upload command, the module is then packaged up and published to the registry.
 
-#### Recursive vs. non-recursive upload
+### Recursive vs. non-recursive upload
 
 Walking the directory recursively is the default behavior of the `upload` command. This way all modules underneath the
 current directory will be checked for `boring-registry.hcl` files and modules will be packaged and uploaded if they not
 already exist. However, this can be unwanted in certain situations e.g. if a `.terraform` directory is present containing
 other modules that have a configuration file. The `--recursive=false` flag will omit this behavior.
 
-#### Fail early if module version already exists
+### Fail early if module version already exists
 
 By default the upload command will silently ignore already uploaded versions of a module and return exit code `0`. For
 tagging mono-repositories this can become a problem as it is not clear if the module version is new or already uploaded.
@@ -188,7 +188,7 @@ for i in $(ls -d */); do
 done
 ```
 
-#### Module version constraints
+### Module version constraints
 
 The `--version-constraints-semver` flag lets you specify a range of acceptable semver versions for modules.
 It expects a specially formatted string containing one or more conditions, which are separated by commas.
@@ -201,7 +201,7 @@ The `--version-constraints-regex` flag lets you specify a regex that module vers
 In order to only match pre-releases, you can e.g. use `--version-constraints-regex="^[0-9]+\.[0-9]+\.[0-9]+-|\d*[a-zA-Z-][0-9a-zA-Z-]*$"`.
 This would for example be useful to prevent publishing releases from non-`main` branches, while allowing pre-releases to test out pull requests for example.
 
-### Providers
+## Publishing Providers
 
 Example Terraform configuration using a provider referenced from the registry:
 
@@ -233,7 +233,7 @@ The file should look like this:
 For general information on how to build and publish providers for Terraform see the official docs:
 https://www.terraform.io/docs/registry/providers.
 
-#### Publish providers with Goreleaser
+### Publish providers with Goreleaser
 Goreleaser can be used to build providers. Example `.goreleaser.yaml` configuration file:
 
 ```yaml
