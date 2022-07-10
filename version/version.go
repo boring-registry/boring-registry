@@ -3,10 +3,9 @@ package version
 import "fmt"
 
 var (
-	Version = "dev"
-	Commit  = "none"
-	Date    = "unknown"
-	BuiltBy = "unknown"
+	Version string = "dev"
+	Commit  string = "none"
+	Date    string = "unknown"
 )
 
 // String returns a human readable version string.
