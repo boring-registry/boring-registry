@@ -27,7 +27,6 @@ type GCSStorage struct {
 	sc                  *storage.Client
 	bucket              string
 	bucketPrefix        string
-	useSignedURL        bool
 	signedURLExpiry     time.Duration
 	serviceAccount      string
 	moduleArchiveFormat string
@@ -39,7 +38,7 @@ func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, v
 	if err != nil {
 		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
 	}
-	url, err := s.generateURL(ctx, attrs.Name)
+	url, err := s.presignedURL(ctx, attrs.Name)
 	if err != nil {
 		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
 	}
@@ -198,15 +197,15 @@ func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, 
 
 	pathSigningKeys := signingKeysPath(s.bucketPrefix, namespace)
 
-	zipURL, err := s.generateURL(ctx, archivePath)
+	zipURL, err := s.presignedURL(ctx, archivePath)
 	if err != nil {
 		return core.Provider{}, err
 	}
-	shasumsURL, err := s.generateURL(ctx, shasumPath)
+	shasumsURL, err := s.presignedURL(ctx, shasumPath)
 	if err != nil {
 		return core.Provider{}, errors.Wrap(err, shasumPath)
 	}
-	signatureURL, err := s.generateURL(ctx, shasumSigPath)
+	signatureURL, err := s.presignedURL(ctx, shasumSigPath)
 	if err != nil {
 		return core.Provider{}, err
 	}
@@ -300,7 +299,9 @@ func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	defer func(r *storage.Reader) {
+		_ = r.Close()
+	}(r)
 
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -310,21 +311,9 @@ func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) 
 	return data, nil
 }
 
-func (s *GCSStorage) generateURL(ctx context.Context, object string) (string, error) {
-	if s.useSignedURL {
-		return s.generateV4GetObjectSignedURL(ctx, object)
-	}
-
-	return s.generateAPIURL(object)
-}
-
-func (s *GCSStorage) generateAPIURL(key string) (string, error) {
-	return fmt.Sprintf("https://storage.googleapis.com/%s/%s", s.bucket, key), nil
-}
-
 // https://github.com/GoogleCloudPlatform/golang-samples/blob/73d60a5de091dcdda5e4f753b594ef18eee67906/storage/objects/generate_v4_get_object_signed_url.go#L28
-// generateV4GetObjectSignedURL generates object signed URL with GET method.
-func (s *GCSStorage) generateV4GetObjectSignedURL(ctx context.Context, object string) (string, error) {
+// presignedURL generates object signed URL with GET method.
+func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, error) {
 	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
 	cred, err := google.FindDefaultCredentials(ctx, "cloud-platform")
 	if err != nil {
@@ -401,12 +390,6 @@ func WithGCSServiceAccount(sa string) GCSStorageOption {
 func WithGCSSignedUrlExpiry(t time.Duration) GCSStorageOption {
 	return func(s *GCSStorage) {
 		s.signedURLExpiry = t
-	}
-}
-
-func WithGCSUseSignedURL(b bool) GCSStorageOption {
-	return func(s *GCSStorage) {
-		s.useSignedURL = b
 	}
 }
 

@@ -210,7 +210,6 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
 			storage.WithS3StoragePathStyle(flagS3PathStyle),
 			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
-			storage.WithS3StorageUseSignedURL(flagS3SignedURL),
 			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
 		)
 	case flagGCSBucket != "":
@@ -218,7 +217,6 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
 			storage.WithGCSServiceAccount(flagGCSServiceAccount),
 			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
-			storage.WithGCSUseSignedURL(flagGCSSignedURL),
 		)
 	default:
 		return nil, errors.New("please specify a valid storage provider")
