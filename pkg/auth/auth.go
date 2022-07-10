@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -14,9 +15,15 @@ func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 		return func(ctx context.Context, request interface{}) (interface{}, error) {
 			tokenValue := ctx.Value(jwt.JWTTokenContextKey)
 
+			// Skip any authorization checks, as there are no providers defined
+			if len(providers) == 0 {
+				return next(ctx, request)
+			}
+
+			var err error
 			if token, ok := tokenValue.(string); ok {
 				for _, provider := range providers {
-					err := provider.Verify(ctx, token)
+					err = provider.Verify(ctx, token)
 					if err != nil {
 						level.Debug(logger).Log(
 							"provider", provider,
@@ -35,7 +42,7 @@ func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 				}
 			}
 
-			return nil, ErrUnauthorized
+			return nil, fmt.Errorf("%w: %v", ErrUnauthorized, err)
 		}
 	}
 }
