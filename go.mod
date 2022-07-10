@@ -20,11 +20,11 @@ require (
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.8.0
 	golang.org/x/oauth2 v0.0.0-20220630143837-2104d58473e0
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	google.golang.org/api v0.86.0
-	google.golang.org/genproto v0.0.0-20220707150051-590a5ac7bee1
+	google.golang.org/genproto v0.0.0-20220708155623-50e5f4832e73
 )
 
 require (
