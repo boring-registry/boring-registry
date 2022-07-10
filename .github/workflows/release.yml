@@ -38,7 +38,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: azure/setup-helm@v1
+      - uses: azure/setup-helm@v3
 
       - uses: actions/setup-python@v3
         with:
@@ -115,7 +115,7 @@ jobs:
     if: ${{ needs.check-helm-publish.outputs.IS_PUBLISHED == 'false' }}
     steps:
       - uses: actions/checkout@v3
-      - uses: azure/setup-helm@v1
+      - uses: azure/setup-helm@v3
 
       - name: Helm login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login https://ghcr.io --username TierMobility --password-stdin
