@@ -24,13 +24,13 @@ func TestAuthMiddleware(t *testing.T) {
 	}{
 		{
 			name:        "valid request",
-			ctx:         context.WithValue(context.Background(), jwt.JWTTokenContextKey, "foo"),
+			ctx:         context.WithValue(context.Background(), jwt.JWTContextKey, "foo"),
 			token:       "foo",
 			expectError: false,
 		},
 		{
 			name:        "invalid request",
-			ctx:         context.WithValue(context.Background(), jwt.JWTTokenContextKey, "foo"),
+			ctx:         context.WithValue(context.Background(), jwt.JWTContextKey, "foo"),
 			token:       "bar",
 			expectError: true,
 		},
