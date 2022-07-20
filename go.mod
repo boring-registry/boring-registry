@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/iam v0.3.0
-	cloud.google.com/go/storage v1.23.0
+	cloud.google.com/go/storage v1.24.0
 	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/config v1.15.14
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.20
