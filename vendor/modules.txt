@@ -383,7 +383,7 @@ golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/oauth2 v0.0.0-20220630143837-2104d58473e0
+# golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
 ## explicit; go 1.17
 golang.org/x/oauth2
 golang.org/x/oauth2/authhandler
