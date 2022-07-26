@@ -13,7 +13,14 @@
       "matchPackagePrefixes": [
         "google.golang.org/genproto"
       ],
-      "schedule": ["every monday"]
+      "schedule": ["every month"]
+    },
+    {
+      "matchPackagePrefixes": [
+        "golang.org/x/oauth2",
+        "golang.org/x/sync"
+      ],
+      "schedule": ["every month"]
     }
   ]
 }
