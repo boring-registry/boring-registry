@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/iam v0.3.0
-	cloud.google.com/go/storage v1.24.0
+	cloud.google.com/go/storage v1.26.0
 	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/config v1.15.14
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.20
@@ -21,10 +21,10 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.8.0
-	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
+	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
-	google.golang.org/api v0.89.0
-	google.golang.org/genproto v0.0.0-20220725144611-272f38e5d71b
+	google.golang.org/api v0.94.0
+	google.golang.org/genproto v0.0.0-20220810155839-1856144b1d9c
 )
 
 require (
@@ -90,7 +90,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
-	google.golang.org/protobuf v1.28.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.66.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
