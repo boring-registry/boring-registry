@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/url"
 	"path"
-	"strings"
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
@@ -34,7 +33,6 @@ type S3Storage struct {
 	bucketEndpoint      string
 	moduleArchiveFormat string
 	forcePathStyle      bool
-	useSignedURL        bool
 	signedURLExpiry     time.Duration
 }
 
@@ -51,7 +49,7 @@ func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, ve
 		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
 	}
 
-	presigned, err := s.generateURL(ctx, key)
+	presigned, err := s.presignedURL(ctx, key)
 	if err != nil {
 		return core.Module{}, err
 	}
@@ -87,7 +85,7 @@ func (s *S3Storage) ListModuleVersions(ctx context.Context, namespace, name, pro
 			}
 
 			// The download URL is probably not necessary for ListModules
-			m.DownloadURL, err = s.generateURL(ctx, modulePath(s.bucketPrefix, m.Namespace, m.Name, m.Provider, m.Version, s.moduleArchiveFormat))
+			m.DownloadURL, err = s.presignedURL(ctx, modulePath(s.bucketPrefix, m.Namespace, m.Name, m.Provider, m.Version, s.moduleArchiveFormat))
 			if err != nil {
 				return []core.Module{}, err
 			}
@@ -228,15 +226,15 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 
 	pathSigningKeys := signingKeysPath(s.bucketPrefix, namespace)
 
-	zipURL, err := s.generateURL(ctx, archivePath)
+	zipURL, err := s.presignedURL(ctx, archivePath)
 	if err != nil {
 		return core.Provider{}, err
 	}
-	shasumsURL, err := s.generateURL(ctx, shasumPath)
+	shasumsURL, err := s.presignedURL(ctx, shasumPath)
 	if err != nil {
 		return core.Provider{}, errors.Wrap(err, shasumPath)
 	}
-	signatureURL, err := s.generateURL(ctx, shasumSigPath)
+	signatureURL, err := s.presignedURL(ctx, shasumSigPath)
 	if err != nil {
 		return core.Provider{}, err
 	}
@@ -317,7 +315,7 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 	return result, nil
 }
 
-func (s *S3Storage) generateURL(ctx context.Context, key string) (string, error) {
+func (s *S3Storage) presignedURL(ctx context.Context, key string) (string, error) {
 	presignResult, err := s.presignClient.PresignGetObject(ctx,
 		&s3.GetObjectInput{
 			Bucket: aws.String(s.bucket),
@@ -325,36 +323,8 @@ func (s *S3Storage) generateURL(ctx context.Context, key string) (string, error)
 		},
 		s3.WithPresignExpires(s.signedURLExpiry), // TODO(oliviermichaelis): check if we need to set it back to 15min
 	)
-	if err != nil {
-		return "", err
-	}
 
-	// The Terraform Provider Registry Protocol only supports HTTP and HTTPS.
-	// In case the URL for a provider is generated, a presigned URL will be returned
-	if s.useSignedURL || strings.HasPrefix(key, path.Join(s.bucketPrefix, string(internalProviderType))) {
-		return presignResult.URL, nil
-	}
-
-	// The URL is parsed and reconstructed to prevent leaking secrets from the presigned URL
-	u, err := url.Parse(presignResult.URL)
-	if err != nil {
-		return "", err
-	}
-
-	u = &url.URL{
-		Scheme: u.Scheme,
-		Host:   u.Host,
-		Path:   u.Path,
-	}
-
-	// A bucketEndpoint would indicate the usage of MinIO, for which the Terraform internal S3 client can not be used without further modification
-	if s.bucketEndpoint == "" {
-		// Adding the s3:: prefix to explicitly use the S3 client with AWS-style authentication
-		// https://www.terraform.io/language/modules/sources#s3-bucket
-		u.Scheme = fmt.Sprintf("s3::%s", u.Scheme)
-	}
-
-	return u.String(), nil
+	return presignResult.URL, err
 }
 
 func (s *S3Storage) download(ctx context.Context, path string) ([]byte, error) {
@@ -408,14 +378,6 @@ func WithS3ArchiveFormat(archiveFormat string) S3StorageOption {
 func WithS3StoragePathStyle(forcePathStyle bool) S3StorageOption {
 	return func(s *S3Storage) {
 		s.forcePathStyle = forcePathStyle
-	}
-}
-
-// WithS3StorageUseSignedURL configures if presigned URLs should be used
-// See https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html
-func WithS3StorageUseSignedURL(b bool) S3StorageOption {
-	return func(s *S3Storage) {
-		s.useSignedURL = b
 	}
 }
 
