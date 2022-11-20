@@ -18,7 +18,7 @@
 // 	protoc        v3.12.2
 // source: google/iam/credentials/v1/iamcredentials.proto
 
-package credentials
+package credentialspb
 
 import (
 	context "context"
