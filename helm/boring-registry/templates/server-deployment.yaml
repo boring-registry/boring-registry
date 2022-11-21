@@ -45,7 +45,7 @@ spec:
             - name: BORING_REGISTRY_LISTEN_TELEMETRY_ADDRESS
               value: {{ printf ":%v" .Values.server.telemetryPort | quote }}
 
-            - name: BORING_REGISTRY_API_KEY
+            - name: BORING_REGISTRY_AUTH_STATIC_TOKEN
             {{- if .Values.server.auth.createSecret }}
               valueFrom:
                 secretKeyRef:
