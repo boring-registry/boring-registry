@@ -81,7 +81,8 @@ The storage backend has to be specified for the `upload` command as well. Check 
 ### Authentication
 
 The Boring-Registry can be configured with a set of API keys to match for by using the `--auth-static-token="very-secure-token"` flag or by providing it as an environment variable `BORING_REGISTRY_AUTH_STATIC_TOKEN="very-secure-token"`.
-Multiple API keys can be passed by specifying the `--auth-static-token="very-secure-token"` flag multiple times.
+
+Multiple API keys can be passed by passing the tokens comma-separated to the `--auth-static-token="first-token,second-token"` flag or environment variable `BORING_REGISTRY_AUTH_STATIC_TOKEN="first-token,second-token"`.
 
 The token can be passed to Terraform inside the [`~/.terraformrc` configuration file](https://www.terraform.io/cli/config/config-file#credentials-1):
 
