@@ -185,7 +185,7 @@ func init() {
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules, specified without the leading dot")
 
 	// Static auth options.
-	serverCmd.Flags().StringArrayVar(&flagAuthStaticTokens, "auth-static-token", nil, "Static API token to protect the boring-registry")
+	serverCmd.Flags().StringSliceVar(&flagAuthStaticTokens, "auth-static-token", nil, "Static API token to protect the boring-registry")
 
 	// Okta auth options.
 	serverCmd.Flags().StringVar(&flagAuthOktaIssuer, "auth-okta-issuer", "", "Okta issuer")
