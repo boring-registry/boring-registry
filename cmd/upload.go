@@ -34,8 +34,9 @@ func init() {
 }
 
 var uploadCmd = &cobra.Command{
-	Use:   "upload [flags] MODULE",
-	Short: "Upload modules",
+	Use:          "upload [flags] MODULE",
+	Short:        "Upload modules",
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		storageBackend, err := setupStorage(context.Background())
 		if err != nil {
