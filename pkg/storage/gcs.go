@@ -13,12 +13,12 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/core"
 
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
+	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"cloud.google.com/go/storage"
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
-	credentialspb "google.golang.org/genproto/googleapis/iam/credentials/v1"
 )
 
 // GCSStorage is a Storage implementation backed by GCS.
