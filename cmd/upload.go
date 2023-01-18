@@ -25,6 +25,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(uploadCmd)
+	uploadCmd.AddCommand(uploadModuleCmd)
 	uploadCmd.Flags().BoolVar(&flagRecursive, "recursive", true, "Recursively traverse <dir> and upload all modules in subdirectories")
 	uploadCmd.Flags().BoolVar(&flagIgnoreExistingModule, "ignore-existing", true, "Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version")
 	uploadCmd.Flags().StringVar(&flagVersionConstraintsRegex, "version-constraints-regex", "", `Limit the module versions that are eligible for upload with a regex that a version has to match.
@@ -34,42 +35,54 @@ The version string has to be formatted as a string literal containing one or mor
 Can be combined with the -version-constrained-regex flag`)
 }
 
+// uploadCmd uploads modules for legacy reasons.
+// It is recommended to use `upload module` instead.
+// This will eventually be deprecated and replaced.
 var uploadCmd = &cobra.Command{
 	Use:          "upload [flags] MODULE",
 	Short:        "Upload modules",
 	SilenceUsage: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		storageBackend, err := setupStorage(context.Background())
+	Deprecated:   "use \"upload module\" instead",
+	RunE:         uploadModule,
+}
+
+var uploadModuleCmd = &cobra.Command{
+	Use:          "module MODULE",
+	SilenceUsage: true,
+	RunE:         uploadModule,
+}
+
+func uploadModule(cmd *cobra.Command, args []string) error {
+	storageBackend, err := setupStorage(context.Background())
+	if err != nil {
+		return errors.Wrap(err, "failed to setup storage")
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("missing argument")
+	}
+
+	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	// Validate the semver version constraints
+	if flagVersionConstraintsSemver != "" {
+		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
 		if err != nil {
-			return errors.Wrap(err, "failed to setup storage")
-		}
-
-		if len(args) == 0 {
-			return fmt.Errorf("missing argument")
-		}
-
-		if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
 			return err
 		}
+		versionConstraintsSemver = constraints
+	}
 
-		// Validate the semver version constraints
-		if flagVersionConstraintsSemver != "" {
-			constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
-			if err != nil {
-				return err
-			}
-			versionConstraintsSemver = constraints
+	// Validate the regex version constraints
+	if flagVersionConstraintsRegex != "" {
+		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
+		if err != nil {
+			return fmt.Errorf("invalid regex given: %v", err)
 		}
+		versionConstraintsRegex = constraints
+	}
 
-		// Validate the regex version constraints
-		if flagVersionConstraintsRegex != "" {
-			constraints, err := regexp.Compile(flagVersionConstraintsRegex)
-			if err != nil {
-				return fmt.Errorf("invalid regex given: %v", err)
-			}
-			versionConstraintsRegex = constraints
-		}
-
-		return archiveModules(args[0], storageBackend)
-	},
+	return archiveModules(args[0], storageBackend)
 }
