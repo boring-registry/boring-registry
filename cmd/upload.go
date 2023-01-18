@@ -27,10 +27,11 @@ func init() {
 	rootCmd.AddCommand(uploadCmd)
 	uploadCmd.Flags().BoolVar(&flagRecursive, "recursive", true, "Recursively traverse <dir> and upload all modules in subdirectories")
 	uploadCmd.Flags().BoolVar(&flagIgnoreExistingModule, "ignore-existing", true, "Ignore already existing modules. If set to false upload will fail immediately if a module already exists in that version")
-	uploadCmd.Flags().StringVar(&flagVersionConstraintsRegex, "version-constraints-regex", "", "Limit the module versions that are eligible for upload with a regex that a version has to match.\n"+
-		"Can be combined with the -version-constraints-semver flag")
-	uploadCmd.Flags().StringVar(&flagVersionConstraintsSemver, "version-constraints-semver", "", "Limit the module versions that are eligible for upload with version constraints.\n"+
-		"The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas. Can be combined with the -version-constrained-regex flag")
+	uploadCmd.Flags().StringVar(&flagVersionConstraintsRegex, "version-constraints-regex", "", `Limit the module versions that are eligible for upload with a regex that a version has to match.
+Can be combined with the -version-constraints-semver flag`)
+	uploadCmd.Flags().StringVar(&flagVersionConstraintsSemver, "version-constraints-semver", "", `Limit the module versions that are eligible for upload with version constraints.
+The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas.
+Can be combined with the -version-constrained-regex flag`)
 }
 
 var uploadCmd = &cobra.Command{
