@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path"
 	"time"
 
@@ -294,6 +293,20 @@ func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name s
 	return result, nil
 }
 
+// signingKeys downloads the JSON placed in the namespace in GCS and unmarshals it into a core.SigningKeys
+func (s *GCSStorage) signingKeys(ctx context.Context, namespace string) (*core.SigningKeys, error) {
+	if namespace == "" {
+		return nil, fmt.Errorf("namespace argument is empty")
+	}
+
+	signingKeysRaw, err := s.download(ctx, signingKeysPath(s.bucketPrefix, namespace))
+	if err != nil {
+		return nil, fmt.Errorf("failed to download signing_keys for namespace %s: %w", namespace, err)
+	}
+
+	return unmarshalSigningKeys(signingKeysRaw)
+}
+
 func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) {
 	r, err := s.sc.Bucket(s.bucket).Object(path).NewReader(ctx)
 	if err != nil {
@@ -303,7 +316,7 @@ func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) 
 		_ = r.Close()
 	}(r)
 
-	data, err := ioutil.ReadAll(r)
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}

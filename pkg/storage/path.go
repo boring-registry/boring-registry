@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/TierMobility/boring-registry/pkg/core"
 	"io"
 	"path"
 	"strings"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
 )
 
 const (

@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -20,12 +19,18 @@ import (
 	"github.com/pkg/errors"
 )
 
+// s3DownloaderAPI is used to mock the AWS APIs
+// See https://aws.github.io/aws-sdk-go-v2/docs/unit-testing/
+type s3DownloaderAPI interface {
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(api *s3manager.Downloader)) (n int64, err error)
+}
+
 // S3Storage is a Storage implementation backed by S3.
 // S3Storage implements module.Storage and provider.Storage
 type S3Storage struct {
 	client              *s3.Client
 	presignClient       *s3.PresignClient
-	downloader          *s3manager.Downloader
+	downloader          s3DownloaderAPI
 	uploader            *s3manager.Uploader
 	bucket              string
 	bucketPrefix        string
@@ -224,8 +229,6 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 		return core.Provider{}, err
 	}
 
-	pathSigningKeys := signingKeysPath(s.bucketPrefix, namespace)
-
 	zipURL, err := s.presignedURL(ctx, archivePath)
 	if err != nil {
 		return core.Provider{}, err
@@ -239,21 +242,17 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 		return core.Provider{}, err
 	}
 
-	signingKeysRaw, err := s.download(ctx, pathSigningKeys)
-	if err != nil {
-		return core.Provider{}, errors.Wrap(err, pathSigningKeys)
-	}
-	var signingKey core.GPGPublicKey
-	if err := json.Unmarshal(signingKeysRaw, &signingKey); err != nil {
-		return core.Provider{}, err
-	}
-
 	shasumBytes, err := s.download(ctx, shasumPath)
 	if err != nil {
 		return core.Provider{}, err
 	}
 
 	shasum, err := readSHASums(bytes.NewReader(shasumBytes), path.Base(archivePath))
+	if err != nil {
+		return core.Provider{}, err
+	}
+
+	signingKeys, err := s.signingKeys(ctx, namespace)
 	if err != nil {
 		return core.Provider{}, err
 	}
@@ -269,11 +268,7 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 		DownloadURL:         zipURL,
 		SHASumsURL:          shasumsURL,
 		SHASumsSignatureURL: signatureURL,
-		SigningKeys: core.SigningKeys{
-			GPGPublicKeys: []core.GPGPublicKey{
-				signingKey,
-			},
-		},
+		SigningKeys:         *signingKeys,
 	}, nil
 }
 
@@ -313,6 +308,20 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 	}
 
 	return result, nil
+}
+
+// signingKeys downloads the JSON placed in the namespace in S3 and unmarshals it into a core.SigningKeys
+func (s *S3Storage) signingKeys(ctx context.Context, namespace string) (*core.SigningKeys, error) {
+	if namespace == "" {
+		return nil, fmt.Errorf("namespace argument is empty")
+	}
+
+	signingKeysRaw, err := s.download(ctx, signingKeysPath(s.bucketPrefix, namespace))
+	if err != nil {
+		return nil, fmt.Errorf("failed to download signing_keys for namespace %s: %w", namespace, err)
+	}
+
+	return unmarshalSigningKeys(signingKeysRaw)
 }
 
 func (s *S3Storage) presignedURL(ctx context.Context, key string) (string, error) {
