@@ -1,4 +1,4 @@
-FROM golang:1.19 AS build
+FROM golang:1.20 AS build
 
 ENV BASEDIR /go/src/github.com/TierMobility/boring-registry
 
