@@ -1,6 +1,6 @@
 module github.com/TierMobility/boring-registry
 
-go 1.19
+go 1.20
 
 require (
 	cloud.google.com/go/iam v0.9.0
