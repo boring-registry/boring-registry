@@ -218,22 +218,35 @@ terraform {
 }
 ```
 
-Providers cannot be uploaded using the CLI yet, so they need to be uploaded outside the Boring-Registry.
-
-The Boring Registry expects a file called `signing-keys.json` to be placed under the `<namespace>` level inside the storage backend.
-More information about the purpose of this file can be found in the [Provider Registry Protocol](https://www.terraform.io/internals/provider-registry-protocol#signing_keys).
-
-The file should look like this:
-
-```json
-{
-  "key_id": "GPG_KEY_ID",
-  "ascii_armor": "ASCII_ARMOR"
-}
-```
-
 For general information on how to build and publish providers for Terraform see the official docs:
 https://www.terraform.io/docs/registry/providers.
+
+Providers cannot be uploaded using the CLI yet, so they need to be uploaded outside the Boring-Registry.
+
+### GPG public key format
+The Boring Registry expects a file called `signing-keys.json` to be placed under the `<namespace>` level in the storage backend.
+More information about the purpose of this file can be found in the [Provider Registry Protocol](https://www.terraform.io/internals/provider-registry-protocol#signing_keys).
+
+The file should have the following format:
+```json
+{
+  "gpg_public_keys": [
+    {
+      "key_id": "51852D87348FFC4C",
+      "ascii_armor": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n..."
+    }
+  ]
+}
+```
+Multiple public keys are supported by extending the `gpg_public_keys` array.
+
+The `v0.10.0` and previous releases of the boring-registry only supported a single signing key in the following format:
+```json
+{
+  "key_id": "51852D87348FFC4C",
+  "ascii_armor": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n..."
+}
+```
 
 ### Publish providers with Goreleaser
 Goreleaser can be used to build providers. Example `.goreleaser.yaml` configuration file:
