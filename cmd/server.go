@@ -11,8 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/storage"
-
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 
@@ -27,8 +25,9 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/discovery"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/TierMobility/boring-registry/pkg/provider"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/TierMobility/boring-registry/pkg/storage"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 )
 
@@ -200,6 +199,7 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 }
 
+// TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
 func setupStorage(ctx context.Context) (storage.Storage, error) {
 	switch {
 	case flagS3Bucket != "":

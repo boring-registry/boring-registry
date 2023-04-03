@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
@@ -293,8 +294,45 @@ func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name s
 	return result, nil
 }
 
-// signingKeys downloads the JSON placed in the namespace in GCS and unmarshals it into a core.SigningKeys
-func (s *GCSStorage) signingKeys(ctx context.Context, namespace string) (*core.SigningKeys, error) {
+func (s *GCSStorage) UploadProviderReleaseFiles(ctx context.Context, namespace, name, filename string, file io.Reader) error {
+	if namespace == "" {
+		return fmt.Errorf("namespace argument is empty")
+	}
+
+	if name == "" {
+		return fmt.Errorf("name argument is empty")
+	}
+
+	if filename == "" {
+		return fmt.Errorf("name argument is empty")
+	}
+
+	prefix, err := providerStoragePrefix(s.bucketPrefix, internalProviderType, "", namespace, name)
+	if err != nil {
+		return err
+	}
+
+	key := filepath.Join(prefix, filename)
+	exists, err := s.objectExists(ctx, key)
+	if err != nil {
+		return err
+	} else if exists {
+		return ErrProviderAlreadyExists
+	}
+
+	wc := s.sc.Bucket(s.bucket).Object(key).NewWriter(ctx)
+	if _, err := io.Copy(wc, file); err != nil {
+		return fmt.Errorf("failed to upload provider: %w", err)
+	}
+	if err := wc.Close(); err != nil {
+		return fmt.Errorf("failed to upload provider: %w", err)
+	}
+
+	return nil
+}
+
+// SigningKeys downloads the JSON placed in the namespace in GCS and unmarshals it into a core.SigningKeys
+func (s *GCSStorage) SigningKeys(ctx context.Context, namespace string) (*core.SigningKeys, error) {
 	if namespace == "" {
 		return nil, fmt.Errorf("namespace argument is empty")
 	}
@@ -380,6 +418,17 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 	}
 
 	return url, nil
+}
+
+func (s *GCSStorage) objectExists(ctx context.Context, key string) (bool, error) {
+	o := s.sc.Bucket(s.bucket).Object(key)
+	_, err := o.Attrs(ctx)
+	if errors.Is(err, storage.ErrObjectNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // GCSStorageOption provides additional options for the GCSStorage.

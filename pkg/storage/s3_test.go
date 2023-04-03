@@ -1,17 +1,54 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/assert"
 	"io"
+	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/TierMobility/boring-registry/pkg/core"
+
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	assertion "github.com/stretchr/testify/assert"
 )
+
+type mockS3Client struct {
+	errorFunc func() error
+}
+
+func (m *mockS3Client) HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	return nil, m.errorFunc()
+}
+
+func (m *mockS3Client) ListObjectsV2(ctx context.Context, input *s3.ListObjectsV2Input, f ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	panic("not yet implemented, as we don't have tests using it")
+}
+
+func (m *mockS3Client) CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error) {
+	panic("not yet implemented, as we don't have tests using it")
+}
+
+type mockS3Uploader struct {
+	b   *bytes.Buffer
+	err error
+}
+
+func (m *mockS3Uploader) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
+	m.b = new(bytes.Buffer)
+	if _, err := io.Copy(m.b, input.Body); err != nil {
+		return nil, err
+	}
+
+	return nil, m.err
+}
 
 type mockS3Downloader struct {
 	payload []byte
@@ -37,6 +74,73 @@ func (m *mockS3Downloader) Download(ctx context.Context, w io.WriterAt, input *s
 		}
 	}
 	return 0, nil
+}
+
+func TestS3Storage_UploadProviderReleaseFiles(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		description       string
+		namespace         string
+		name              string
+		filename          string
+		content           string
+		s3ClientErrorFunc func() error
+		wantErr           assert.ErrorAssertionFunc
+	}{
+		{
+			description: "provider file exists already",
+			namespace:   "hashicorp",
+			name:        "random",
+			filename:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+			s3ClientErrorFunc: func() error {
+				return nil
+			},
+			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
+				return assertion.Error(t, err)
+			},
+		},
+		{
+			description: "upload file",
+			namespace:   "hashicorp",
+			name:        "random",
+			filename:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+			content:     "test",
+			s3ClientErrorFunc: func() error {
+				return &awshttp.ResponseError{
+					ResponseError: &smithyhttp.ResponseError{
+						Response: &smithyhttp.Response{
+							Response: &http.Response{
+								StatusCode: http.StatusNotFound,
+							},
+						},
+					},
+				}
+			},
+			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
+				return !assertion.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			u := &mockS3Uploader{}
+			s := S3Storage{
+				client: &mockS3Client{
+					errorFunc: tc.s3ClientErrorFunc,
+				},
+				uploader: u,
+			}
+			s.uploader = u
+			err := s.UploadProviderReleaseFiles(context.Background(), tc.namespace, tc.name, tc.filename, strings.NewReader(tc.content))
+			if tc.wantErr(t, err) {
+				return
+			}
+
+			assertion.Equal(t, tc.content, u.b.String())
+		})
+	}
 }
 
 func TestSigningKeys(t *testing.T) {
@@ -115,7 +219,7 @@ func TestSigningKeys(t *testing.T) {
 		t.Run(tc.annotation, func(t *testing.T) {
 			s := S3Storage{}
 			s.downloader = &mockS3Downloader{payload: tc.payload, error: tc.returnError}
-			result, err := s.signingKeys(context.Background(), tc.namespace)
+			result, err := s.SigningKeys(context.Background(), tc.namespace)
 
 			if !tc.expectedError {
 				assert.NoError(t, err)

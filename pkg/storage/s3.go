@@ -5,19 +5,36 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
 )
+
+// s3ClientAPI is used to mock the AWS APIs
+// See https://aws.github.io/aws-sdk-go-v2/docs/unit-testing/
+type s3ClientAPI interface {
+	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	ListObjectsV2(ctx context.Context, input *s3.ListObjectsV2Input, f ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	CopyObject(ctx context.Context, params *s3.CopyObjectInput, optFns ...func(*s3.Options)) (*s3.CopyObjectOutput, error)
+}
+
+// s3UploaderAPI is used to mock the AWS APIs
+// See https://aws.github.io/aws-sdk-go-v2/docs/unit-testing/
+type s3UploaderAPI interface {
+	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
+}
 
 // s3DownloaderAPI is used to mock the AWS APIs
 // See https://aws.github.io/aws-sdk-go-v2/docs/unit-testing/
@@ -28,10 +45,10 @@ type s3DownloaderAPI interface {
 // S3Storage is a Storage implementation backed by S3.
 // S3Storage implements module.Storage and provider.Storage
 type S3Storage struct {
-	client              *s3.Client
+	client              s3ClientAPI
 	presignClient       *s3.PresignClient
 	downloader          s3DownloaderAPI
-	uploader            *s3manager.Uploader
+	uploader            s3UploaderAPI
 	bucket              string
 	bucketPrefix        string
 	bucketRegion        string
@@ -45,13 +62,11 @@ type S3Storage struct {
 func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
 	key := modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat)
 
-	input := &s3.HeadObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(key),
-	}
-
-	if _, err := s.client.HeadObject(ctx, input); err != nil {
-		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+	exists, err := s.objectExists(ctx, key)
+	if err != nil {
+		return core.Module{}, err
+	} else if !exists {
+		return core.Module{}, ErrModuleNotFound
 	}
 
 	presigned, err := s.presignedURL(ctx, key)
@@ -252,7 +267,7 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 		return core.Provider{}, err
 	}
 
-	signingKeys, err := s.signingKeys(ctx, namespace)
+	signingKeys, err := s.SigningKeys(ctx, namespace)
 	if err != nil {
 		return core.Provider{}, err
 	}
@@ -310,15 +325,54 @@ func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name st
 	return result, nil
 }
 
-// signingKeys downloads the JSON placed in the namespace in S3 and unmarshals it into a core.SigningKeys
-func (s *S3Storage) signingKeys(ctx context.Context, namespace string) (*core.SigningKeys, error) {
+func (s *S3Storage) UploadProviderReleaseFiles(ctx context.Context, namespace, name, filename string, file io.Reader) error {
+	if namespace == "" {
+		return fmt.Errorf("namespace argument is empty")
+	}
+
+	if name == "" {
+		return fmt.Errorf("name argument is empty")
+	}
+
+	if filename == "" {
+		return fmt.Errorf("name argument is empty")
+	}
+
+	prefix, err := providerStoragePrefix(s.bucketPrefix, internalProviderType, "", namespace, name)
+	if err != nil {
+		return err
+	}
+
+	key := filepath.Join(prefix, filename)
+	exists, err := s.objectExists(ctx, key)
+	if err != nil {
+		return err
+	} else if exists {
+		return ErrProviderAlreadyExists
+	}
+
+	input := &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+		Body:   file,
+	}
+
+	if _, err = s.uploader.Upload(ctx, input); err != nil {
+		return fmt.Errorf("failed to upload provider: %w", err)
+	}
+
+	return nil
+}
+
+// SigningKeys downloads the JSON placed in the namespace in S3 and unmarshals it into a core.SigningKeys
+func (s *S3Storage) SigningKeys(ctx context.Context, namespace string) (*core.SigningKeys, error) {
 	if namespace == "" {
 		return nil, fmt.Errorf("namespace argument is empty")
 	}
 
 	signingKeysRaw, err := s.download(ctx, signingKeysPath(s.bucketPrefix, namespace))
 	if err != nil {
-		return nil, fmt.Errorf("failed to download signing_keys for namespace %s: %w", namespace, err)
+		return nil, fmt.Errorf("failed to download signing_keys.json for namespace %s: %w", namespace, err)
 	}
 
 	return unmarshalSigningKeys(signingKeysRaw)
@@ -334,6 +388,23 @@ func (s *S3Storage) presignedURL(ctx context.Context, key string) (string, error
 	)
 
 	return presignResult.URL, err
+}
+
+func (s *S3Storage) objectExists(ctx context.Context, key string) (bool, error) {
+	input := &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	}
+
+	if _, err := s.client.HeadObject(ctx, input); err != nil {
+		var responseError *awshttp.ResponseError
+		if errors.As(err, &responseError) && responseError.ResponseError.HTTPStatusCode() == http.StatusNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (s *S3Storage) download(ctx context.Context, path string) ([]byte, error) {
@@ -428,13 +499,14 @@ func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption
 		return nil, err
 	}
 
-	s.client = s3.NewFromConfig(cfg)
-	s.presignClient = s3.NewPresignClient(s.client)
-	s.uploader = s3manager.NewUploader(s.client)
-	s.downloader = s3manager.NewDownloader(s.client)
+	client := s3.NewFromConfig(cfg)
+	s.client = client
+	s.presignClient = s3.NewPresignClient(client)
+	s.uploader = s3manager.NewUploader(client)
+	s.downloader = s3manager.NewDownloader(client)
 
 	if s.bucketRegion == "" {
-		region, err := s3manager.GetBucketRegion(ctx, s.client, s.bucket)
+		region, err := s3manager.GetBucketRegion(ctx, client, s.bucket)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to determine bucket region")
 		}
