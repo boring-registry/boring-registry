@@ -448,7 +448,9 @@ func TestSha256Sums_Name(t *testing.T) {
 			s := &Sha256Sums{
 				Filename: tc.filename,
 			}
-			assertion.Equal(t, tc.want, s.Name())
+			n, err := s.Name()
+			assertion.NoError(t, err)
+			assertion.Equal(t, tc.want, n)
 		})
 	}
 }

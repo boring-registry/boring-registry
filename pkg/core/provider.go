@@ -193,11 +193,14 @@ type Sha256Sums struct {
 }
 
 // Name returns the name of the provider of the SHA256SUMS file
-func (s *Sha256Sums) Name() string {
+func (s *Sha256Sums) Name() (string, error) {
 	// RegEx could fail in rare cases as the first capture group doesn't try to match as much as possible
 	r := regexp.MustCompile("^terraform-provider-(?P<name>.+)_(?P<version>.+)_SHA256SUMS$")
 	matches := r.FindStringSubmatch(s.Filename)
-	return matches[1]
+	if len(matches) != 3 {
+		return "", fmt.Errorf("regex for %s matched %d times instead of 3 times", s.Filename, len(matches))
+	}
+	return matches[1], nil
 }
 
 func NewSha256Sums(filename string, r io.Reader) (*Sha256Sums, error) {

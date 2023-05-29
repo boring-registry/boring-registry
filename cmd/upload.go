@@ -171,10 +171,15 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	providerName, err := sums.Name()
+	if err != nil {
+		return fmt.Errorf("failed to parse provider name: %v", err)
+	}
+
 	// Upload provider binary .zip archives
 	if len(flagProviderArchivePaths) > 0 {
 		for _, archivePath := range flagProviderArchivePaths {
-			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, sums.Name()); err != nil {
+			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, providerName); err != nil {
 				return err
 			}
 			_ = level.Info(logger).Log(
@@ -186,7 +191,7 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 		baseDir := filepath.Dir(flagFileSha256Sums)
 		for _, entry := range sums.Entries {
 			archivePath := filepath.Join(baseDir, entry.FileName)
-			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, sums.Name()); err != nil {
+			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, providerName); err != nil {
 				return err
 			}
 			_ = level.Info(logger).Log(
@@ -197,7 +202,7 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 	}
 
 	// Upload *_SHA256SUMS file
-	if err = uploadProviderReleaseFile(ctx, storageBackend, flagFileSha256Sums, flagProviderNamespace, sums.Name()); err != nil {
+	if err = uploadProviderReleaseFile(ctx, storageBackend, flagFileSha256Sums, flagProviderNamespace, providerName); err != nil {
 		return err
 	}
 	_ = level.Info(logger).Log(
@@ -207,7 +212,7 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 
 	// Upload *_SHA256SUMS.sig file
 	signaturePath := fmt.Sprintf("%s.sig", flagFileSha256Sums)
-	if err = uploadProviderReleaseFile(ctx, storageBackend, signaturePath, flagProviderNamespace, sums.Name()); err != nil {
+	if err = uploadProviderReleaseFile(ctx, storageBackend, signaturePath, flagProviderNamespace, providerName); err != nil {
 		return err
 	}
 	_ = level.Info(logger).Log(
@@ -226,7 +231,6 @@ func validateShaSums(sums *core.Sha256Sums) error {
 			return fmt.Errorf("the number of provided archive paths doesn't match the number of entries in %s", flagFileSha256Sums)
 		}
 
-	OUTER:
 		for _, archivePath := range flagProviderArchivePaths {
 			fileName := filepath.Base(archivePath)
 			for _, l := range sums.Entries {
@@ -235,7 +239,7 @@ func validateShaSums(sums *core.Sha256Sums) error {
 						return fmt.Errorf("failed to validate checksum for file %s", l.FileName)
 					}
 
-					continue OUTER
+					break
 				}
 			}
 			return fmt.Errorf("failed to find entry for %s in file %s", fileName, flagFileSha256Sums)
