@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/TierMobility/boring-registry/pkg/module"
+
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-version"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -164,7 +164,8 @@ func archiveModule(root string) (io.Reader, error) {
 }
 
 // meetsSemverConstraints checks whether a module version matches the semver version constraints.
-// Returns an unrecoverable error if there's an internal error. Otherwise it returns a boolean indicating if the module meets the constraints
+// Returns an unrecoverable error if there's an internal error.
+// Otherwise, it returns a boolean indicating if the module meets the constraints
 func meetsSemverConstraints(spec *module.Spec) (bool, error) {
 	v, err := version.NewSemver(spec.Metadata.Version)
 	if err != nil {

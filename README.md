@@ -205,25 +205,11 @@ This would for example be useful to prevent publishing releases from non-`main` 
 
 ## Publishing Providers
 
-Example Terraform configuration using a provider referenced from the registry:
-
-```hcl
-terraform {
-  required_providers {
-    dummy = {
-      source  = "boring-registry.example.com/tier/dummy"
-      version = "0.1.0"
-    }
-  }
-}
-```
-
 For general information on how to build and publish providers for Terraform see the official docs:
 https://www.terraform.io/docs/registry/providers.
 
-Providers cannot be uploaded using the CLI yet, so they need to be uploaded outside the Boring-Registry.
+### GPG Public Keys
 
-### GPG public key format
 The Boring Registry expects a file called `signing-keys.json` to be placed under the `<namespace>` level in the storage backend.
 More information about the purpose of this file can be found in the [Provider Registry Protocol](https://www.terraform.io/internals/provider-registry-protocol#signing_keys).
 
@@ -245,6 +231,32 @@ The `v0.10.0` and previous releases of the boring-registry only supported a sing
 {
   "key_id": "51852D87348FFC4C",
   "ascii_armor": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n..."
+}
+```
+
+### Publishing providers with the CLI
+
+1. Manually prepare the provider release artifacts according to the [documentation from hashicorp](https://developer.hashicorp.com/terraform/registry/providers/publishing#preparing-your-provider)
+2. Publish the artifacts with the following (minimal) command:
+    ```bash
+    boring-registry upload provider \
+    --storage-s3-bucket <bucket_name> \
+    --namespace <namespace> \
+    --filename-sha256sums /absolute/path/to/terraform-provider-<name>_<version>_SHA256SUMS
+    ```
+
+### Referencing providers from the boring-registry in Terraform
+
+Example Terraform configuration using a provider referenced from the registry:
+
+```hcl
+terraform {
+  required_providers {
+    dummy = {
+      source  = "boring-registry.example.com/tier/dummy"
+      version = "0.1.0"
+    }
+  }
 }
 ```
 

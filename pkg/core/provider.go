@@ -1,10 +1,19 @@
 package core
 
 import (
+	"bufio"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/ProtonMail/go-crypto/openpgp"
+	openpgpErrors "github.com/ProtonMail/go-crypto/openpgp/errors"
 )
 
 const (
@@ -85,8 +94,36 @@ func NewProviderFromArchive(filename string) (Provider, error) {
 	}, nil
 }
 
+// SigningKeys represents the signing-keys.json that we expect in the storage backend
+// https://github.com/TierMobility/boring-registry#gpg-public-key-format
 type SigningKeys struct {
 	GPGPublicKeys []GPGPublicKey `json:"gpg_public_keys,omitempty"`
+}
+
+// IsValidSha256Sums verifies whether the GPG signature of to the SHA256SUMS file was created with a private key
+// corresponding to one of the public keys in SigningKeys
+func (s *SigningKeys) IsValidSha256Sums(sha256Sums, sha256SumsSig []byte) error {
+	for _, key := range s.GPGPublicKeys {
+		keyring, err := openpgp.ReadArmoredKeyRing(strings.NewReader(key.ASCIIArmor))
+		if err != nil {
+			return fmt.Errorf("error reading signing key: %w", err)
+		}
+
+		_, err = openpgp.CheckDetachedSignature(keyring, bytes.NewReader(sha256Sums), bytes.NewReader(sha256SumsSig), nil)
+
+		// If the signature issuer does not match the key, keep trying the rest of the provided keys.
+		if errors.Is(err, openpgpErrors.ErrUnknownIssuer) {
+			continue
+		} else if err != nil {
+			return err
+		}
+
+		if err == nil {
+			return nil
+		}
+	}
+
+	return errors.New("no valid key found for signature")
 }
 
 type GPGPublicKey struct {
@@ -120,3 +157,83 @@ type providerOption struct {
 }
 
 type ProviderOption func(option *providerOption)
+
+type Sha256SumsEntry struct {
+	Sum      []byte
+	FileName string
+}
+
+// Strings returns the Sha256SumsEntry as a string similar to the sha256 GNU coreutils tool
+func (s *Sha256SumsEntry) String() string {
+	return fmt.Sprintf("%x %s", s.Sum, s.FileName)
+}
+
+// NewSha256SumsEntry parses a Sha256SumsEntry from a line as found in the *_SHA256SUMS file
+func NewSha256SumsEntry(line string) (Sha256SumsEntry, error) {
+	r := regexp.MustCompile("\\s+")
+	s := r.Split(line, -1)
+	if len(s) != 2 {
+		return Sha256SumsEntry{}, fmt.Errorf("line contains %d parts instead of 2", len(s))
+	}
+
+	sum, err := hex.DecodeString(s[0])
+	if err != nil {
+		return Sha256SumsEntry{}, err
+	}
+
+	return Sha256SumsEntry{
+		Sum:      sum,
+		FileName: s[1],
+	}, nil
+}
+
+type Sha256Sums struct {
+	Entries  []Sha256SumsEntry
+	Filename string
+}
+
+// Name returns the name of the provider of the SHA256SUMS file
+func (s *Sha256Sums) Name() (string, error) {
+	// RegEx could fail in rare cases as the first capture group doesn't try to match as much as possible
+	r := regexp.MustCompile("^terraform-provider-(?P<name>.+)_(?P<version>.+)_SHA256SUMS$")
+	matches := r.FindStringSubmatch(s.Filename)
+	if len(matches) != 3 {
+		return "", fmt.Errorf("regex for %s matched %d times instead of 3 times", s.Filename, len(matches))
+	}
+	return matches[1], nil
+}
+
+func NewSha256Sums(filename string, r io.Reader) (*Sha256Sums, error) {
+	if !isValidSha256SumsFilename(filename) {
+		return nil, fmt.Errorf("SHA256SUMS file %s doesn't have valid file name", filename)
+	}
+
+	s := &Sha256Sums{Filename: filename}
+
+	scanner := bufio.NewScanner(r)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		entry, err := NewSha256SumsEntry(scanner.Text())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse entry: %w", err)
+		}
+		s.Entries = append(s.Entries, entry)
+	}
+
+	return s, nil
+}
+
+// isValidSha256SumsFilename only does basic validation
+func isValidSha256SumsFilename(filename string) bool {
+	return regexp.MustCompile("^terraform-provider-.+_.+_SHA256SUMS$").MatchString(filename)
+}
+
+// Sha256Checksum returns the SHA256 checksum of the stream passed to the io.Reader
+func Sha256Checksum(r io.Reader) ([]byte, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return nil, err
+	}
+
+	return h.Sum(nil), nil
+}
