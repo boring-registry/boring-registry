@@ -3,7 +3,7 @@ module github.com/TierMobility/boring-registry
 go 1.20
 
 require (
-	cloud.google.com/go/iam v0.12.0
+	cloud.google.com/go/iam v0.13.0
 	cloud.google.com/go/storage v1.29.0
 	github.com/ProtonMail/go-crypto v0.0.0-20230331115716-d34776aa93ec
 	github.com/aws/aws-sdk-go-v2 v1.17.4
@@ -12,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.30.3
 	github.com/aws/smithy-go v1.13.5
 	github.com/go-kit/kit v0.12.0
+	github.com/go-kit/log v0.2.1
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
@@ -29,7 +30,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.107.0 // indirect
+	cloud.google.com/go v0.110.0 // indirect
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
@@ -52,7 +53,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.1 // indirect
 	github.com/goccy/go-json v0.9.8 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
@@ -91,7 +91,7 @@ require (
 	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230216225411-c8e22ba71e44 // indirect
+	google.golang.org/genproto v0.0.0-20230222225845-10f96fb3dbec // indirect
 	google.golang.org/grpc v1.53.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
