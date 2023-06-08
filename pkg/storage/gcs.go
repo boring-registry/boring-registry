@@ -3,7 +3,6 @@ package storage
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path"
@@ -215,8 +214,8 @@ func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, 
 		return core.Provider{}, errors.Wrap(err, pathSigningKeys)
 	}
 
-	var signingKey core.GPGPublicKey
-	if err := json.Unmarshal(signingKeysRaw, &signingKey); err != nil {
+	signingKeys, err := unmarshalSigningKeys(signingKeysRaw)
+	if err != nil {
 		return core.Provider{}, err
 	}
 
@@ -241,11 +240,7 @@ func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, 
 		DownloadURL:         zipURL,
 		SHASumsURL:          shasumsURL,
 		SHASumsSignatureURL: signatureURL,
-		SigningKeys: core.SigningKeys{
-			GPGPublicKeys: []core.GPGPublicKey{
-				signingKey,
-			},
-		},
+		SigningKeys:         *signingKeys,
 	}, nil
 }
 
