@@ -217,6 +217,7 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
 			storage.WithGCSServiceAccount(flagGCSServiceAccount),
 			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
+			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
 		)
 	default:
 		return nil, errors.New("please specify a valid storage provider")
