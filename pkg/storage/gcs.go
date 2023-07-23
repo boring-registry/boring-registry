@@ -16,6 +16,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 )
 
@@ -359,8 +360,13 @@ func (s *GCSStorage) download(ctx context.Context, path string) ([]byte, error) 
 // https://github.com/GoogleCloudPlatform/golang-samples/blob/73d60a5de091dcdda5e4f753b594ef18eee67906/storage/objects/generate_v4_get_object_signed_url.go#L28
 // presignedURL generates object signed URL with GET method.
 func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, error) {
+	//https://godoc.org/golang.org/x/oauth2/google#DefaultClient
+	cred, err := google.FindDefaultCredentials(ctx, "cloud-platform")
+	if err != nil {
+		return "", fmt.Errorf("google.FindDefaultCredentials: %v", err)
+	}
+
 	var url string
-	var err error
 	if s.serviceAccount != "" {
 		// needs Service Account Token Creator role
 		c, err := credentials.NewIamCredentialsClient(ctx)
@@ -389,13 +395,15 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 			return "", fmt.Errorf("storage.signedURL: %v", err)
 		}
 	} else {
-		//As no credentials are provided, it will use the same ones
-		//used by the storage client. This is because we didn't srt
-		//flag serviceAccount on the execution of the registry.
-		//See: 
+		conf, err := google.JWTConfigFromJSON(cred.JSON)
+		if err != nil {
+			return "", errors.Wrap(err, "could not get jwt config")
+		}
 		opts := &storage.SignedURLOptions{
 			Scheme:         storage.SigningSchemeV4,
 			Method:         "GET",
+			GoogleAccessID: conf.Email,
+			PrivateKey:     conf.PrivateKey,
 			Expires:        time.Now().Add(s.signedURLExpiry),
 		}
 		url, err = storage.SignedURL(s.bucket, object, opts)
