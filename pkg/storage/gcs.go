@@ -457,7 +457,6 @@ func WithGCSArchiveFormat(archiveFormat string) GCSStorageOption {
 	}
 }
 
-
 func NewGCSStorage(bucket string, options ...GCSStorageOption) (*GCSStorage, error) {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
