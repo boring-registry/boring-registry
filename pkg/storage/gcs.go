@@ -97,7 +97,7 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 		return core.Module{}, errors.New("version not defined")
 	}
 
-	key := modulePath(s.bucketPrefix, namespace, name, provider, version, DefaultModuleArchiveFormat)
+	key := modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat)
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
 		return core.Module{}, errors.Wrap(ErrModuleAlreadyExists, key)
 	}
@@ -447,6 +447,13 @@ func WithGCSServiceAccount(sa string) GCSStorageOption {
 func WithGCSSignedUrlExpiry(t time.Duration) GCSStorageOption {
 	return func(s *GCSStorage) {
 		s.signedURLExpiry = t
+	}
+}
+
+// WithGCSArchiveFormat configures the module archive format (zip, tar, tgz, etc.)
+func WithGCSArchiveFormat(archiveFormat string) GCSStorageOption {
+	return func(s *GCSStorage) {
+		s.moduleArchiveFormat = archiveFormat
 	}
 }
 
