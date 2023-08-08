@@ -32,7 +32,7 @@ type Provider struct {
 	Arch                string      `json:"arch,omitempty"`
 	Filename            string      `json:"filename,omitempty"`
 	DownloadURL         string      `json:"download_url,omitempty"`
-	Shasum              string      `json:"shasum,omitempty"`
+	SHASum              string      `json:"shasum,omitempty"`
 	SHASumsURL          string      `json:"shasums_url,omitempty"`
 	SHASumsSignatureURL string      `json:"shasums_signature_url,omitempty"`
 	SigningKeys         SigningKeys `json:"signing_keys,omitempty"`

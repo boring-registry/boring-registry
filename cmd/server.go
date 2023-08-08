@@ -219,6 +219,8 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
 			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
 		)
+	case flagLocalStorageDir != "":
+		return storage.NewDefaultLocalStorage(flagLocalStorageDir, flagModuleArchiveFormat), nil
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}

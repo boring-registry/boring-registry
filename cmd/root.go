@@ -42,6 +42,9 @@ var (
 	flagGCSPrefix          string
 	flagGCSServiceAccount  string
 	flagGCSSignedURLExpiry time.Duration
+
+	// Local FileSystem options
+	flagLocalStorageDir string
 )
 
 var (
@@ -88,6 +91,7 @@ func init() {
 GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
 For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().DurationVar(&flagGCSSignedURLExpiry, "storage-gcs-signedurl-expiry", 30*time.Second, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with --gcs-signedurl")
+	rootCmd.PersistentFlags().StringVar(&flagLocalStorageDir, "storage-local-dir", "", "local file system dir to store the providers and modules")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
