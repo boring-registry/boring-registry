@@ -13,7 +13,7 @@ import (
 )
 
 type LocalFileSystem interface {
-	OpenFile(name string, flag int, perm os.FileMode) (*os.File, error)
+	OpenFile(name string, flag int, perm os.FileMode) (io.ReadWriteCloser, error)
 	ReadFile(name string) ([]byte, error)
 	Stat(name string) (os.FileInfo, error)
 	ReadDir(name string) ([]os.DirEntry, error)
@@ -73,12 +73,12 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 	}
 
 	archive, err := provider.ArchiveFileName()
-	if err == nil {
+	if err != nil {
 		return core.Provider{}, err
 	}
 
 	archivePath := filepath.Join(providerPrefix, archive)
-	if exist, _ := ls.isLocalFileExist(archivePath); exist {
+	if exist, _ := ls.isLocalFileExist(archivePath); !exist {
 		return core.Provider{}, errors.New("archive file not exist")
 	}
 
@@ -86,12 +86,12 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 	provider.DownloadURL = fmt.Sprintf("file://%s", archivePath)
 
 	shaSum, err := provider.ShasumFileName()
-	if err == nil {
+	if err != nil {
 		return core.Provider{}, err
 	}
 
 	shaSumPath := filepath.Join(providerPrefix, shaSum)
-	if exist, _ := ls.isLocalFileExist(shaSumPath); exist {
+	if exist, _ := ls.isLocalFileExist(shaSumPath); !exist {
 		return core.Provider{}, errors.New("shaSum file not exist")
 	}
 	provider.SHASumsURL = fmt.Sprintf("file://%s", shaSumPath)
@@ -108,18 +108,18 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 	provider.SHASum = sha
 
 	sig, err := provider.ShasumSignatureFileName()
-	if err == nil {
+	if err != nil {
 		return core.Provider{}, err
 	}
 
 	sigPath := filepath.Join(providerPrefix, sig)
-	if exist, _ := ls.isLocalFileExist(sigPath); exist {
+	if exist, _ := ls.isLocalFileExist(sigPath); !exist {
 		return core.Provider{}, errors.New("sig file not exist")
 	}
 	provider.SHASumsSignatureURL = fmt.Sprintf("file://%s", sigPath)
 
 	keyPath := signingKeysPath(ls.storageDir, namespace)
-	if exist, _ := ls.isLocalFileExist(keyPath); exist {
+	if exist, _ := ls.isLocalFileExist(keyPath); !exist {
 		return core.Provider{}, errors.New("key file not exist")
 	}
 
@@ -142,8 +142,6 @@ func (ls *LocalStorage) ListProviderVersions(ctx context.Context, namespace, nam
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("dir: ", dir)
 
 	if exist, _ := ls.isLocalDirExist(dir); !exist {
 		return []core.ProviderVersion{}, nil
@@ -368,4 +366,26 @@ func (ls *LocalStorage) UploadModule(ctx context.Context, namespace, name, provi
 
 func (ls *LocalStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
 	return nil
+}
+
+type fs struct{}
+
+func (fs *fs) OpenFile(name string, flag int, perm os.FileMode) (io.ReadWriteCloser, error) {
+	return os.OpenFile(name, flag, perm)
+}
+
+func (fs *fs) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
+}
+
+func (fs *fs) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
+}
+
+func (fs *fs) ReadDir(name string) ([]os.DirEntry, error) {
+	return os.ReadDir(name)
+}
+
+func (fs *fs) MkdirAll(name string, perm os.FileMode) error {
+	return os.MkdirAll(name, perm)
 }

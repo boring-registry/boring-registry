@@ -76,6 +76,15 @@ $ boring-registry server \
   --storage-s3-endpoint=https://minio.example.com
 ```
 
+**Minimal example using the Local File System storage backend:**
+
+```bash
+$ boring-registry server \
+  --storage-local-dir=/opt/example/dir
+```
+
+Note that: local file system storage backend is only used for development on your development or test environment. This approach is not comprehensive for a production environment, and we strongly discourage using this method in a production environment.
+
 The storage backend has to be specified for the `upload` command as well. Check the [module upload](README.md#modules) section below.
 
 ### Authentication
