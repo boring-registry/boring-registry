@@ -101,7 +101,7 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 		return core.Provider{}, err
 	}
 
-	sha, err := readSHASums(f, name)
+	sha, err := readSHASums(f, archive)
 	if err != nil {
 		return core.Provider{}, err
 	}

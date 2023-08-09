@@ -247,7 +247,7 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 				},
 				files: map[string]io.ReadWriteCloser{
 					"/test/providers/a/b/terraform-provider-b_c_SHA256SUMS": &mockFile{
-						buf: bytes.NewBuffer([]byte(`198e1bb88df52eb1201953d0b1e6c4ac48eac2440e395887cb4eca655d68b120  b`)),
+						buf: bytes.NewBuffer([]byte(`198e1bb88df52eb1201953d0b1e6c4ac48eac2440e395887cb4eca655d68b120  terraform-provider-b_c_d_e.zip`)),
 					},
 				},
 			},
@@ -274,7 +274,7 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 				},
 				files: map[string]io.ReadWriteCloser{
 					"/test/providers/a/b/terraform-provider-b_c_SHA256SUMS": &mockFile{
-						buf: bytes.NewBuffer([]byte(`198e1bb88df52eb1201953d0b1e6c4ac48eac2440e395887cb4eca655d68b120  b`)),
+						buf: bytes.NewBuffer([]byte(`198e1bb88df52eb1201953d0b1e6c4ac48eac2440e395887cb4eca655d68b120  terraform-provider-b_c_d_e.zip`)),
 					},
 					"/test/providers/a/signing-keys.json": &mockFile{
 						buf: bytes.NewBuffer([]byte(`
