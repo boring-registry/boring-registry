@@ -85,7 +85,7 @@ var uploadProviderCmd = &cobra.Command{
 }
 
 func uploadModule(cmd *cobra.Command, args []string) error {
-	storageBackend, err := setupStorage(context.Background())
+	storageBackend, err := setupStorage(context.Background(), "upload")
 	if err != nil {
 		return fmt.Errorf("failed to set up storage: %w", err)
 	}
@@ -142,7 +142,7 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	setupCtx, cancelSetupCtx := context.WithTimeout(ctx, 15*time.Second)
 	defer cancelSetupCtx()
-	storageBackend, err := setupStorage(setupCtx)
+	storageBackend, err := setupStorage(setupCtx, "upload")
 	if err != nil {
 		return fmt.Errorf("failed to set up storage: %w", err)
 	}

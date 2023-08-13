@@ -1,14 +1,17 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/TierMobility/boring-registry/pkg/storage"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -44,7 +47,9 @@ var (
 	flagGCSSignedURLExpiry time.Duration
 
 	// Local FileSystem options
-	flagLocalStorageDir string
+	flagLocalStorageDir            string
+	flagLocalStorageServerAddr     string
+	flagLocalStorageServerEndpoint string
 )
 
 var (
@@ -92,6 +97,8 @@ GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative
 For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().DurationVar(&flagGCSSignedURLExpiry, "storage-gcs-signedurl-expiry", 30*time.Second, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with --gcs-signedurl")
 	rootCmd.PersistentFlags().StringVar(&flagLocalStorageDir, "storage-local-dir", "", "local file system dir to store the providers and modules")
+	rootCmd.PersistentFlags().StringVar(&flagLocalStorageServerAddr, "storage-local-server-addr", "", "listening addr of http file server to serve the provider and module file")
+	rootCmd.PersistentFlags().StringVar(&flagLocalStorageServerEndpoint, "storage-local-server-endpoint", "", "the domain or server name of http file server")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
@@ -142,4 +149,35 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 			}
 		}
 	})
+}
+
+func setupStorage(ctx context.Context, command string) (storage.Storage, error) {
+	switch {
+	case flagS3Bucket != "":
+		return storage.NewS3Storage(ctx,
+			flagS3Bucket,
+			storage.WithS3StorageBucketPrefix(flagS3Prefix),
+			storage.WithS3StorageBucketRegion(flagS3Region),
+			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
+			storage.WithS3StoragePathStyle(flagS3PathStyle),
+			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
+			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
+		)
+	case flagGCSBucket != "":
+		return storage.NewGCSStorage(flagGCSBucket,
+			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
+			storage.WithGCSServiceAccount(flagGCSServiceAccount),
+			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
+			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
+		)
+	case flagLocalStorageDir != "":
+		var addr string
+		if command == "server" {
+			addr = flagLocalStorageServerAddr
+		}
+
+		return storage.NewDefaultLocalStorage(flagLocalStorageDir, flagModuleArchiveFormat, flagLocalStorageServerEndpoint, addr)
+	default:
+		return nil, errors.New("please specify a valid storage provider")
+	}
 }

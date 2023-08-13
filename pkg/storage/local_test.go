@@ -17,6 +17,7 @@ import (
 )
 
 type localStorageAttrsForTest struct {
+	server              FileServer
 	storageDir          string
 	moduleArchiveFormat string
 }
@@ -113,6 +114,23 @@ func (fs mockLocalFileSystem) MkdirAll(name string, perm os.FileMode) error {
 	}
 
 	return nil
+}
+
+type mockFileServer struct {
+	addr     string
+	endpoint string
+}
+
+func (m *mockFileServer) ListenAndServe() error {
+	return nil
+}
+
+func (m *mockFileServer) Addr() string {
+	return m.addr
+}
+
+func (m *mockFileServer) Endpoint() string {
+	return m.endpoint
 }
 
 func TestLocalStorage_GetProvider(t *testing.T) {
@@ -228,6 +246,10 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 			},
 			attrs: localStorageAttrsForTest{
 				storageDir: "/test",
+				server: &fileServer{
+					addr:     ":8080",
+					endpoint: "localhost:8080",
+				},
 			},
 			expectErr: true,
 		},
@@ -291,6 +313,10 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 			},
 			attrs: localStorageAttrsForTest{
 				storageDir: "/test",
+				server: &mockFileServer{
+					addr:     ":8080",
+					endpoint: "localhost",
+				},
 			},
 			expectErr: false,
 			expected: core.Provider{
@@ -300,10 +326,10 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 				OS:                  "d",
 				Arch:                "e",
 				Filename:            "terraform-provider-b_c_d_e.zip",
-				DownloadURL:         "file:///test/providers/a/b/terraform-provider-b_c_d_e.zip",
+				DownloadURL:         "http://localhost/providers/a/b/terraform-provider-b_c_d_e.zip",
 				SHASum:              "198e1bb88df52eb1201953d0b1e6c4ac48eac2440e395887cb4eca655d68b120",
-				SHASumsURL:          "file:///test/providers/a/b/terraform-provider-b_c_SHA256SUMS",
-				SHASumsSignatureURL: "file:///test/providers/a/b/terraform-provider-b_c_SHA256SUMS.sig",
+				SHASumsURL:          "http://localhost/providers/a/b/terraform-provider-b_c_SHA256SUMS",
+				SHASumsSignatureURL: "http://localhost/providers/a/b/terraform-provider-b_c_SHA256SUMS.sig",
 				SigningKeys: core.SigningKeys{
 					GPGPublicKeys: []core.GPGPublicKey{
 						{
@@ -318,7 +344,7 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ls := NewLocalStorage(tc.lfs, tc.attrs.storageDir, tc.attrs.moduleArchiveFormat)
+			ls := NewLocalStorage(tc.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.moduleArchiveFormat)
 			p, err := ls.GetProvider(
 				context.Background(),
 				tc.args.namespace,

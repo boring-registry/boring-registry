@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	llog "log"
+	"net/http"
 	"os"
+	"path"
 	"path/filepath"
+	"reflect"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/go-kit/kit/log"
@@ -20,22 +24,48 @@ type LocalFileSystem interface {
 	MkdirAll(name string, perm os.FileMode) error
 }
 
+type FileServer interface {
+	ListenAndServe() error
+	Addr() string
+	Endpoint() string
+}
+
 type LocalStorage struct {
 	fs                  LocalFileSystem
+	server              FileServer
 	storageDir          string
 	moduleArchiveFormat string
 }
 
-func NewLocalStorage(fs LocalFileSystem, storageDir, moduleArchiveFormat string) *LocalStorage {
+func NewLocalStorage(fs LocalFileSystem, server FileServer, storageDir, moduleArchiveFormat string) *LocalStorage {
+	// when use client to upload or migrate, no need to set up the http file server
+	if server != nil && !reflect.ValueOf(server).IsNil() {
+		go func() {
+			if err := server.ListenAndServe(); err != nil {
+				llog.Printf("error: %+v", err)
+			}
+		}()
+	}
+
 	return &LocalStorage{
 		fs:                  fs,
+		server:              server,
 		storageDir:          storageDir,
 		moduleArchiveFormat: moduleArchiveFormat,
 	}
 }
 
-func NewDefaultLocalStorage(storageDir, moduleArchiveFormat string) *LocalStorage {
-	return NewLocalStorage(&fs{}, storageDir, moduleArchiveFormat)
+func NewDefaultLocalStorage(storageDir, moduleArchiveFormat, endpoint string, serverAddr string) *LocalStorage {
+	var server *fileServer
+	if len(serverAddr) != 0 {
+		server = &fileServer{
+			endpoint: endpoint,
+			addr:     serverAddr,
+			path:     storageDir,
+		}
+	}
+
+	return NewLocalStorage(&fs{}, server, storageDir, moduleArchiveFormat)
 }
 
 func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, version, os_, arch string) (core.Provider, error) {
@@ -57,6 +87,10 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 
 	if len(arch) == 0 {
 		return core.Provider{}, errors.New("arch argument is empty")
+	}
+
+	if ls.server == nil || reflect.ValueOf(ls.server).IsNil() {
+		return core.Provider{}, errors.New("http file server is not set up")
 	}
 
 	providerPrefix, err := providerStoragePrefix(ls.storageDir, internalProviderType, "", namespace, name)
@@ -82,8 +116,11 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 		return core.Provider{}, errors.New("archive file not exist")
 	}
 
+	httpPrefix, _ := providerStoragePrefix("", internalProviderType, "", namespace, name)
+	httpArchivePath := path.Join(httpPrefix, archive)
+
 	provider.Filename = archive
-	provider.DownloadURL = fmt.Sprintf("file://%s", archivePath)
+	provider.DownloadURL = fmt.Sprintf("http://%s/%s", ls.server.Endpoint(), httpArchivePath)
 
 	shaSum, err := provider.ShasumFileName()
 	if err != nil {
@@ -94,7 +131,9 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 	if exist, _ := ls.isLocalFileExist(shaSumPath); !exist {
 		return core.Provider{}, errors.New("shaSum file not exist")
 	}
-	provider.SHASumsURL = fmt.Sprintf("file://%s", shaSumPath)
+
+	httpSHASumPath := path.Join(httpPrefix, shaSum)
+	provider.SHASumsURL = fmt.Sprintf("http://%s/%s", ls.server.Endpoint(), httpSHASumPath)
 
 	f, err := ls.fs.OpenFile(shaSumPath, os.O_RDWR, 0644)
 	if err != nil {
@@ -116,7 +155,9 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 	if exist, _ := ls.isLocalFileExist(sigPath); !exist {
 		return core.Provider{}, errors.New("sig file not exist")
 	}
-	provider.SHASumsSignatureURL = fmt.Sprintf("file://%s", sigPath)
+
+	httpSigPath := path.Join(httpPrefix, sig)
+	provider.SHASumsSignatureURL = fmt.Sprintf("http://%s/%s", ls.server.Endpoint(), httpSigPath)
 
 	keyPath := signingKeysPath(ls.storageDir, namespace)
 	if exist, _ := ls.isLocalFileExist(keyPath); !exist {
@@ -388,4 +429,22 @@ func (fs *fs) ReadDir(name string) ([]os.DirEntry, error) {
 
 func (fs *fs) MkdirAll(name string, perm os.FileMode) error {
 	return os.MkdirAll(name, perm)
+}
+
+type fileServer struct {
+	endpoint string
+	addr     string
+	path     string
+}
+
+func (s *fileServer) ListenAndServe() error {
+	return http.ListenAndServe(s.addr, http.FileServer(http.Dir(s.path)))
+}
+
+func (s *fileServer) Addr() string {
+	return s.addr
+}
+
+func (s *fileServer) Endpoint() string {
+	return s.endpoint
 }

@@ -21,7 +21,7 @@ var migrateCmd = &cobra.Command{
 	Short: "Migrate modules",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
-		storageBackend, err := setupStorage(ctx)
+		storageBackend, err := setupStorage(ctx, "migrate")
 		if err != nil {
 			return fmt.Errorf("failed to setup storage: %w", err)
 		}
