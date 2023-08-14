@@ -1,8 +1,6 @@
 FROM golang:1.20 AS build
 
 ENV BASEDIR /go/src/github.com/TierMobility/boring-registry
-ENV STORAGE_DIR /storage
-ENV SERVER_PORT 8080
 
 WORKDIR ${BASEDIR}
 

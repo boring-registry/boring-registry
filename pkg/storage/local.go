@@ -27,17 +27,17 @@ type LocalFileSystem interface {
 type FileServer interface {
 	ListenAndServe() error
 	Addr() string
-	Endpoint() string
 }
 
 type LocalStorage struct {
 	fs                  LocalFileSystem
 	server              FileServer
+	serverEndpoint      string
 	storageDir          string
 	moduleArchiveFormat string
 }
 
-func NewLocalStorage(fs LocalFileSystem, server FileServer, storageDir, moduleArchiveFormat string) *LocalStorage {
+func NewLocalStorage(fs LocalFileSystem, server FileServer, storageDir, serverEndpoint, moduleArchiveFormat string) *LocalStorage {
 	// when use client to upload or migrate, no need to set up the http file server
 	if server != nil && !reflect.ValueOf(server).IsNil() {
 		go func() {
@@ -50,6 +50,7 @@ func NewLocalStorage(fs LocalFileSystem, server FileServer, storageDir, moduleAr
 	return &LocalStorage{
 		fs:                  fs,
 		server:              server,
+		serverEndpoint:      serverEndpoint,
 		storageDir:          storageDir,
 		moduleArchiveFormat: moduleArchiveFormat,
 	}
@@ -59,13 +60,12 @@ func NewDefaultLocalStorage(storageDir, moduleArchiveFormat, endpoint string, se
 	var server *fileServer
 	if len(serverAddr) != 0 {
 		server = &fileServer{
-			endpoint: endpoint,
-			addr:     serverAddr,
-			path:     storageDir,
+			addr: serverAddr,
+			path: storageDir,
 		}
 	}
 
-	return NewLocalStorage(&fs{}, server, storageDir, moduleArchiveFormat)
+	return NewLocalStorage(&fs{}, server, storageDir, endpoint, moduleArchiveFormat)
 }
 
 func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, version, os_, arch string) (core.Provider, error) {
@@ -116,11 +116,11 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 		return core.Provider{}, errors.New("archive file not exist")
 	}
 
-	httpPrefix, _ := providerStoragePrefix("", internalProviderType, "", namespace, name)
-	httpArchivePath := path.Join(httpPrefix, archive)
+	httpProviderPrefix, _ := providerStoragePrefix("", internalProviderType, "", namespace, name)
+	httpArchivePath := path.Join(httpProviderPrefix, archive)
 
 	provider.Filename = archive
-	provider.DownloadURL = fmt.Sprintf("http://%s/%s", ls.server.Endpoint(), httpArchivePath)
+	provider.DownloadURL = fmt.Sprintf("http://%s/%s", ls.serverEndpoint, httpArchivePath)
 
 	shaSum, err := provider.ShasumFileName()
 	if err != nil {
@@ -132,8 +132,8 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 		return core.Provider{}, errors.New("shaSum file not exist")
 	}
 
-	httpSHASumPath := path.Join(httpPrefix, shaSum)
-	provider.SHASumsURL = fmt.Sprintf("http://%s/%s", ls.server.Endpoint(), httpSHASumPath)
+	httpSHASumPath := path.Join(httpProviderPrefix, shaSum)
+	provider.SHASumsURL = fmt.Sprintf("http://%s/%s", ls.serverEndpoint, httpSHASumPath)
 
 	f, err := ls.fs.OpenFile(shaSumPath, os.O_RDWR, 0644)
 	if err != nil {
@@ -156,8 +156,8 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 		return core.Provider{}, errors.New("sig file not exist")
 	}
 
-	httpSigPath := path.Join(httpPrefix, sig)
-	provider.SHASumsSignatureURL = fmt.Sprintf("http://%s/%s", ls.server.Endpoint(), httpSigPath)
+	httpSigPath := path.Join(httpProviderPrefix, sig)
+	provider.SHASumsSignatureURL = fmt.Sprintf("http://%s/%s", ls.serverEndpoint, httpSigPath)
 
 	keyPath := signingKeysPath(ls.storageDir, namespace)
 	if exist, _ := ls.isLocalFileExist(keyPath); !exist {
@@ -179,6 +179,14 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 }
 
 func (ls *LocalStorage) ListProviderVersions(ctx context.Context, namespace, name string) ([]core.ProviderVersion, error) {
+	if len(namespace) == 0 {
+		return nil, errors.New("namespace argument is empty")
+	}
+
+	if len(name) == 0 {
+		return nil, errors.New("name argument is empty")
+	}
+
 	dir, err := providerStoragePrefix(ls.storageDir, internalProviderType, "", namespace, name)
 	if err != nil {
 		return nil, err
@@ -195,7 +203,6 @@ func (ls *LocalStorage) ListProviderVersions(ctx context.Context, namespace, nam
 
 	collection := NewCollection()
 	for _, entry := range entries {
-		fmt.Println("entry: ", entry.Name())
 		provider, err := core.NewProviderFromArchive(entry.Name())
 		if err != nil {
 			continue
@@ -213,6 +220,22 @@ func (ls *LocalStorage) ListProviderVersions(ctx context.Context, namespace, nam
 }
 
 func (ls *LocalStorage) UploadProviderReleaseFiles(ctx context.Context, namespace, name, filename string, file io.Reader) error {
+	if len(namespace) == 0 {
+		return errors.New("namespace argument is empty")
+	}
+
+	if len(name) == 0 {
+		return errors.New("name argument is empty")
+	}
+
+	if len(filename) == 0 {
+		return errors.New("filename argument is empty")
+	}
+
+	if file == nil {
+		return errors.New("nil file reader")
+	}
+
 	dir, err := providerStoragePrefix(ls.storageDir, internalProviderType, "", namespace, name)
 	if err != nil {
 		return err
@@ -318,12 +341,17 @@ func (ls *LocalStorage) GetModule(ctx context.Context, namespace, name, provider
 		return core.Module{}, ErrModuleNotFound
 	}
 
+	httpPrefix := fmt.Sprintf("http://%s", ls.serverEndpoint)
+	downloadURL := fmt.Sprintf("%s/%s",
+		httpPrefix,
+		modulePath("", namespace, name, provider, version, ls.moduleArchiveFormat),
+	)
 	return core.Module{
 		Namespace:   namespace,
 		Name:        name,
 		Provider:    provider,
 		Version:     version,
-		DownloadURL: path,
+		DownloadURL: downloadURL,
 	}, nil
 }
 
@@ -346,14 +374,19 @@ func (ls *LocalStorage) ListModuleVersions(ctx context.Context, namespace, name,
 		return []core.Module{}, errors.Wrap(ErrModuleListFailed, err.Error())
 	}
 
-	var ms []core.Module
+	var (
+		ms         []core.Module
+		httpPrefix = fmt.Sprintf("http://%s", ls.serverEndpoint)
+	)
 	for _, entry := range entries {
-		m, err := moduleFromObject(entry.Name(), ls.moduleArchiveFormat)
+		m, err := moduleFromObject(filepath.Join(dir, entry.Name()), ls.moduleArchiveFormat)
 		if err != nil {
 			continue
 		}
 
-		m.DownloadURL = modulePath(ls.storageDir, m.Namespace, m.Name, m.Provider, m.Version, ls.moduleArchiveFormat)
+		m.DownloadURL = fmt.Sprintf("%s/%s", httpPrefix,
+			modulePath("", m.Namespace, m.Name, m.Provider, m.Version, ls.moduleArchiveFormat),
+		)
 		ms = append(ms, *m)
 	}
 
@@ -396,12 +429,16 @@ func (ls *LocalStorage) UploadModule(ctx context.Context, namespace, name, provi
 		return core.Module{}, err
 	}
 
+	httpPrefix := fmt.Sprintf("http://%s", ls.serverEndpoint)
+	downloadURL := fmt.Sprintf("%s/%s", httpPrefix,
+		modulePath("", namespace, name, provider, version, ls.moduleArchiveFormat),
+	)
 	return core.Module{
 		Namespace:   namespace,
 		Name:        name,
 		Provider:    provider,
 		Version:     version,
-		DownloadURL: path,
+		DownloadURL: downloadURL,
 	}, nil
 }
 
@@ -432,9 +469,8 @@ func (fs *fs) MkdirAll(name string, perm os.FileMode) error {
 }
 
 type fileServer struct {
-	endpoint string
-	addr     string
-	path     string
+	addr string
+	path string
 }
 
 func (s *fileServer) ListenAndServe() error {
@@ -443,8 +479,4 @@ func (s *fileServer) ListenAndServe() error {
 
 func (s *fileServer) Addr() string {
 	return s.addr
-}
-
-func (s *fileServer) Endpoint() string {
-	return s.endpoint
 }

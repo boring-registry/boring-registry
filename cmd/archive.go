@@ -40,7 +40,7 @@ func archiveModules(root string, storage module.Storage) error {
 func processModule(path string, storage module.Storage) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "parse module file failed")
 	}
 
 	_ = level.Debug(logger).Log(
@@ -87,7 +87,6 @@ func processModule(path string, storage module.Storage) error {
 	}
 
 	moduleRoot := filepath.Dir(path)
-
 	buf, err := archiveModule(moduleRoot)
 	if err != nil {
 		return err

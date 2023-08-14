@@ -98,7 +98,7 @@ For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().DurationVar(&flagGCSSignedURLExpiry, "storage-gcs-signedurl-expiry", 30*time.Second, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with --gcs-signedurl")
 	rootCmd.PersistentFlags().StringVar(&flagLocalStorageDir, "storage-local-dir", "", "local file system dir to store the providers and modules")
 	rootCmd.PersistentFlags().StringVar(&flagLocalStorageServerAddr, "storage-local-server-addr", "", "listening addr of http file server to serve the provider and module file")
-	rootCmd.PersistentFlags().StringVar(&flagLocalStorageServerEndpoint, "storage-local-server-endpoint", "", "the domain or server name of http file server")
+	rootCmd.PersistentFlags().StringVar(&flagLocalStorageServerEndpoint, "storage-local-server-endpoint", "localhost:8080", "the domain or server name of http file server")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
@@ -176,7 +176,7 @@ func setupStorage(ctx context.Context, command string) (storage.Storage, error) 
 			addr = flagLocalStorageServerAddr
 		}
 
-		return storage.NewDefaultLocalStorage(flagLocalStorageDir, flagModuleArchiveFormat, flagLocalStorageServerEndpoint, addr)
+		return storage.NewDefaultLocalStorage(flagLocalStorageDir, flagModuleArchiveFormat, flagLocalStorageServerEndpoint, addr), nil
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}
