@@ -85,7 +85,7 @@ $ boring-registry server \
   --storage-local-server-endpoint=localhost:8080
 ```
 
-running a server with a local storage will automatically set up a http file server to host the local provider and modules static files(archive files and checksums). flag `--storage-local-server-addr` is the listening addr of http file server and flag `--storage-local-server-endpoint` is used to compose the download URL for static files. For example, if the endpoint is set to localhost, the download URL for the provider's compressed file would be http://localhost/&lt;namespace>/&lt;name>/&lt;archive>. 
+running a server with a local storage will automatically set up a http file server to host the local provider and modules static files(archive files and checksums). flag `--storage-local-server-addr` is the listening addr of http file server and flag `--storage-local-server-endpoint` is used to compose the download URL for static files. For example, if the endpoint is set to localhost, the download URL for the provider's compressed file would be http://localhost<namespace>/\<name>/\<archive>. 
 Note that: local file system storage backend is only used for development on your development or test environment. This approach is not comprehensive for a production environment, and we strongly discourage using this method in a production environment.
 
 The storage backend has to be specified for the `upload` command as well. Check the [module upload](README.md#modules) section below.
