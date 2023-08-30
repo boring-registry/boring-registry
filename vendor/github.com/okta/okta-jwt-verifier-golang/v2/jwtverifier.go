@@ -25,12 +25,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/okta/okta-jwt-verifier-golang/adaptors"
-	"github.com/okta/okta-jwt-verifier-golang/adaptors/lestrratGoJwx"
-	"github.com/okta/okta-jwt-verifier-golang/discovery"
-	"github.com/okta/okta-jwt-verifier-golang/discovery/oidc"
-	"github.com/okta/okta-jwt-verifier-golang/errors"
-	"github.com/okta/okta-jwt-verifier-golang/utils"
+	"github.com/okta/okta-jwt-verifier-golang/v2/adaptors"
+	"github.com/okta/okta-jwt-verifier-golang/v2/adaptors/lestrratGoJwx"
+	"github.com/okta/okta-jwt-verifier-golang/v2/discovery"
+	"github.com/okta/okta-jwt-verifier-golang/v2/discovery/oidc"
+	"github.com/okta/okta-jwt-verifier-golang/v2/errors"
+	"github.com/okta/okta-jwt-verifier-golang/v2/utils"
 )
 
 var (
@@ -46,24 +46,33 @@ type JwtVerifier struct {
 
 	Adaptor adaptors.Adaptor
 
+	Client *http.Client
+
 	// Cache allows customization of the cache used to store resources
-	Cache func(func(string) (interface{}, error)) (utils.Cacher, error)
+	Cache func(func(string) (interface{}, error), time.Duration, time.Duration) (utils.Cacher, error)
 
 	metadataCache utils.Cacher
 
-	leeway int64
+	leeway  int64
+	Timeout time.Duration
+	Cleanup time.Duration
 }
 
 type Jwt struct {
 	Claims map[string]interface{}
 }
 
-func fetchMetaData(url string) (interface{}, error) {
-	resp, err := http.Get(url)
+func (j *JwtVerifier) fetchMetaData(url string) (interface{}, error) {
+	resp, err := j.Client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("request for metadata was not successful: %w", err)
 	}
 	defer resp.Body.Close()
+
+	ok := resp.StatusCode >= 200 && resp.StatusCode < 300
+	if !ok {
+		return nil, fmt.Errorf("request for metadata %q was not HTTP 2xx OK, it was: %d", url, resp.StatusCode)
+	}
 
 	metadata := make(map[string]interface{})
 	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
@@ -72,11 +81,23 @@ func fetchMetaData(url string) (interface{}, error) {
 	return metadata, nil
 }
 
-func (j *JwtVerifier) New() *JwtVerifier {
+func (j *JwtVerifier) New() (*JwtVerifier, error) {
 	// Default to OIDC discovery if none is defined
 	if j.Discovery == nil {
 		disc := oidc.Oidc{}
 		j.Discovery = disc.New()
+	}
+
+	if j.Timeout == 0 {
+		j.Timeout = 5 * time.Minute
+	}
+
+	if j.Cleanup == 0 {
+		j.Cleanup = 10 * time.Minute
+	}
+
+	if j.Client == nil {
+		j.Client = http.DefaultClient
 	}
 
 	if j.Cache == nil {
@@ -85,19 +106,36 @@ func (j *JwtVerifier) New() *JwtVerifier {
 
 	// Default to LestrratGoJwx Adaptor if none is defined
 	if j.Adaptor == nil {
-		adaptor := &lestrratGoJwx.LestrratGoJwx{Cache: j.Cache}
-		j.Adaptor = adaptor.New()
+		adaptor := &lestrratGoJwx.LestrratGoJwx{Cache: j.Cache, Timeout: j.Timeout, Cleanup: j.Cleanup, Client: j.Client}
+		adp, err := adaptor.New()
+		if err != nil {
+			return nil, err
+		}
+		j.Adaptor = adp
 	}
 
 	// Default to PT2M Leeway
 	j.leeway = 120
-
-	return j
+	var err error
+	metadataCache, err := j.Cache(j.fetchMetaData, j.Timeout, j.Cleanup)
+	if err != nil {
+		return nil, err
+	}
+	j.metadataCache = metadataCache
+	return j, nil
 }
 
 func (j *JwtVerifier) SetLeeway(duration string) {
 	dur, _ := time.ParseDuration(duration)
 	j.leeway = int64(dur.Seconds())
+}
+
+func (j *JwtVerifier) SetTimeOut(duration time.Duration) {
+	j.Timeout = duration
+}
+
+func (j *JwtVerifier) SetCleanUp(duration time.Duration) {
+	j.Cleanup = duration
 }
 
 func (j *JwtVerifier) VerifyAccessToken(jwt string) (*Jwt, error) {
@@ -263,7 +301,7 @@ func (j *JwtVerifier) validateClientId(clientId interface{}) error {
 		switch v := clientId.(type) {
 		case string:
 			if v != cid {
-				return fmt.Errorf("aud: %s does not match %s", v, cid)
+				return fmt.Errorf("cid: %s does not match %s", v, cid)
 			}
 		case []string:
 			for _, element := range v {
@@ -271,7 +309,7 @@ func (j *JwtVerifier) validateClientId(clientId interface{}) error {
 					return nil
 				}
 			}
-			return fmt.Errorf("aud: %s does not match %s", v, cid)
+			return fmt.Errorf("cid: %s does not match %s", v, cid)
 		default:
 			return fmt.Errorf("unknown type for clientId validation")
 		}
@@ -310,14 +348,6 @@ func (j *JwtVerifier) validateIss(issuer interface{}) error {
 
 func (j *JwtVerifier) getMetaData() (map[string]interface{}, error) {
 	metaDataUrl := j.Issuer + j.Discovery.GetWellKnownUrl()
-
-	if j.metadataCache == nil {
-		metadataCache, err := j.Cache(fetchMetaData)
-		if err != nil {
-			return nil, err
-		}
-		j.metadataCache = metadataCache
-	}
 
 	value, err := j.metadataCache.Get(metaDataUrl)
 	if err != nil {

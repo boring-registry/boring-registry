@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	jwtverifier "github.com/okta/okta-jwt-verifier-golang"
+	jwtverifier "github.com/okta/okta-jwt-verifier-golang/v2"
 	"github.com/pkg/errors"
 )
 

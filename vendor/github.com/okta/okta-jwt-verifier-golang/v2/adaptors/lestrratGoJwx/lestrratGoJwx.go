@@ -20,43 +20,41 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jws"
-	"github.com/okta/okta-jwt-verifier-golang/adaptors"
-	"github.com/okta/okta-jwt-verifier-golang/utils"
+	"github.com/okta/okta-jwt-verifier-golang/v2/adaptors"
+	"github.com/okta/okta-jwt-verifier-golang/v2/utils"
 )
 
-func fetchJwkSet(jwkUri string) (interface{}, error) {
-	return jwk.Fetch(context.Background(), jwkUri)
+func (lgj *LestrratGoJwx) fetchJwkSet(jwkUri string) (interface{}, error) {
+	return jwk.Fetch(context.Background(), jwkUri, jwk.WithHTTPClient(lgj.Client))
 }
 
 type LestrratGoJwx struct {
 	JWKSet      jwk.Set
-	Cache       func(func(string) (interface{}, error)) (utils.Cacher, error)
+	Cache       func(func(string) (interface{}, error), time.Duration, time.Duration) (utils.Cacher, error)
 	jwkSetCache utils.Cacher
+	Timeout     time.Duration
+	Cleanup     time.Duration
+	Client      *http.Client
 }
 
-func (lgj *LestrratGoJwx) New() adaptors.Adaptor {
+func (lgj *LestrratGoJwx) New() (adaptors.Adaptor, error) {
+	var err error
 	if lgj.Cache == nil {
 		lgj.Cache = utils.NewDefaultCache
 	}
-
-	return lgj
-}
-
-func (lgj *LestrratGoJwx) GetKey(jwkUri string) {
+	lgj.jwkSetCache, err = lgj.Cache(lgj.fetchJwkSet, lgj.Timeout, lgj.Cleanup)
+	if err != nil {
+		return nil, err
+	}
+	return lgj, nil
 }
 
 func (lgj *LestrratGoJwx) Decode(jwt string, jwkUri string) (interface{}, error) {
-	if lgj.jwkSetCache == nil {
-		jwkSetCache, err := lgj.Cache(fetchJwkSet)
-		if err != nil {
-			return nil, err
-		}
-		lgj.jwkSetCache = jwkSetCache
-	}
-
 	value, err := lgj.jwkSetCache.Get(jwkUri)
 	if err != nil {
 		return nil, err

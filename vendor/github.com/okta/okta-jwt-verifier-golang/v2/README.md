@@ -27,7 +27,7 @@ This library was built to keep configuration to a minimum. To get it running at 
 #### Access Token Validation
 
 ```go
-import "github.com/okta/okta-jwt-verifier-golang"
+import "github.com/okta/okta-jwt-verifier-golang/v2"
 
 toValidate := map[string]string{}
 toValidate["aud"] = "api://default"
@@ -46,7 +46,7 @@ token, err := verifier.VerifyAccessToken("{JWT}")
 #### Id Token Validation
 
 ```go
-import "github.com/okta/okta-jwt-verifier-golang"
+import "github.com/okta/okta-jwt-verifier-golang/v2"
 
 toValidate := map[string]string{}
 toValidate["nonce"] = "{NONCE}"
@@ -87,8 +87,9 @@ verifier.SetLeeway("2m") //String instance of time that will be parsed by `time.
 
 The verifier setup has a default cache based on
 [`patrickmn/go-cache`](https://github.com/patrickmn/go-cache) with a 5 minute
-expiry and 10 minute purge setting that is used to store resources fetched over
-HTTP. It also defines a `Cacher` interface with a `Get` method allowing
+expiry and 10 minute purge default setting that is used to store resources fetched over
+HTTP. The expiry and purge setting is configurable through SetCleanUp and SetTimeOut method.
+It also defines a `Cacher` interface with a `Get` method allowing
 customization of that caching. If you want to establish your own caching
 strategy then provide your own `Cacher` object that implements that interface.
 Your custom cache is set in the verifier via the `Cache` attribute. See the
@@ -111,7 +112,7 @@ The below utilities are available in this package that can be used for Authentic
 **Nonce Generator**
 
 ```go
-import jwtUtils "github.com/okta/okta-jwt-verifier-golang/utils"
+import jwtUtils "github.com/okta/okta-jwt-verifier-golang/v2/utils"
 
 nonce, err := jwtUtils.GenerateNonce()
 ```
@@ -119,7 +120,7 @@ nonce, err := jwtUtils.GenerateNonce()
 **PKCE Code Verifier and Challenge Generator**
 
 ```go
-import jwtUtils "github.com/okta/okta-jwt-verifier-golang/utils"
+import jwtUtils "github.com/okta/okta-jwt-verifier-golang/v2/utils"
 
 codeVerifier, err := jwtUtils.GenerateCodeVerifier()
 // or

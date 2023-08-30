@@ -21,9 +21,13 @@ type defaultCache struct {
 }
 
 func (c *defaultCache) Get(key string) (interface{}, error) {
+	if value, found := c.cache.Get(key); found {
+		return value, nil
+	}
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-
+	// once lock, check the cache again because there could be
+	// another thread that has update the keys during the last check
 	if value, found := c.cache.Get(key); found {
 		return value, nil
 	}
@@ -40,10 +44,9 @@ func (c *defaultCache) Get(key string) (interface{}, error) {
 // defaultCache implements the Cacher interface
 var _ Cacher = (*defaultCache)(nil)
 
-// NewDefaultCache returns cache with a 5 minute expiration.
-func NewDefaultCache(lookup func(string) (interface{}, error)) (Cacher, error) {
+func NewDefaultCache(lookup func(string) (interface{}, error), timeout, cleanup time.Duration) (Cacher, error) {
 	return &defaultCache{
-		cache:  cache.New(5*time.Minute, 10*time.Minute),
+		cache:  cache.New(timeout, cleanup),
 		lookup: lookup,
 		mutex:  &sync.Mutex{},
 	}, nil
