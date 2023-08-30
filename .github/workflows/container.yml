@@ -22,7 +22,7 @@ jobs:
         run: |
           echo "tag_name=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
 
-      - uses: docker/build-push-action@v3
+      - uses: docker/build-push-action@v4
         with:
           push: true
           tags: ghcr.io/tiermobility/boring-registry:latest,ghcr.io/tiermobility/boring-registry:${{ env.tag_name }}
