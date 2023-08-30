@@ -31,7 +31,7 @@ func init() {
 	if typeAddr == nil {
 		typeAddr = &runtime.TypeAddr{}
 	}
-	cachedOpcodeSets = make([]*OpcodeSet, typeAddr.AddrRange>>typeAddr.AddrShift)
+	cachedOpcodeSets = make([]*OpcodeSet, typeAddr.AddrRange>>typeAddr.AddrShift+1)
 }
 
 func loadOpcodeMap() map[uintptr]*OpcodeSet {
@@ -487,7 +487,10 @@ func (c *Compiler) listElemCode(typ *runtime.Type) (Code, error) {
 	case typ.Kind() == reflect.Map:
 		return c.ptrCode(runtime.PtrTo(typ))
 	default:
-		code, err := c.typeToCodeWithPtr(typ, false)
+		// isPtr was originally used to indicate whether the type of top level is pointer.
+		// However, since the slice/array element is a specification that can get the pointer address, explicitly set isPtr to true.
+		// See here for related issues: https://github.com/goccy/go-json/issues/370
+		code, err := c.typeToCodeWithPtr(typ, true)
 		if err != nil {
 			return nil, err
 		}
@@ -503,8 +506,6 @@ func (c *Compiler) listElemCode(typ *runtime.Type) (Code, error) {
 
 func (c *Compiler) mapKeyCode(typ *runtime.Type) (Code, error) {
 	switch {
-	case c.implementsMarshalJSON(typ):
-		return c.marshalJSONCode(typ)
 	case c.implementsMarshalText(typ):
 		return c.marshalTextCode(typ)
 	}
@@ -616,6 +617,13 @@ func (c *Compiler) structCode(typ *runtime.Type, isPtr bool) (*StructCode, error
 	return code, nil
 }
 
+func toElemType(t *runtime.Type) *runtime.Type {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	return t
+}
+
 func (c *Compiler) structFieldCode(structCode *StructCode, tag *runtime.StructTag, isPtr, isOnlyOneFirstField bool) (*StructFieldCode, error) {
 	field := tag.Field
 	fieldType := runtime.Type2RType(field.Type)
@@ -625,7 +633,7 @@ func (c *Compiler) structFieldCode(structCode *StructCode, tag *runtime.StructTa
 		key:           tag.Key,
 		tag:           tag,
 		offset:        field.Offset,
-		isAnonymous:   field.Anonymous && !tag.IsTaggedKey,
+		isAnonymous:   field.Anonymous && !tag.IsTaggedKey && toElemType(fieldType).Kind() == reflect.Struct,
 		isTaggedKey:   tag.IsTaggedKey,
 		isNilableType: c.isNilableType(fieldType),
 		isNilCheck:    true,
