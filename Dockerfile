@@ -6,7 +6,7 @@ WORKDIR ${BASEDIR}
 
 ADD . ${BASEDIR}
 
-RUN go install -mod=vendor github.com/TierMobility/boring-registry
+RUN CGO_ENABLED=0 go install -mod=vendor github.com/TierMobility/boring-registry
 
 FROM gcr.io/distroless/base:nonroot
 
