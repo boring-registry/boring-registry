@@ -21,7 +21,10 @@ func (p *OktaProvider) Verify(ctx context.Context, token string) error {
 		ClaimsToValidate: p.claims,
 	}
 
-	verifier := opts.New()
+	verifier, err := opts.New()
+	if err != nil {
+		return err
+	}
 
 	if _, err := verifier.VerifyIdToken(token); err != nil {
 		return errors.Wrap(ErrInvalidToken, err.Error())
