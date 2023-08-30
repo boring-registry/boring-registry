@@ -6,7 +6,7 @@
 global:
   image:
     repository: ghcr.io/tiermobility/boring-registry
-    tag: v0.11.2
+    tag: v0.11.4
     pullPolicy: Always
 
 nameOverride: ""
