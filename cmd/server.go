@@ -23,6 +23,7 @@ import (
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/discovery"
+	"github.com/TierMobility/boring-registry/pkg/mirror"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/TierMobility/boring-registry/pkg/provider"
 	"github.com/TierMobility/boring-registry/pkg/storage"
@@ -39,6 +40,7 @@ var (
 	prefix          = fmt.Sprintf("/%s", apiVersion)
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
+	prefixMirror    = fmt.Sprintf("%s/mirror", prefix)
 )
 
 var (
@@ -64,6 +66,9 @@ var (
 	// Okta auth.
 	flagAuthOktaIssuer string
 	flagAuthOktaClaims []string
+
+	// Provider Network Mirror
+	flagProviderNetworkMirrorEnabled bool
 )
 
 var serverCmd = &cobra.Command{
@@ -197,6 +202,9 @@ func init() {
 	serverCmd.Flags().StringVar(&flagLoginToken, "login-token", "", "The server's token endpoint")
 	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{10000, 10010}, "Inclusive range of TCP ports that Terraform may use")
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
+
+	// Provider Network Mirror options
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "enable-provider-network-mirror", true, "Enable the Network Provider mirror")
 }
 
 // TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
@@ -285,6 +293,12 @@ func serveMux() (*http.ServeMux, error) {
 		return nil, err
 	}
 
+	if flagProviderNetworkMirrorEnabled {
+		if err := registerMirror(mux, s); err != nil {
+			return nil, err
+		}
+	}
+
 	return mux, nil
 }
 
@@ -368,6 +382,37 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 		http.StripPrefix(
 			prefixProviders,
 			provider.MakeHandler(
+				service,
+				authMiddleware(logger),
+				opts...,
+			),
+		),
+	)
+
+	return nil
+}
+
+func registerMirror(mux *http.ServeMux, s storage.Storage, options ...mirror.MirrorOption) error {
+	service := mirror.NewService(nil, s, options...)
+	{
+		service = mirror.LoggingMiddleware(logger)(service)
+	}
+
+	opts := []httptransport.ServerOption{
+		httptransport.ServerErrorHandler(
+			transport.NewLogErrorHandler(logger),
+		),
+		httptransport.ServerErrorEncoder(module.ErrorEncoder),
+		httptransport.ServerBefore(
+			httptransport.PopulateRequestContext,
+		),
+	}
+
+	mux.Handle(
+		fmt.Sprintf(`%s/`, prefixMirror),
+		http.StripPrefix(
+			prefixMirror,
+			mirror.MakeHandler(
 				service,
 				authMiddleware(logger),
 				opts...,

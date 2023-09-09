@@ -2,8 +2,9 @@ package module
 
 import (
 	"context"
-	"github.com/TierMobility/boring-registry/pkg/core"
 	"time"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"

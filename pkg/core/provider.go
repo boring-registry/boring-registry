@@ -39,39 +39,65 @@ type Provider struct {
 	Platforms           []Platform  `json:"platforms,omitempty"`
 }
 
-func (p *Provider) ArchiveFileName() (string, error) {
+func (p *Provider) ArchiveFileName() string {
 	// Validate the Provider struct
 	if p.Name == "" {
-		return "", errors.New("provider Name is empty")
+		panic("provider Name is empty")
 	} else if p.Version == "" {
-		return "", errors.New("provider Version is empty")
+		panic("provider Version is empty")
 	} else if p.OS == "" {
-		return "", errors.New("provider OS is empty")
+		panic("provider OS is empty")
 	} else if p.Arch == "" {
-		return "", errors.New("provider Arch is empty")
+		panic("provider Arch is empty")
 	}
 
-	return fmt.Sprintf("%s%s_%s_%s_%s%s", ProviderPrefix, p.Name, p.Version, p.OS, p.Arch, ProviderExtension), nil
+	return fmt.Sprintf("%s%s_%s_%s_%s%s", ProviderPrefix, p.Name, p.Version, p.OS, p.Arch, ProviderExtension)
 }
 
-func (p *Provider) ShasumFileName() (string, error) {
+func (p *Provider) ShasumFileName() string {
 	if p.Name == "" {
-		return "", errors.New("provider Name is empty")
+		panic(errors.New("provider Name is empty"))
 	} else if p.Version == "" {
-		return "", errors.New("provider Version is empty")
+		panic(errors.New("provider Version is empty"))
 	}
 
-	return fmt.Sprintf("%s%s_%s_SHA256SUMS", ProviderPrefix, p.Name, p.Version), nil
+	return fmt.Sprintf("%s%s_%s_SHA256SUMS", ProviderPrefix, p.Name, p.Version)
 }
 
-func (p *Provider) ShasumSignatureFileName() (string, error) {
+func (p *Provider) ShasumSignatureFileName() string {
 	if p.Name == "" {
-		return "", errors.New("provider Name is empty")
+		panic("provider Name is empty")
 	} else if p.Version == "" {
-		return "", errors.New("provider Version is empty")
+		panic("provider Version is empty")
 	}
 
-	return fmt.Sprintf("%s%s_%s_SHA256SUMS.sig", ProviderPrefix, p.Name, p.Version), nil
+	return fmt.Sprintf("%s%s_%s_SHA256SUMS.sig", ProviderPrefix, p.Name, p.Version)
+}
+
+// Clone returns a deep copy of the struct
+func (p *Provider) Clone() *Provider {
+	r := &Provider{
+		Hostname:            p.Hostname,
+		Namespace:           p.Namespace,
+		Name:                p.Name,
+		Version:             p.Version,
+		OS:                  p.OS,
+		Arch:                p.Arch,
+		Filename:            p.Filename,
+		DownloadURL:         p.DownloadURL,
+		Shasum:              p.Shasum,
+		SHASumsURL:          p.SHASumsURL,
+		SHASumsSignatureURL: p.SHASumsSignatureURL,
+	}
+	if p.Platforms != nil {
+		r.Platforms = make([]Platform, len(p.Platforms))
+		copy(r.Platforms, p.Platforms)
+	}
+	if p.SigningKeys.GPGPublicKeys != nil {
+		r.SigningKeys = SigningKeys{GPGPublicKeys: make([]GPGPublicKey, len(p.SigningKeys.GPGPublicKeys))}
+		copy(p.SigningKeys.GPGPublicKeys, r.SigningKeys.GPGPublicKeys)
+	}
+	return r
 }
 
 func NewProviderFromArchive(filename string) (Provider, error) {
@@ -158,37 +184,24 @@ type providerOption struct {
 
 type ProviderOption func(option *providerOption)
 
-type Sha256SumsEntry struct {
-	Sum      []byte
-	FileName string
-}
-
-// Strings returns the Sha256SumsEntry as a string similar to the sha256 GNU coreutils tool
-func (s *Sha256SumsEntry) String() string {
-	return fmt.Sprintf("%x %s", s.Sum, s.FileName)
-}
-
-// NewSha256SumsEntry parses a Sha256SumsEntry from a line as found in the *_SHA256SUMS file
-func NewSha256SumsEntry(line string) (Sha256SumsEntry, error) {
+// parseSha256Line parses a line as found in the *_SHA256SUMS file
+func parseSha256Line(line string) ([]byte, string, error) {
 	r := regexp.MustCompile("\\s+")
 	s := r.Split(line, -1)
 	if len(s) != 2 {
-		return Sha256SumsEntry{}, fmt.Errorf("line contains %d parts instead of 2", len(s))
+		return nil, "", fmt.Errorf("line contains %d parts instead of 2", len(s))
 	}
 
 	sum, err := hex.DecodeString(s[0])
 	if err != nil {
-		return Sha256SumsEntry{}, err
+		return nil, "", err
 	}
 
-	return Sha256SumsEntry{
-		Sum:      sum,
-		FileName: s[1],
-	}, nil
+	return sum, s[1], nil
 }
 
 type Sha256Sums struct {
-	Entries  []Sha256SumsEntry
+	Entries  map[string][]byte
 	Filename string
 }
 
@@ -203,21 +216,32 @@ func (s *Sha256Sums) Name() (string, error) {
 	return matches[1], nil
 }
 
+// Checksum returns the corresponding stringified checksum for the archive file name parameter
+func (s *Sha256Sums) Checksum(fileName string) (string, error) {
+	checksum, exists := s.Entries[fileName]
+	if !exists {
+		return "", errors.New(fmt.Sprintf("no checksum for file %s", fileName))
+	}
+	return fmt.Sprintf("%x", checksum), nil
+}
+
 func NewSha256Sums(filename string, r io.Reader) (*Sha256Sums, error) {
 	if !isValidSha256SumsFilename(filename) {
 		return nil, fmt.Errorf("SHA256SUMS file %s doesn't have valid file name", filename)
 	}
 
-	s := &Sha256Sums{Filename: filename}
-
+	s := &Sha256Sums{
+		Entries:  map[string][]byte{},
+		Filename: filename,
+	}
 	scanner := bufio.NewScanner(r)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
-		entry, err := NewSha256SumsEntry(scanner.Text())
+		checksum, fileName, err := parseSha256Line(scanner.Text())
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse entry: %w", err)
 		}
-		s.Entries = append(s.Entries, entry)
+		s.Entries[fileName] = checksum
 	}
 
 	return s, nil
