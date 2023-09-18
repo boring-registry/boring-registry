@@ -10,7 +10,7 @@ import (
 type Storage interface {
 	// ListMirroredProviderVersions returns all matching provider versions for a given hostname, namespace, and name
 	// The provider version can be set to narrow-down the search and return only a single provider
-	ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error)
+	ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error)
 
 	// GetMirroredProvider returns the mirrored provider or a core.ProviderError in case it cannot be located
 	GetMirroredProvider(ctx context.Context, provider *core.Provider) (*core.Provider, error)
@@ -25,5 +25,6 @@ type Storage interface {
 	// Existing signing keys are overwritten
 	UploadMirroredSigningKeys(ctx context.Context, hostname, namespace string, signingKeys *core.SigningKeys) error
 
+	// Retrieve the
 	MirroredSha256Sum(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
 }

@@ -11,7 +11,7 @@ import (
 )
 
 type upstreamProvider interface {
-	listProviderVersions(ctx context.Context, provider *core.Provider) (*listResponse, error)
+	listProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error)
 	getProvider(ctx context.Context, provider *core.Provider) (*core.Provider, error)
 	shaSums(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
 }
@@ -21,7 +21,7 @@ type upstreamProviderRegistry struct {
 	remoteServiceDiscovery *discovery.RemoteServiceDiscovery
 }
 
-func (u *upstreamProviderRegistry) listProviderVersions(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+func (u *upstreamProviderRegistry) listProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 	discovered, err := u.remoteServiceDiscovery.Resolve(ctx, provider.Hostname)
 	if err != nil {
 		return nil, err
@@ -53,12 +53,12 @@ func (u *upstreamProviderRegistry) getProvider(ctx context.Context, provider *co
 		return nil, err
 	}
 	resp, err := u.client.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
-	decoded, err := decodeUpstreamArchiveDownloadResponse(resp)
+	decoded, err := decodeUpstreamProviderResponse(resp)
 	if err != nil {
 		return nil, err
 	}
@@ -78,10 +78,10 @@ func (u *upstreamProviderRegistry) shaSums(ctx context.Context, provider *core.P
 		return nil, err
 	}
 	resp, err := u.client.Do(req)
-	defer resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	sha256Sums, err := core.NewSha256Sums(provider.ShasumFileName(), resp.Body)
 	if err != nil {

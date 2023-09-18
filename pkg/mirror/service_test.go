@@ -4,21 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TierMobility/boring-registry/pkg/core"
 	"io"
 	"net/url"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
 )
 
 type mockedUpstreamProvider struct {
-	customListProviderVersions func(ctx context.Context, provider *core.Provider) (*listResponse, error)
+	customListProviderVersions func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error)
 	customGetProvider          func(ctx context.Context, provider *core.Provider) (*core.Provider, error)
 	customShaSums              func(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
 }
 
-func (m *mockedUpstreamProvider) listProviderVersions(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+func (m *mockedUpstreamProvider) listProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 	return m.customListProviderVersions(ctx, provider)
 }
 
@@ -31,7 +32,7 @@ func (m *mockedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 }
 
 type mockedStorage struct {
-	listMirrorProviderVersions func(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error)
+	listMirrorProviderVersions func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error)
 	getMirroredProvider        func(ctx context.Context, provider *core.Provider) (*core.Provider, error)
 	mirroredSha256Sum          func(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
 	uploadMirroredFile         func(ctx context.Context, provider *core.Provider, filename string, reader io.Reader) error
@@ -39,7 +40,7 @@ type mockedStorage struct {
 	uploadMirroredSigningKeys  func(ctx context.Context, hostname, namespace string, signingKeys *core.SigningKeys) error
 }
 
-func (m *mockedStorage) ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error) {
+func (m *mockedStorage) ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 	return m.listMirrorProviderVersions(ctx, provider)
 }
 
@@ -72,14 +73,14 @@ func Test_service_ListProviderVersions(t *testing.T) {
 		name    string
 		svc     Service
 		args    args
-		want    *ProviderVersions
+		want    *ListProviderVersionsResponse
 		wantErr bool
 	}{
 		{
 			name: "expired context",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						<-ctx.Done()
 						return nil, ctx.Err()
 					},
@@ -102,13 +103,13 @@ func Test_service_ListProviderVersions(t *testing.T) {
 			name: "failed to retrieve from upstream and from mirror",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						// mock url.Error from client to upstream to simulate unavailable upstream
 						return nil, &url.Error{}
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error) {
+					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						// return core.ProviderError to simulate that providers are not in the mirror
 						return nil, &core.ProviderError{
 							Reason: "mocked provider error",
@@ -122,9 +123,9 @@ func Test_service_ListProviderVersions(t *testing.T) {
 			name: "valid upstream response",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
-						return &listResponse{
-							Versions: []listResponseVersion{
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
 								{
 									Version: "0.1.2",
 									Platforms: []core.Platform{
@@ -139,54 +140,57 @@ func Test_service_ListProviderVersions(t *testing.T) {
 					},
 				},
 			},
-			want: &ProviderVersions{
+			want: &ListProviderVersionsResponse{
 				Versions: map[string]EmptyObject{
 					"0.1.2": {},
 				},
+				mirrorSource: mirrorSource{isMirror: false},
 			},
 		},
 		{
 			name: "upstream unavailable, response from mirror",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						// mock url.Error from client to upstream to simulate unavailable upstream
 						return nil, &url.Error{}
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error) {
-						return []core.ProviderVersion{
-							{
-								Namespace: "hashicorp",
-								Name:      "random",
-								Version:   "0.1.2",
-								Platforms: []core.Platform{
-									{
-										OS:   "linux",
-										Arch: "amd64",
-									},
-									{
-										OS:   "linux",
-										Arch: "arm64",
+					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
+								{
+									Namespace: "hashicorp",
+									Name:      "random",
+									Version:   "0.1.2",
+									Platforms: []core.Platform{
+										{
+											OS:   "linux",
+											Arch: "amd64",
+										},
+										{
+											OS:   "linux",
+											Arch: "arm64",
+										},
 									},
 								},
-							},
-							{
-								Namespace: "hashicorp",
-								Name:      "random",
-								Version:   "1.2.3",
+								{
+									Namespace: "hashicorp",
+									Name:      "random",
+									Version:   "1.2.3",
+								},
 							},
 						}, nil
 					},
 				},
 			},
-			want: &ProviderVersions{
+			want: &ListProviderVersionsResponse{
 				Versions: map[string]EmptyObject{
 					"0.1.2": {},
 					"1.2.3": {},
 				},
-				fromMirror: true,
+				mirrorSource: mirrorSource{isMirror: true},
 			},
 		},
 	}
@@ -219,19 +223,19 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 		name    string
 		svc     Service
 		args    args
-		want    *Archives
+		want    *ListProviderInstallationResponse
 		wantErr bool
 	}{
 		{
 			name: "failed to retrieve from upstream and from mirror",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return nil, &url.Error{}
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error) {
+					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return nil, errors.New("mocked error")
 					},
 				},
@@ -251,9 +255,9 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			name: "successfully retrieve response from upstream",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
-						return &listResponse{
-							Versions: []listResponseVersion{
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
 								{
 									Version: "0.1.0",
 									Platforms: []core.Platform{
@@ -307,7 +311,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 					Version:   "0.1.0",
 				},
 			},
-			want: &Archives{
+			want: &ListProviderInstallationResponse{
 				Archives: map[string]Archive{
 					"linux_amd64": {
 						Url:    "terraform-provider-random_0.1.0_linux_amd64.zip",
@@ -318,6 +322,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
 					},
 				},
+				mirrorSource: mirrorSource{isMirror: false},
 			},
 			wantErr: false,
 		},
@@ -325,25 +330,27 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			name: "upstream fails but mirror succeeds",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
-					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*listResponse, error) {
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return nil, &url.Error{}
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) ([]core.ProviderVersion, error) {
-						return []core.ProviderVersion{
-							{
-								Namespace: "hashicorp",
-								Name:      "random",
-								Version:   "1.2.3",
-								Platforms: []core.Platform{
-									{
-										OS:   "linux",
-										Arch: "amd64",
-									},
-									{
-										OS:   "linux",
-										Arch: "arm64",
+					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
+								{
+									Namespace: "hashicorp",
+									Name:      "random",
+									Version:   "1.2.3",
+									Platforms: []core.Platform{
+										{
+											OS:   "linux",
+											Arch: "amd64",
+										},
+										{
+											OS:   "linux",
+											Arch: "arm64",
+										},
 									},
 								},
 							},
@@ -379,7 +386,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 					Version:   "1.2.3",
 				},
 			},
-			want: &Archives{
+			want: &ListProviderInstallationResponse{
 				Archives: map[string]Archive{
 					"linux_amd64": {
 						Url:    "terraform-provider-random_1.2.3_linux_amd64.zip",
@@ -390,7 +397,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
 					},
 				},
-				fromMirror: true,
+				mirrorSource: mirrorSource{isMirror: true},
 			},
 		},
 	}
@@ -463,9 +470,6 @@ func Test_service_RetrieveProviderArchive(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		//{
-		//	name: "the provider is not in the mirror",
-		//},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

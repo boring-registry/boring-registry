@@ -10,25 +10,28 @@ import (
 	"github.com/go-kit/kit/endpoint"
 )
 
-type listVersionsRequest struct {
+type listProviderVersionsRequest struct {
 	Hostname  string `json:"hostname,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name,omitempty"`
 }
 
-type listVersionsResponse struct {
-	Versions map[string]EmptyObject `json:"versions"`
-}
+// EmptyObject exists to return an `{}` JSON object to match the protocol spec
+type EmptyObject struct{}
 
-//func (l listVersionsResponse) Headers() http.Header {
-//	return map[string][]string{http.CanonicalHeaderKey("content-type"): {"application/json"}}
-//}
+// ListProviderVersionsResponse holds the response that is passed to the endpoint
+type ListProviderVersionsResponse struct {
+	Versions map[string]EmptyObject `json:"versions"`
+
+	// embedded struct to determine if the response was composed of providers from the mirror
+	mirrorSource
+}
 
 func listProviderVersionsEndpoint(svc Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req, ok := request.(listVersionsRequest)
+		req, ok := request.(listProviderVersionsRequest)
 		if !ok {
-			return nil, fmt.Errorf("type assertion failed for listVersionsRequest")
+			return nil, fmt.Errorf("type assertion failed for listProviderVersionsRequest")
 		}
 
 		provider := &core.Provider{
@@ -41,14 +44,7 @@ func listProviderVersionsEndpoint(svc Service) endpoint.Endpoint {
 			return nil, ErrVarMissing
 		}
 
-		versions, err := svc.ListProviderVersions(ctx, provider)
-		if err != nil {
-			return nil, err
-		}
-
-		return listVersionsResponse{
-			Versions: versions.Versions,
-		}, nil
+		return svc.ListProviderVersions(ctx, provider)
 	}
 }
 
@@ -57,6 +53,18 @@ type listProviderInstallationRequest struct {
 	Namespace string `json:"namespace,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Version   string `json:"version,omitempty"`
+}
+
+type ListProviderInstallationResponse struct {
+	Archives map[string]Archive `json:"archives"`
+
+	// embedded struct to determine if the response was composed of providers from the mirror
+	mirrorSource
+}
+
+type Archive struct {
+	Url    string   `json:"url"`
+	Hashes []string `json:"hashes,omitempty"`
 }
 
 func listProviderInstallationEndpoint(svc Service) endpoint.Endpoint {
@@ -77,12 +85,7 @@ func listProviderInstallationEndpoint(svc Service) endpoint.Endpoint {
 			return nil, errors.New("invalid parameters")
 		}
 
-		archives, err := svc.ListProviderInstallation(ctx, provider)
-		if err != nil {
-			return nil, err
-		}
-
-		return archives, nil
+		return svc.ListProviderInstallation(ctx, provider)
 	}
 }
 
@@ -97,6 +100,8 @@ type retrieveProviderArchiveRequest struct {
 
 type retrieveProviderArchiveResponse struct {
 	location string
+
+	// embedded struct to determine if the response was composed of providers from the mirror
 	mirrorSource
 }
 
@@ -122,16 +127,4 @@ func retrieveProviderArchiveEndpoint(svc Service) endpoint.Endpoint {
 
 		return svc.RetrieveProviderArchive(ctx, provider)
 	}
-}
-
-// Copied from provider module
-type downloadResponse struct {
-	OS                  string `json:"os"`
-	Arch                string `json:"arch"`
-	Filename            string `json:"filename"`
-	DownloadURL         string `json:"download_url"`
-	Shasum              string `json:"shasum"`
-	ShasumsURL          string `json:"shasums_url"`
-	ShasumsSignatureURL string `json:"shasums_signature_url"`
-	//SigningKeys         SigningKeys `json:"signing_keys"`
 }

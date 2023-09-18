@@ -17,11 +17,11 @@ import (
 type Service interface {
 	// ListProviderVersions determines which versions are currently available for a particular provider
 	// https://www.terraform.io/docs/internals/provider-network-mirror-protocol.html#list-available-versions
-	ListProviderVersions(ctx context.Context, provider *core.Provider) (*ProviderVersions, error)
+	ListProviderVersions(ctx context.Context, provider *core.Provider) (*ListProviderVersionsResponse, error)
 
 	// ListProviderInstallation returns download URLs and associated metadata for the distribution packages for a particular version of a provider
 	// https://www.terraform.io/docs/internals/provider-network-mirror-protocol.html#list-available-installation-packages
-	ListProviderInstallation(ctx context.Context, provider *core.Provider) (*Archives, error)
+	ListProviderInstallation(ctx context.Context, provider *core.Provider) (*ListProviderInstallationResponse, error)
 
 	// RetrieveProviderArchive returns an io.Reader of a zip archive containing the provider binary for a given provider
 	RetrieveProviderArchive(ctx context.Context, provider *core.Provider) (*retrieveProviderArchiveResponse, error)
@@ -33,13 +33,13 @@ type service struct {
 	mirrorCopier Copier
 }
 
-func (s *service) ListProviderVersions(ctx context.Context, provider *core.Provider) (*ProviderVersions, error) {
+func (s *service) ListProviderVersions(ctx context.Context, provider *core.Provider) (*ListProviderVersionsResponse, error) {
 	upstreamCtx, cancelUpstreamCtx := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelUpstreamCtx()
 	providerVersionsResponse, err := s.upstream.listProviderVersions(upstreamCtx, provider)
 	if err == nil {
 		// The request to the upstream registry was successful, we can transform and return the response
-		return providerVersionsResponse.providerVersions(), nil
+		return toListProviderVersionsResponse(providerVersionsResponse), nil
 	}
 
 	var urlError *url.Error
@@ -53,14 +53,17 @@ func (s *service) ListProviderVersions(ctx context.Context, provider *core.Provi
 	if err != nil {
 		return nil, err
 	}
-	response := &ProviderVersions{Versions: map[string]EmptyObject{}, fromMirror: true}
-	for _, p := range providers {
-		response.Versions[p.Version] = EmptyObject{}
+	response := &ListProviderVersionsResponse{
+		Versions:     map[string]EmptyObject{},
+		mirrorSource: mirrorSource{isMirror: true},
+	}
+	for _, v := range providers.Versions {
+		response.Versions[v.Version] = EmptyObject{}
 	}
 	return response, nil
 }
 
-func (s *service) ListProviderInstallation(ctx context.Context, provider *core.Provider) (*Archives, error) {
+func (s *service) ListProviderInstallation(ctx context.Context, provider *core.Provider) (*ListProviderInstallationResponse, error) {
 	upstreamCtx, cancelUpstreamCtx := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelUpstreamCtx()
 	response, err := s.upstream.listProviderVersions(upstreamCtx, provider)
@@ -74,7 +77,7 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider *core.P
 			if version.Version != provider.Version {
 				continue
 			}
-			return transformToArchives(provider, version.Platforms, sha256Sums)
+			return transformToArchives(provider, version.Platforms, sha256Sums, false)
 		}
 	}
 
@@ -89,7 +92,7 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider *core.P
 	if err != nil {
 		return nil, err
 	}
-	if len(providers) > 1 {
+	if len(providers.Versions) > 1 {
 		return nil, errors.New("length of returned providers is unexpected")
 	}
 
@@ -97,16 +100,15 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider *core.P
 	if err != nil {
 		return nil, err
 	}
-	archives, err := transformToArchives(provider, providers[0].Platforms, sha256Sums)
+	archives, err := transformToArchives(provider, providers.Versions[0].Platforms, sha256Sums, true)
 	if err != nil {
 		return nil, err
 	}
-	archives.fromMirror = true
 	return archives, nil
 }
 
 func (s *service) RetrieveProviderArchive(ctx context.Context, provider *core.Provider) (*retrieveProviderArchiveResponse, error) {
-	// If it's in cache, then redirect to storage
+	// If it's in the cache, then redirect to storage
 	mirrored, err := s.storage.GetMirroredProvider(ctx, provider)
 	if err == nil {
 		return &retrieveProviderArchiveResponse{
@@ -135,14 +137,14 @@ func (s *service) RetrieveProviderArchive(ctx context.Context, provider *core.Pr
 	}, nil
 }
 
-func (s *service) upstreamSha256Sums(ctx context.Context, provider *core.Provider, listResponse *listResponse) (*core.Sha256Sums, error) {
-	if len(listResponse.Versions) == 0 || len(listResponse.Versions[0].Platforms) == 0 {
-		return nil, errors.New("listResponse doesn't contain any platforms")
+func (s *service) upstreamSha256Sums(ctx context.Context, provider *core.Provider, versions *core.ProviderVersions) (*core.Sha256Sums, error) {
+	if len(versions.Versions) == 0 || len(versions.Versions[0].Platforms) == 0 {
+		return nil, errors.New("core.ProviderVersions doesn't contain any platforms")
 	}
 
 	clone := provider.Clone()
-	clone.OS = listResponse.Versions[0].Platforms[0].OS
-	clone.Arch = listResponse.Versions[0].Platforms[0].Arch
+	clone.OS = versions.Versions[0].Platforms[0].OS
+	clone.Arch = versions.Versions[0].Platforms[0].Arch
 	providerUpstream, err := s.upstream.getProvider(ctx, clone)
 	if err != nil {
 		return nil, err
@@ -150,14 +152,14 @@ func (s *service) upstreamSha256Sums(ctx context.Context, provider *core.Provide
 	return s.upstream.shaSums(ctx, providerUpstream)
 }
 
-func (s *service) mirroredSha256Sums(ctx context.Context, provider *core.Provider, providerVersions []core.ProviderVersion) (*core.Sha256Sums, error) {
-	if len(providerVersions) == 0 || len(providerVersions[0].Platforms) == 0 {
-		return nil, errors.New("response doesn't contain any platforms")
+func (s *service) mirroredSha256Sums(ctx context.Context, provider *core.Provider, version *core.ProviderVersions) (*core.Sha256Sums, error) {
+	if len(version.Versions) == 0 || len(version.Versions[0].Platforms) == 0 {
+		return nil, errors.New("core.ProviderVersions doesn't contain any platforms")
 	}
 
 	clone := provider.Clone()
-	clone.OS = providerVersions[0].Platforms[0].OS
-	clone.Arch = providerVersions[0].Platforms[0].Arch
+	clone.OS = version.Versions[0].Platforms[0].OS
+	clone.Arch = version.Versions[0].Platforms[0].Arch
 	mirroredProvider, err := s.storage.GetMirroredProvider(ctx, clone)
 	if err != nil {
 		return nil, err
@@ -176,9 +178,10 @@ func NewService(s Storage, c Copier) Service {
 	return svc
 }
 
-func transformToArchives(provider *core.Provider, platforms []core.Platform, sha256Sums *core.Sha256Sums) (*Archives, error) {
-	archives := &Archives{
-		Archives: map[string]Archive{},
+func transformToArchives(provider *core.Provider, platforms []core.Platform, sha256Sums *core.Sha256Sums, fromMirror bool) (*ListProviderInstallationResponse, error) {
+	archives := &ListProviderInstallationResponse{
+		Archives:     map[string]Archive{},
+		mirrorSource: mirrorSource{isMirror: fromMirror},
 	}
 
 	for _, p := range platforms {
@@ -203,4 +206,15 @@ func transformToArchives(provider *core.Provider, platforms []core.Platform, sha
 	}
 
 	return archives, nil
+}
+
+func toListProviderVersionsResponse(l *core.ProviderVersions) *ListProviderVersionsResponse {
+	transformed := &ListProviderVersionsResponse{
+		Versions:     map[string]EmptyObject{},
+		mirrorSource: mirrorSource{isMirror: false},
+	}
+	for _, version := range l.Versions {
+		transformed.Versions[version.Version] = EmptyObject{}
+	}
+	return transformed
 }

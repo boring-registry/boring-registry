@@ -26,7 +26,7 @@ type loggingMiddleware struct {
 	logger log.Logger
 }
 
-func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *core.Provider) (providerVersions *ProviderVersions, err error) {
+func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *core.Provider) (providerVersions *ListProviderVersionsResponse, err error) {
 	defer func(begin time.Time) {
 		l := []interface{}{
 			"op", "ListProviderVersions",
@@ -40,7 +40,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *
 			logger = level.Error(mw.logger)
 			l = append(l, "err", err)
 		} else {
-			l = append(l, "mirror", providerVersions.fromMirror)
+			l = append(l, "mirror", providerVersions.fromMirror())
 		}
 
 		_ = logger.Log(l...)
@@ -49,7 +49,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *
 	return mw.next.ListProviderVersions(ctx, provider)
 }
 
-func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provider *core.Provider) (archives *Archives, err error) {
+func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provider *core.Provider) (archives *ListProviderInstallationResponse, err error) {
 	defer func(begin time.Time) {
 		l := []interface{}{
 			"op", "ListProviderInstallation",
@@ -63,7 +63,7 @@ func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provid
 			logger = level.Error(mw.logger)
 			l = append(l, "err", err)
 		} else {
-			l = append(l, "mirror", archives.fromMirror)
+			l = append(l, "mirror", archives.fromMirror())
 		}
 
 		_ = logger.Log(l...)

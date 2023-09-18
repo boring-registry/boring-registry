@@ -1,14 +1,13 @@
 package mirror
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/core"
-	"io"
-	"net/http"
 
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
@@ -28,29 +27,6 @@ const (
 )
 
 type header string
-
-// EmptyObject exists to return an `{}` JSON object to match the protocol spec
-type EmptyObject struct{}
-
-// ProviderVersions holds the response that is passed to the endpoint
-type ProviderVersions struct {
-	Versions map[string]EmptyObject `json:"versions"`
-
-	// fromMirror is true if the response was composed of providers from the mirror
-	fromMirror bool
-}
-
-type Archives struct {
-	Archives map[string]Archive `json:"archives"`
-
-	// fromMirror is true if the response was composed of providers from the mirror
-	fromMirror bool
-}
-
-type Archive struct {
-	Url    string   `json:"url"`
-	Hashes []string `json:"hashes,omitempty"`
-}
 
 // MakeHandler returns a fully initialized http.Handler.
 func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport.ServerOption) http.Handler {
@@ -86,8 +62,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		httptransport.NewServer(
 			auth(retrieveProviderArchiveEndpoint(svc)),
 			decodeRetrieveProviderArchiveRequest,
-			//EncodeZipResponse,
-			encodedMirroredResponse,
+			encodeMirroredResponse,
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion, varOS, varArchitecture)),
@@ -119,7 +94,7 @@ func pathPortions(ctx context.Context) (string, string, string, error) {
 
 func decodeListVersionsRequest(ctx context.Context, _ *http.Request) (interface{}, error) {
 	hostname, namespace, name, err := pathPortions(ctx)
-	return listVersionsRequest{
+	return listProviderVersionsRequest{
 		Hostname:  hostname,
 		Namespace: namespace,
 		Name:      name,
@@ -198,7 +173,7 @@ func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response inter
 	return json.NewEncoder(w).Encode(response)
 }
 
-func encodedMirroredResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+func encodeMirroredResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
 	archiveResponse, ok := response.(*retrieveProviderArchiveResponse)
 	if !ok {
 		return errors.New("failed to type assert to retrieveProviderArchiveResponse")
@@ -206,36 +181,6 @@ func encodedMirroredResponse(ctx context.Context, w http.ResponseWriter, respons
 
 	w.Header().Set("Location", archiveResponse.location)
 	w.WriteHeader(http.StatusTemporaryRedirect)
-	return nil
-}
-
-func EncodeZipResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/zip")
-	if headerer, ok := response.(httptransport.Headerer); ok {
-		for k, values := range headerer.Headers() {
-			for _, v := range values {
-				w.Header().Add(k, v)
-			}
-		}
-	}
-	code := http.StatusOK
-	if sc, ok := response.(httptransport.StatusCoder); ok {
-		code = sc.StatusCode()
-	}
-	w.WriteHeader(code)
-	if code == http.StatusNoContent {
-		return nil
-	}
-
-	r, ok := response.(io.Reader)
-	if !ok {
-		return fmt.Errorf("response is not of type io.Reader")
-	}
-
-	if _, err := io.Copy(w, r); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -287,19 +232,7 @@ func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
 	}
 }
 
-func encodeUpstreamArchiveDownloadRequest(_ context.Context, r *http.Request, request interface{}) error {
-	req := request.(retrieveProviderArchiveRequest)
-	var buf bytes.Buffer
-	r.URL.Path = fmt.Sprintf("/v1/providers/%s/%s/%s/download/%s/%s", req.Namespace, req.Name, req.Version, req.OS, req.Architecture)
-	if err := json.NewEncoder(&buf).Encode(request); err != nil {
-		return err
-	}
-	r.Body = io.NopCloser(&buf)
-	return nil
-}
-
-// TODO(oliviermichaelis): rename
-func decodeUpstreamArchiveDownloadResponse(r *http.Response) (*core.Provider, error) {
+func decodeUpstreamProviderResponse(r *http.Response) (*core.Provider, error) {
 	if r.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code is %d instead of 200", r.StatusCode)
 	}
@@ -311,35 +244,12 @@ func decodeUpstreamArchiveDownloadResponse(r *http.Response) (*core.Provider, er
 	return &response, nil
 }
 
-type listResponse struct {
-	Versions []listResponseVersion `json:"versions,omitempty"`
-}
-
-func (l *listResponse) providerVersions() *ProviderVersions {
-	transformed := &ProviderVersions{
-		Versions: map[string]EmptyObject{},
-	}
-	for _, version := range l.Versions {
-		transformed.Versions[version.Version] = EmptyObject{}
-	}
-	return transformed
-}
-
-type listResponseVersion struct {
-	Version   string          `json:"version,omitempty"`
-	Protocols []string        `json:"protocols,omitempty"`
-	Platforms []core.Platform `json:"platforms,omitempty"`
-}
-
-func decodeUpstreamListProviderVersionsResponse(r *http.Response) (*listResponse, error) {
+func decodeUpstreamListProviderVersionsResponse(r *http.Response) (*core.ProviderVersions, error) {
 	if r.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code is %d instead of 200", r.StatusCode)
 	}
-	// var listResponse struct {
-	// 	Versions []listResponseVersion `json:"versions,omitempty"`
-	// }
 
-	var response listResponse
+	var response core.ProviderVersions
 	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
 		return nil, err
 	}
