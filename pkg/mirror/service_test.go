@@ -436,7 +436,6 @@ func Test_service_RetrieveProviderArchive(t *testing.T) {
 		{
 			name: "provider exists in the mirror",
 			svc: service{
-				//upstreamProvider: &mockedUpstreamProvider{},
 				storage: &mockedStorage{
 					getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
 						provider.DownloadURL = "terraform-provider-random_2.0.0_linux_amd64.zip"
@@ -461,10 +460,25 @@ func Test_service_RetrieveProviderArchive(t *testing.T) {
 		{
 			name: "a non-core.ProviderError happened while looking up the provider in the mirror",
 			svc: service{
-				//upstreamProvider: &mockedUpstreamProvider{},
 				storage: &mockedStorage{
 					getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
-						return &core.Provider{}, errors.New("mocked error")
+						return nil, errors.New("mocked error")
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "error when retrieving the provider from upstram",
+			svc: service{
+				upstream: &mockedUpstreamProvider{
+					customGetProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
+						return nil, errors.New("mocked error")
+					},
+				},
+				storage: &mockedStorage{
+					getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
+						return nil, &core.ProviderError{}
 					},
 				},
 			},

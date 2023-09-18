@@ -2,7 +2,6 @@ package storage
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -22,15 +21,15 @@ type moduleType string
 
 // providerStoragePrefix returns a prefix in the form of either <prefix>/providers/<namespace>/<name>
 // or <prefix>/mirror/<hostname>/<namespace>/<name> prefix
-func providerStoragePrefix(prefix string, t providerType, hostname, namespace, name string) (string, error) {
+func providerStoragePrefix(prefix string, t providerType, hostname, namespace, name string) string {
 	if t == mirrorProviderType && hostname == "" {
-		return "", errors.New("hostname must not be empty for mirrored provider storage")
+		panic("hostname must not be empty for mirrored provider storage")
 	}
 
 	if namespace == "" {
-		return "", errors.New("namespace is empty")
+		panic("namespace is empty")
 	} else if name == "" {
-		return "", errors.New("name is empty")
+		panic("name is empty")
 	}
 
 	// Overwrite hostname in case it's non-empty as we want to omit it
@@ -38,16 +37,11 @@ func providerStoragePrefix(prefix string, t providerType, hostname, namespace, n
 		hostname = ""
 	}
 
-	return path.Clean(path.Join(prefix, string(t), hostname, namespace, name)), nil
+	return path.Clean(path.Join(prefix, string(t), hostname, namespace, name))
 }
 
 // internal function
-func providerPath(prefix string, t providerType, hostname, namespace, name, version, os, arch string) (string, string, string, error) {
-	p, err := providerStoragePrefix(prefix, t, hostname, namespace, name)
-	if err != nil {
-		return "", "", "", err
-	}
-
+func providerPath(prefix string, t providerType, hostname, namespace, name, version, os, arch string) (string, string, string) {
 	provider := core.Provider{
 		Name:    name,
 		Version: version,
@@ -55,31 +49,18 @@ func providerPath(prefix string, t providerType, hostname, namespace, name, vers
 		Arch:    arch,
 	}
 
-	archive, err := provider.ArchiveFileName()
-	if err != nil {
-		return "", "", "", err
-	}
-
-	shasum, err := provider.ShasumFileName()
-	if err != nil {
-		return "", "", "", err
-	}
-
-	shasumSig, err := provider.ShasumSignatureFileName()
-	if err != nil {
-		return "", "", "", err
-	}
-
-	return path.Join(p, archive), path.Join(p, shasum), path.Join(p, shasumSig), nil
+	p := providerStoragePrefix(prefix, t, hostname, namespace, name)
+	return path.Join(p, provider.ArchiveFileName()), path.Join(p, provider.ShasumFileName()), path.Join(p, provider.ShasumSignatureFileName())
 }
 
 // internalProviderPath returns a full path to an internal provider archive
-func internalProviderPath(prefix, namespace, name, version, os, arch string) (string, string, string, error) {
+func internalProviderPath(prefix, namespace, name, version, os, arch string) (string, string, string) {
 	return providerPath(prefix, internalProviderType, "", namespace, name, version, os, arch)
 }
 
+// TODO(oliviermichaelis): consider using /mirror/providers/<hostname>
 // mirrorProviderPath returns a full path to a mirrored provider archive
-func mirrorProviderPath(prefix, hostname, namespace, name, version, os, arch string) (string, string, string, error) {
+func mirrorProviderPath(prefix, hostname, namespace, name, version, os, arch string) (string, string, string) {
 	return providerPath(prefix, mirrorProviderType, hostname, namespace, name, version, os, arch)
 }
 
@@ -93,10 +74,11 @@ func modulePath(prefix, namespace, name, provider, version, archiveFormat string
 	return path.Join(modulePathPrefix(prefix, namespace, name, provider), f)
 }
 
-func signingKeysPath(prefix string, namespace string) string {
+func signingKeysPath(prefix string, pt providerType, hostname, namespace string) string {
 	return path.Join(
 		prefix,
-		string(internalProviderType),
+		string(pt),
+		hostname,
 		namespace,
 		"signing-keys.json",
 	)
@@ -203,7 +185,7 @@ func providerMigrationTargetPath(bucketPrefix, sourceKey string) (string, error)
 	if strings.HasSuffix(sourceKey, "signing-keys.json") {
 		return path.Clean(path.Join(prefix, m["namespace"])), nil
 	}
-	return providerStoragePrefix(bucketPrefix, internalProviderType, "", m["namespace"], m["name"])
+	return providerStoragePrefix(bucketPrefix, internalProviderType, "", m["namespace"], m["name"]), nil
 }
 
 func isUnmigratedModule(bucketPrefix, key string) bool {

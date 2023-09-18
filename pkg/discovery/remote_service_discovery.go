@@ -87,7 +87,7 @@ func (r *RemoteServiceDiscovery) discover(ctx context.Context, host string) (*Di
 	}
 
 	// The remote service discovery protocol allows for absolute URLs to be returned.
-	// We check whether it's an absolute URL and try to parse it, so that we can return only the path
+	// We check whether it's an absolute URL and try to parse it, so that we can return both the path and the host
 	if strings.HasPrefix(discovered.ProvidersV1, "https") {
 		absoluteUrl, err := url.Parse(discovered.ProvidersV1)
 		if err != nil {

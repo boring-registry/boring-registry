@@ -25,6 +25,6 @@ type Storage interface {
 	// Existing signing keys are overwritten
 	UploadMirroredSigningKeys(ctx context.Context, hostname, namespace string, signingKeys *core.SigningKeys) error
 
-	// Retrieve the
+	// Retrieve the SHA256SUM from storage
 	MirroredSha256Sum(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
 }

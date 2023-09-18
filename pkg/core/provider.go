@@ -159,11 +159,16 @@ type GPGPublicKey struct {
 	SourceURL  string `json:"source_url,omitempty"`
 }
 
+type ProviderVersions struct {
+	Versions []ProviderVersion `json:"versions,omitempty"`
+}
+
 // The ProviderVersion is a copy from provider.ProviderVersion
 type ProviderVersion struct {
 	Namespace string     `json:"namespace,omitempty"`
 	Name      string     `json:"name,omitempty"`
 	Version   string     `json:"version,omitempty"`
+	Protocols []string   `json:"protocols,omitempty"`
 	Platforms []Platform `json:"platforms,omitempty"`
 }
 

@@ -217,8 +217,15 @@ func TestSigningKeys(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.annotation, func(t *testing.T) {
-			s := S3Storage{}
-			s.downloader = &mockS3Downloader{payload: tc.payload, error: tc.returnError}
+			s := S3Storage{
+				downloader: &mockS3Downloader{payload: tc.payload, error: tc.returnError},
+				client: &mockS3Client{
+					errorFunc: func() error {
+						return nil
+					},
+				},
+			}
+
 			result, err := s.SigningKeys(context.Background(), tc.namespace)
 
 			if !tc.expectedError {

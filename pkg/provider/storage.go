@@ -6,13 +6,13 @@ import (
 
 	"github.com/TierMobility/boring-registry/pkg/core"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 )
 
 // Storage represents the Storage of Terraform providers.
 type Storage interface {
 	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error)
-	ListProviderVersions(ctx context.Context, namespace, name string) ([]core.ProviderVersion, error)
+	ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error)
 
 	// UploadProviderReleaseFiles is used to upload all artifacts which make up a provider release
 	// https://developer.hashicorp.com/terraform/registry/providers/publishing#manually-preparing-a-release

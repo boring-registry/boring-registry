@@ -1,9 +1,16 @@
 package storage
 
-import "errors"
+import (
+	"errors"
+	"net/http"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
+)
 
 // Storage errors.
 var (
+	ErrObjectAlreadyExists = errors.New("object already exists")
+
 	// module errors
 	ErrModuleUploadFailed  = errors.New("failed to upload module")
 	ErrModuleAlreadyExists = errors.New("module already exists")
@@ -20,3 +27,11 @@ var (
 var (
 	ErrVarMissing = errors.New("variable missing")
 )
+
+func noMatchingProviderFound(provider *core.Provider) error {
+	return &core.ProviderError{
+		Reason:     "failed to find matching providers",
+		Provider:   provider,
+		StatusCode: http.StatusNotFound,
+	}
+}

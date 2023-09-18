@@ -80,7 +80,7 @@ var serverCmd = &cobra.Command{
 
 		group, ctx := errgroup.WithContext(ctx)
 
-		mux, err := serveMux()
+		mux, err := serveMux(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to setup server")
 		}
@@ -204,7 +204,7 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 
 	// Provider Network Mirror options
-	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "enable-provider-network-mirror", true, "Enable the Network Provider mirror")
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "enable-provider-pull-through-mirror", true, "Enable the provider pull-through mirror")
 }
 
 // TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
@@ -232,7 +232,7 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 	}
 }
 
-func serveMux() (*http.ServeMux, error) {
+func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
 	options := []discovery.Option{
@@ -280,7 +280,7 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
-	s, err := setupStorage(context.TODO())
+	s, err := setupStorage(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,8 @@ func serveMux() (*http.ServeMux, error) {
 	}
 
 	if flagProviderNetworkMirrorEnabled {
-		if err := registerMirror(mux, s); err != nil {
+		mirrorCopier := mirror.NewMirror(ctx, logger, s)
+		if err := registerMirror(mux, s, mirrorCopier); err != nil {
 			return nil, err
 		}
 	}
@@ -392,8 +393,8 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 	return nil
 }
 
-func registerMirror(mux *http.ServeMux, s storage.Storage, options ...mirror.MirrorOption) error {
-	service := mirror.NewService(nil, s, options...)
+func registerMirror(mux *http.ServeMux, s storage.Storage, c mirror.Copier) error {
+	service := mirror.NewService(s, c)
 	{
 		service = mirror.LoggingMiddleware(logger)(service)
 	}
@@ -402,7 +403,7 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, options ...mirror.Mir
 		httptransport.ServerErrorHandler(
 			transport.NewLogErrorHandler(logger),
 		),
-		httptransport.ServerErrorEncoder(module.ErrorEncoder),
+		httptransport.ServerErrorEncoder(mirror.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
 		),
