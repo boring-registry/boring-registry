@@ -87,8 +87,8 @@ func Test_service_ListProviderVersions(t *testing.T) {
 				},
 			},
 			args: func() args {
-				// The cancel function has to be ignored, as we cannot easily cancel it
-				ctx, _ := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+				cancel() // cancel the context to pass expired context to function
 				return args{
 					ctx: ctx,
 					provider: &core.Provider{

@@ -18,7 +18,7 @@ type upstreamProvider interface {
 
 type upstreamProviderRegistry struct {
 	client                 *http.Client
-	remoteServiceDiscovery *discovery.RemoteServiceDiscovery
+	remoteServiceDiscovery discovery.ServiceDiscoveryResolver
 }
 
 func (u *upstreamProviderRegistry) listProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
@@ -90,7 +90,7 @@ func (u *upstreamProviderRegistry) shaSums(ctx context.Context, provider *core.P
 	return sha256Sums, nil
 }
 
-func newUpstreamProviderRegistry(remoteServiceDiscovery *discovery.RemoteServiceDiscovery) *upstreamProviderRegistry {
+func newUpstreamProviderRegistry(remoteServiceDiscovery discovery.ServiceDiscoveryResolver) *upstreamProviderRegistry {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = 100
 	return &upstreamProviderRegistry{

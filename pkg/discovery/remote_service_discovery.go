@@ -17,13 +17,17 @@ const (
 	httpsScheme       = "https"
 )
 
+type ServiceDiscoveryResolver interface {
+	Resolve(ctx context.Context, host string) (*DiscoveredRemoteService, error)
+}
+
 // DiscoveredRemoteService holds the information retrieved during the discovery process
 type DiscoveredRemoteService struct {
 	// URL holds the host name that returned the service discovery payload.
 	// The URLs host can be different from the initial request host due to redirects.
 	// It is the base URL for relative provider paths.
 	URL url.URL
-	wellKnownEndpointResponse
+	WellKnownEndpointResponse
 }
 
 // discoveredRemoteServiceMap wraps sync.Map to prevent mixing up the types
@@ -49,7 +53,7 @@ func (d *discoveredRemoteServiceMap) Store(host string, ds DiscoveredRemoteServi
 	d.m.Store(host, ds)
 }
 
-type wellKnownEndpointResponse struct {
+type WellKnownEndpointResponse struct {
 	ModulesV1   string `json:"modules.v1,omitempty"`
 	ProvidersV1 string `json:"providers.v1,omitempty"`
 }
@@ -129,7 +133,7 @@ func (r *RemoteServiceDiscovery) wellKnownEndpoint(ctx context.Context, host str
 	}
 
 	decoder := json.NewDecoder(resp.Body)
-	response := wellKnownEndpointResponse{}
+	response := WellKnownEndpointResponse{}
 	if err := decoder.Decode(&response); err != nil {
 		return nil, err
 	}
@@ -139,11 +143,11 @@ func (r *RemoteServiceDiscovery) wellKnownEndpoint(ctx context.Context, host str
 			Scheme: httpsScheme,
 			Host:   resp.Request.Host,
 		},
-		wellKnownEndpointResponse: response,
+		WellKnownEndpointResponse: response,
 	}, nil
 }
 
-func NewRemoteServiceDiscovery(client *http.Client) *RemoteServiceDiscovery {
+func NewRemoteServiceDiscovery(client *http.Client) ServiceDiscoveryResolver {
 	return &RemoteServiceDiscovery{
 		client: client,
 	}

@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type serverOptions func(response *wellKnownEndpointResponse, host string)
+type serverOptions func(response *WellKnownEndpointResponse, host string)
 
 func withAbsoluteProviderURL() serverOptions {
-	return func(r *wellKnownEndpointResponse, host string) {
+	return func(r *WellKnownEndpointResponse, host string) {
 		u := url.URL{
 			Scheme: "https",
 			Host:   host,
@@ -27,7 +27,7 @@ func withAbsoluteProviderURL() serverOptions {
 	}
 }
 
-func setupServer(statusCode int, response *wellKnownEndpointResponse, opts ...serverOptions) *httptest.Server {
+func setupServer(statusCode int, response *WellKnownEndpointResponse, opts ...serverOptions) *httptest.Server {
 	// We have to create our own listener, so that we can determine the listening address before starting the server
 	listener, err := net.Listen("tcp", "127.0.0.1:")
 	if err != nil {
@@ -76,22 +76,22 @@ func Test_serviceDiscovery_resolve(t *testing.T) {
 		},
 		{
 			name: "response with modules",
-			server: setupServer(http.StatusOK, &wellKnownEndpointResponse{
+			server: setupServer(http.StatusOK, &WellKnownEndpointResponse{
 				ModulesV1: "/v1/modules",
 			}),
 			want: &DiscoveredRemoteService{
-				wellKnownEndpointResponse: wellKnownEndpointResponse{
+				WellKnownEndpointResponse: WellKnownEndpointResponse{
 					ModulesV1: "/v1/modules",
 				},
 			},
 		},
 		{
 			name: "successfully adding cache entry with relative URL",
-			server: setupServer(http.StatusOK, &wellKnownEndpointResponse{
+			server: setupServer(http.StatusOK, &WellKnownEndpointResponse{
 				ProvidersV1: "/v1/providers",
 			}),
 			want: &DiscoveredRemoteService{
-				wellKnownEndpointResponse: wellKnownEndpointResponse{
+				WellKnownEndpointResponse: WellKnownEndpointResponse{
 					ProvidersV1: "/v1/providers",
 				},
 			},
@@ -99,13 +99,13 @@ func Test_serviceDiscovery_resolve(t *testing.T) {
 		{
 			name: "successfully adding cache entry with absolute URL",
 			server: setupServer(http.StatusOK,
-				&wellKnownEndpointResponse{
+				&WellKnownEndpointResponse{
 					ProvidersV1: "/v1/providers",
 				},
 				withAbsoluteProviderURL(),
 			),
 			want: &DiscoveredRemoteService{
-				wellKnownEndpointResponse: wellKnownEndpointResponse{
+				WellKnownEndpointResponse: WellKnownEndpointResponse{
 					ProvidersV1: "/v1/providers",
 				},
 			},
