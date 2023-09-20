@@ -9,6 +9,7 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/core"
 
+	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
@@ -26,8 +27,6 @@ const (
 	varArchitecture muxVar = "architecture"
 )
 
-type header string
-
 // MakeHandler returns a fully initialized http.Handler.
 func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
@@ -40,7 +39,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
+				httptransport.ServerBefore(jwt.HTTPToContext()),
 			)...,
 		),
 	)
@@ -53,7 +52,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
+				httptransport.ServerBefore(jwt.HTTPToContext()),
 			)...,
 		),
 	)
@@ -66,7 +65,6 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion, varOS, varArchitecture)),
-				httptransport.ServerBefore(extractHeaders("Authorization")),
 			)...,
 		),
 	)
@@ -206,18 +204,6 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 			err.Error(),
 		},
 	})
-}
-
-func extractHeaders(keys ...header) httptransport.RequestFunc {
-	return func(ctx context.Context, r *http.Request) context.Context {
-		for _, k := range keys {
-			if v := r.Header.Get(string(k)); v != "" {
-				ctx = context.WithValue(ctx, k, v)
-			}
-		}
-
-		return ctx
-	}
 }
 
 func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
