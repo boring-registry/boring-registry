@@ -252,6 +252,96 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "requested version not in upstream versions but in mirror versions",
+			svc: &service{
+				upstream: &mockedUpstreamProvider{
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
+								{
+									Version: "0.1.0",
+									Platforms: []core.Platform{
+										{
+											OS:   "linux",
+											Arch: "amd64",
+										},
+										{
+											OS:   "linux",
+											Arch: "arm64",
+										},
+									},
+								},
+							},
+						}, nil
+					},
+				},
+				storage: &mockedStorage{
+					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
+								{
+									Namespace: "hashicorp",
+									Name:      "random",
+									Version:   "2.0.0",
+									Platforms: []core.Platform{
+										{
+											OS:   "linux",
+											Arch: "amd64",
+										},
+										{
+											OS:   "linux",
+											Arch: "arm64",
+										},
+									},
+								},
+							},
+						}, nil
+					},
+					getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
+						return &core.Provider{
+							Hostname:   "registry.example.com",
+							Namespace:  "hashicorp",
+							Name:       "random",
+							Version:    "2.0.0",
+							OS:         "linux",
+							Arch:       "amd64",
+							SHASumsURL: "https://registry.example.com/this/is/the/shasums/file",
+						}, nil
+					},
+					mirroredSha256Sum: func(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error) {
+						return &core.Sha256Sums{
+							Entries: map[string][]byte{
+								"terraform-provider-random_2.0.0_linux_amd64.zip": []byte("123456789"),
+								"terraform-provider-random_2.0.0_linux_arm64.zip": []byte("987654321"),
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				provider: &core.Provider{
+					Hostname:  "registry.example.com",
+					Namespace: "hashicorp",
+					Name:      "random",
+					Version:   "2.0.0",
+				},
+			},
+			want: &ListProviderInstallationResponse{
+				Archives: map[string]Archive{
+					"linux_amd64": {
+						Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+						Hashes: []string{fmt.Sprintf("zh:%x", []byte("123456789"))},
+					},
+					"linux_arm64": {
+						Url:    "terraform-provider-random_2.0.0_linux_arm64.zip",
+						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
+					},
+				},
+				mirrorSource: mirrorSource{isMirror: true},
+			},
+		},
+		{
 			name: "successfully retrieve response from upstream",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{

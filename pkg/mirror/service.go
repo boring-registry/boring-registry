@@ -67,7 +67,15 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider *core.P
 	upstreamCtx, cancelUpstreamCtx := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelUpstreamCtx()
 	response, err := s.upstream.listProviderVersions(upstreamCtx, provider)
-	if err == nil {
+	if err != nil {
+		var urlError *url.Error
+		if isUrlError := errors.As(err, &urlError); !isUrlError {
+			// It's not a network-related error, therefore we abort the attempt
+			return nil, err
+		}
+	}
+
+	if err == nil && versionExists(provider.Version, response) {
 		// The request to the upstream registry was successful, we can return the response
 		sha256Sums, err := s.upstreamSha256Sums(ctx, provider, response)
 		if err != nil {
@@ -79,12 +87,6 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider *core.P
 			}
 			return transformToArchives(provider, version.Platforms, sha256Sums, false)
 		}
-	}
-
-	var urlError *url.Error
-	if isUrlError := errors.As(err, &urlError); !isUrlError {
-		// It's not a network-related error
-		return nil, err
 	}
 
 	// We try to return a response based on the mirror
@@ -217,4 +219,14 @@ func toListProviderVersionsResponse(l *core.ProviderVersions) *ListProviderVersi
 		transformed.Versions[version.Version] = EmptyObject{}
 	}
 	return transformed
+}
+
+func versionExists(version string, versions *core.ProviderVersions) bool {
+	for _, v := range versions.Versions {
+		if v.Version == version {
+			return true
+		}
+	}
+
+	return false
 }
