@@ -10,7 +10,7 @@ import (
 type Storage interface {
 	// ListMirroredProviderVersions returns all matching provider versions for a given hostname, namespace, and name
 	// The provider version can be set to narrow-down the search and return only a single provider
-	ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error)
+	ListMirroredProviders(ctx context.Context, provider *core.Provider) ([]*core.Provider, error)
 
 	// GetMirroredProvider returns the mirrored provider or a core.ProviderError in case it cannot be located
 	GetMirroredProvider(ctx context.Context, provider *core.Provider) (*core.Provider, error)

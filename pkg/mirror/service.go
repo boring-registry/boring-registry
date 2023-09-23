@@ -49,7 +49,7 @@ func (s *service) ListProviderVersions(ctx context.Context, provider *core.Provi
 	}
 
 	// We try to return a response based on the mirror
-	providers, err := s.storage.ListMirroredProviderVersions(ctx, provider)
+	providers, err := s.storage.ListMirroredProviders(ctx, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -57,8 +57,8 @@ func (s *service) ListProviderVersions(ctx context.Context, provider *core.Provi
 		Versions:     map[string]EmptyObject{},
 		mirrorSource: mirrorSource{isMirror: true},
 	}
-	for _, v := range providers.Versions {
-		response.Versions[v.Version] = EmptyObject{}
+	for _, p := range providers {
+		response.Versions[p.Version] = EmptyObject{}
 	}
 	return response, nil
 }
@@ -85,28 +85,22 @@ func (s *service) ListProviderInstallation(ctx context.Context, provider *core.P
 			if version.Version != provider.Version {
 				continue
 			}
-			return transformToArchives(provider, version.Platforms, sha256Sums, false)
+			return mergePlatforms(provider, version.Platforms, sha256Sums)
 		}
 	}
 
 	// We try to return a response based on the mirror
-	providers, err := s.storage.ListMirroredProviderVersions(ctx, provider)
+	providers, err := s.storage.ListMirroredProviders(ctx, provider)
 	if err != nil {
 		return nil, err
-	}
-	if len(providers.Versions) > 1 {
-		return nil, errors.New("length of returned providers is unexpected")
 	}
 
-	sha256Sums, err := s.mirroredSha256Sums(ctx, provider, providers)
+	// sha256Sums, err := s.mirroredSha256Sums(ctx, provider, providers)
+	sha256Sums, err := s.storage.MirroredSha256Sum(ctx, providers[0])
 	if err != nil {
 		return nil, err
 	}
-	archives, err := transformToArchives(provider, providers.Versions[0].Platforms, sha256Sums, true)
-	if err != nil {
-		return nil, err
-	}
-	return archives, nil
+	return toListProviderInstallationResponse(providers, sha256Sums)
 }
 
 func (s *service) RetrieveProviderArchive(ctx context.Context, provider *core.Provider) (*retrieveProviderArchiveResponse, error) {
@@ -154,21 +148,6 @@ func (s *service) upstreamSha256Sums(ctx context.Context, provider *core.Provide
 	return s.upstream.shaSums(ctx, providerUpstream)
 }
 
-func (s *service) mirroredSha256Sums(ctx context.Context, provider *core.Provider, version *core.ProviderVersions) (*core.Sha256Sums, error) {
-	if len(version.Versions) == 0 || len(version.Versions[0].Platforms) == 0 {
-		return nil, errors.New("core.ProviderVersions doesn't contain any platforms")
-	}
-
-	clone := provider.Clone()
-	clone.OS = version.Versions[0].Platforms[0].OS
-	clone.Arch = version.Versions[0].Platforms[0].Arch
-	mirroredProvider, err := s.storage.GetMirroredProvider(ctx, clone)
-	if err != nil {
-		return nil, err
-	}
-	return s.storage.MirroredSha256Sum(ctx, mirroredProvider)
-}
-
 func NewService(s Storage, c Copier) Service {
 	remoteServiceDiscovery := discovery.NewRemoteServiceDiscovery(http.DefaultClient)
 	svc := &service{
@@ -180,10 +159,10 @@ func NewService(s Storage, c Copier) Service {
 	return svc
 }
 
-func transformToArchives(provider *core.Provider, platforms []core.Platform, sha256Sums *core.Sha256Sums, fromMirror bool) (*ListProviderInstallationResponse, error) {
+func mergePlatforms(provider *core.Provider, platforms []core.Platform, sha256Sums *core.Sha256Sums) (*ListProviderInstallationResponse, error) {
 	archives := &ListProviderInstallationResponse{
 		Archives:     map[string]Archive{},
-		mirrorSource: mirrorSource{isMirror: fromMirror},
+		mirrorSource: mirrorSource{isMirror: false},
 	}
 
 	for _, p := range platforms {
@@ -198,6 +177,33 @@ func transformToArchives(provider *core.Provider, platforms []core.Platform, sha
 		key := fmt.Sprintf("%s_%s", p.OS, p.Arch)
 		archives.Archives[key] = Archive{
 			Url: provider.ArchiveFileName(),
+			Hashes: []string{
+				// The checksum has to be prefixed with the `zh:` prefix
+				// See the documentation for more context:
+				// https://developer.hashicorp.com/terraform/language/files/dependency-lock#zh
+				fmt.Sprintf("zh:%s", checksum),
+			},
+		}
+	}
+
+	return archives, nil
+}
+
+func toListProviderInstallationResponse(providers []*core.Provider, sha256Sums *core.Sha256Sums) (*ListProviderInstallationResponse, error) {
+	archives := &ListProviderInstallationResponse{
+		Archives:     map[string]Archive{},
+		mirrorSource: mirrorSource{isMirror: true},
+	}
+
+	for _, p := range providers {
+		checksum, err := sha256Sums.Checksum(p.ArchiveFileName())
+		if err != nil {
+			return nil, err
+		}
+
+		key := fmt.Sprintf("%s_%s", p.OS, p.Arch)
+		archives.Archives[key] = Archive{
+			Url: p.DownloadURL,
 			Hashes: []string{
 				// The checksum has to be prefixed with the `zh:` prefix
 				// See the documentation for more context:

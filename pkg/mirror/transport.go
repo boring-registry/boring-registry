@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/core"
@@ -35,7 +36,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		httptransport.NewServer(
 			auth(listProviderVersionsEndpoint(svc)),
 			decodeListVersionsRequest,
-			EncodeJSONResponse,
+			httptransport.EncodeJSONResponse,
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName)),
@@ -48,7 +49,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		httptransport.NewServer(
 			auth(listProviderInstallationEndpoint(svc)),
 			decodeListInstallationRequest,
-			EncodeJSONResponse,
+			addAuthToken,
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion)),
@@ -57,6 +58,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 		),
 	)
 
+	// If static auth is
 	r.Methods("GET").Path(`/{hostname}/{namespace}/{name}/terraform-provider-{nameplaceholder}_{version}_{os}_{architecture}.zip`).Handler(
 		httptransport.NewServer(
 			auth(retrieveProviderArchiveEndpoint(svc)),
@@ -65,6 +67,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 			append(
 				options,
 				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion, varOS, varArchitecture)),
+				httptransport.ServerBefore(tokenQueryParamToContext()),
 			)...,
 		),
 	)
@@ -150,25 +153,43 @@ func decodeRetrieveProviderArchiveRequest(ctx context.Context, _ *http.Request) 
 
 }
 
-// EncodeJSONResponse is a duplicate of httptransport.EncodeJSONResponse but uses the content-type expected by Terraform
-func EncodeJSONResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
-	w.Header().Set("Content-Type", "application/json")
-	if headerer, ok := response.(httptransport.Headerer); ok {
-		for k, values := range headerer.Headers() {
-			for _, v := range values {
-				w.Header().Add(k, v)
+func addAuthToken(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	listResponse, ok := response.(*ListProviderInstallationResponse)
+	if !ok {
+		return errors.New("failed to type assert to listProviderInstallationResponse")
+	}
+
+	if !listResponse.isMirror {
+		t := ctx.Value(jwt.JWTContextKey)
+		token, ok := t.(string)
+		if !ok {
+			return errors.New("failed to type assert to string")
+		}
+
+		for k, a := range listResponse.Archives {
+			parsed, err := url.Parse(a.Url)
+			if err != nil {
+				return err
 			}
+			parsed.RawQuery = fmt.Sprintf("token=%s", token)
+			a.Url = parsed.String()
+			listResponse.Archives[k] = a
 		}
 	}
-	code := http.StatusOK
-	if sc, ok := response.(httptransport.StatusCoder); ok {
-		code = sc.StatusCode()
+
+	return httptransport.EncodeJSONResponse(ctx, w, listResponse)
+}
+
+// tokenQueryParamToContext extracts the `token` query parameter in case it exists
+func tokenQueryParamToContext() httptransport.RequestFunc {
+	return func(ctx context.Context, r *http.Request) context.Context {
+		token := r.URL.Query().Get("token")
+		if token == "" {
+			return ctx
+		}
+
+		return context.WithValue(ctx, jwt.JWTContextKey, token)
 	}
-	w.WriteHeader(code)
-	if code == http.StatusNoContent {
-		return nil
-	}
-	return json.NewEncoder(w).Encode(response)
 }
 
 func encodeMirroredResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
@@ -189,7 +210,7 @@ func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 		w.WriteHeader(providerErr.StatusCode)
 	} else if errors.Is(err, ErrVarMissing) {
 		w.WriteHeader(http.StatusBadRequest)
-	} else if errors.Is(err, auth.ErrInvalidToken) {
+	} else if errors.Is(err, auth.ErrInvalidToken) || errors.Is(err, auth.ErrUnauthorized) {
 		w.WriteHeader(http.StatusUnauthorized)
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)

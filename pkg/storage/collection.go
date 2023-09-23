@@ -26,7 +26,7 @@ func (s *Collection) List() *core.ProviderVersions {
 	return &out
 }
 
-func (s *Collection) Add(provider core.Provider) {
+func (s *Collection) Add(provider *core.Provider) {
 	id := fmt.Sprintf("%s/%s/%s", provider.Namespace, provider.Name, provider.Version)
 
 	if _, ok := s.m[id]; !ok {

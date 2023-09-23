@@ -256,15 +256,15 @@ func (s *GCSStorage) GetMirroredProvider(ctx context.Context, provider *core.Pro
 	return s.getProvider(ctx, mirrorProviderType, provider)
 }
 
-func (s *GCSStorage) listProviderVersions(ctx context.Context, pt providerType, provider *core.Provider) (*core.ProviderVersions, error) {
+func (s *GCSStorage) listProviderVersions(ctx context.Context, pt providerType, provider *core.Provider) ([]*core.Provider, error) {
 	prefix := providerStoragePrefix(s.bucketPrefix, pt, provider.Hostname, provider.Namespace, provider.Name)
 	query := &storage.Query{
 		Prefix: fmt.Sprintf("%s/", prefix),
 	}
 
-	collection := NewCollection()
 	it := s.sc.Bucket(s.bucket).Objects(ctx, query)
 
+	var providers []*core.Provider
 	for {
 		select { // Check if the context has been canceled in every loop iteration
 		case <-ctx.Done():
@@ -285,28 +285,43 @@ func (s *GCSStorage) listProviderVersions(ctx context.Context, pt providerType, 
 			continue
 		}
 
+		p.Hostname = provider.Hostname
+		p.Namespace = provider.Namespace
+		archiveUrl, err := s.presignedURL(ctx, attrs.Name)
+		if err != nil {
+			return nil, err
+		}
+		p.DownloadURL = archiveUrl
+
 		if provider.Version != "" && provider.Version != p.Version {
 			// The provider version doesn't match the requested version
 			continue
 		}
 
-		collection.Add(p)
+		providers = append(providers, &p)
 	}
 
-	result := collection.List()
-
-	if len(result.Versions) == 0 {
+	if len(providers) == 0 {
 		return nil, noMatchingProviderFound(provider)
 	}
 
-	return result, nil
+	return providers, nil
 }
 
 func (s *GCSStorage) ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error) {
-	return s.listProviderVersions(ctx, internalProviderType, &core.Provider{Namespace: namespace, Name: name})
+	providers, err := s.listProviderVersions(ctx, internalProviderType, &core.Provider{Namespace: namespace, Name: name})
+	if err != nil {
+		return nil, err
+	}
+
+	collection := NewCollection()
+	for _, p := range providers {
+		collection.Add(p)
+	}
+	return collection.List(), nil
 }
 
-func (s *GCSStorage) ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+func (s *GCSStorage) ListMirroredProviders(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
 	return s.listProviderVersions(ctx, mirrorProviderType, provider)
 }
 

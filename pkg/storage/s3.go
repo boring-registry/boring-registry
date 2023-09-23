@@ -307,21 +307,20 @@ func (s *S3Storage) GetMirroredProvider(ctx context.Context, provider *core.Prov
 	return s.getProvider(ctx, mirrorProviderType, provider)
 }
 
-func (s *S3Storage) listProviderVersions(ctx context.Context, pt providerType, provider *core.Provider) (*core.ProviderVersions, error) {
+func (s *S3Storage) listProviderVersions(ctx context.Context, pt providerType, provider *core.Provider) ([]*core.Provider, error) {
 	prefix := providerStoragePrefix(s.bucketPrefix, pt, provider.Hostname, provider.Namespace, provider.Name)
-
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
 		Prefix: aws.String(fmt.Sprintf("%s/", prefix)),
 	}
 
-	collection := NewCollection()
 	paginator := s3.NewListObjectsV2Paginator(s.client, input)
 
+	var providers []*core.Provider
 	for paginator.HasMorePages() {
 		resp, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, errors.Wrap(ErrProviderListFailed, err.Error())
+			return nil, fmt.Errorf("%v, %w", ErrProviderListFailed, err)
 		}
 
 		for _, obj := range resp.Contents {
@@ -334,25 +333,40 @@ func (s *S3Storage) listProviderVersions(ctx context.Context, pt providerType, p
 				// The provider version doesn't match the requested version
 				continue
 			}
+
+			p.Hostname = provider.Hostname
 			p.Namespace = provider.Namespace
-			collection.Add(p)
+			archiveUrl, err := s.presignedURL(ctx, *obj.Key)
+			if err != nil {
+				return nil, err
+			}
+			p.DownloadURL = archiveUrl
+
+			providers = append(providers, &p)
 		}
 	}
 
-	result := collection.List()
-
-	if len(result.Versions) == 0 {
+	if len(providers) == 0 {
 		return nil, noMatchingProviderFound(provider)
 	}
 
-	return result, nil
+	return providers, nil
 }
 
 func (s *S3Storage) ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error) {
-	return s.listProviderVersions(ctx, internalProviderType, &core.Provider{Namespace: namespace, Name: name})
+	providers, err := s.listProviderVersions(ctx, internalProviderType, &core.Provider{Namespace: namespace, Name: name})
+	if err != nil {
+		return nil, err
+	}
+
+	collection := NewCollection()
+	for _, p := range providers {
+		collection.Add(p)
+	}
+	return collection.List(), nil
 }
 
-func (s *S3Storage) ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+func (s *S3Storage) ListMirroredProviders(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
 	return s.listProviderVersions(ctx, mirrorProviderType, provider)
 }
 

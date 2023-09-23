@@ -32,16 +32,16 @@ func (m *mockedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 }
 
 type mockedStorage struct {
-	listMirrorProviderVersions func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error)
-	getMirroredProvider        func(ctx context.Context, provider *core.Provider) (*core.Provider, error)
-	mirroredSha256Sum          func(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
-	uploadMirroredFile         func(ctx context.Context, provider *core.Provider, filename string, reader io.Reader) error
-	mirroredSigningKeys        func(ctx context.Context, hostname, namespace string) (*core.SigningKeys, error)
-	uploadMirroredSigningKeys  func(ctx context.Context, hostname, namespace string, signingKeys *core.SigningKeys) error
+	listMirrorProviders       func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error)
+	getMirroredProvider       func(ctx context.Context, provider *core.Provider) (*core.Provider, error)
+	mirroredSha256Sum         func(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error)
+	uploadMirroredFile        func(ctx context.Context, provider *core.Provider, filename string, reader io.Reader) error
+	mirroredSigningKeys       func(ctx context.Context, hostname, namespace string) (*core.SigningKeys, error)
+	uploadMirroredSigningKeys func(ctx context.Context, hostname, namespace string, signingKeys *core.SigningKeys) error
 }
 
-func (m *mockedStorage) ListMirroredProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
-	return m.listMirrorProviderVersions(ctx, provider)
+func (m *mockedStorage) ListMirroredProviders(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
+	return m.listMirrorProviders(ctx, provider)
 }
 
 func (m *mockedStorage) GetMirroredProvider(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -109,7 +109,7 @@ func Test_service_ListProviderVersions(t *testing.T) {
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+					listMirrorProviders: func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
 						// return core.ProviderError to simulate that providers are not in the mirror
 						return nil, &core.ProviderError{
 							Reason: "mocked provider error",
@@ -157,29 +157,31 @@ func Test_service_ListProviderVersions(t *testing.T) {
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
-						return &core.ProviderVersions{
-							Versions: []core.ProviderVersion{
-								{
-									Namespace: "hashicorp",
-									Name:      "random",
-									Version:   "0.1.2",
-									Platforms: []core.Platform{
-										{
-											OS:   "linux",
-											Arch: "amd64",
-										},
-										{
-											OS:   "linux",
-											Arch: "arm64",
-										},
-									},
-								},
-								{
-									Namespace: "hashicorp",
-									Name:      "random",
-									Version:   "1.2.3",
-								},
+					listMirrorProviders: func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
+						return []*core.Provider{
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "0.1.2",
+								OS:          "linux",
+								Arch:        "amd64",
+								DownloadURL: "https://terraform.exaple.com/",
+							},
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "0.1.2",
+								OS:          "linux",
+								Arch:        "arm64",
+								DownloadURL: "https://terraform.exaple.com/",
+							},
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "1.2.3",
+								OS:          "linux",
+								Arch:        "amd64",
+								DownloadURL: "https://terraform.exaple.com/",
 							},
 						}, nil
 					},
@@ -235,7 +237,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+					listMirrorProviders: func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
 						return nil, errors.New("mocked error")
 					},
 				},
@@ -276,24 +278,23 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
-						return &core.ProviderVersions{
-							Versions: []core.ProviderVersion{
-								{
-									Namespace: "hashicorp",
-									Name:      "random",
-									Version:   "2.0.0",
-									Platforms: []core.Platform{
-										{
-											OS:   "linux",
-											Arch: "amd64",
-										},
-										{
-											OS:   "linux",
-											Arch: "arm64",
-										},
-									},
-								},
+					listMirrorProviders: func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
+						return []*core.Provider{
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "2.0.0",
+								OS:          "linux",
+								Arch:        "amd64",
+								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
+							},
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "2.0.0",
+								OS:          "linux",
+								Arch:        "arm64",
+								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
 							},
 						}, nil
 					},
@@ -330,11 +331,11 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			want: &ListProviderInstallationResponse{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+						Url:    "https://terraform.exaple.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("123456789"))},
 					},
 					"linux_arm64": {
-						Url:    "terraform-provider-random_2.0.0_linux_arm64.zip",
+						Url:    "https://terraform.exaple.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
 					},
 				},
@@ -425,24 +426,23 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 					},
 				},
 				storage: &mockedStorage{
-					listMirrorProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
-						return &core.ProviderVersions{
-							Versions: []core.ProviderVersion{
-								{
-									Namespace: "hashicorp",
-									Name:      "random",
-									Version:   "1.2.3",
-									Platforms: []core.Platform{
-										{
-											OS:   "linux",
-											Arch: "amd64",
-										},
-										{
-											OS:   "linux",
-											Arch: "arm64",
-										},
-									},
-								},
+					listMirrorProviders: func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
+						return []*core.Provider{
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "1.2.3",
+								OS:          "linux",
+								Arch:        "amd64",
+								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
+							},
+							{
+								Namespace:   "hashicorp",
+								Name:        "random",
+								Version:     "1.2.3",
+								OS:          "linux",
+								Arch:        "arm64",
+								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
 							},
 						}, nil
 					},
@@ -479,11 +479,11 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			want: &ListProviderInstallationResponse{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "terraform-provider-random_1.2.3_linux_amd64.zip",
+						Url:    "https://terraform.exaple.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("123456789"))},
 					},
 					"linux_arm64": {
-						Url:    "terraform-provider-random_1.2.3_linux_arm64.zip",
+						Url:    "https://terraform.exaple.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
 					},
 				},
