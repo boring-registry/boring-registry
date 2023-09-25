@@ -138,9 +138,17 @@ func (s *service) upstreamSha256Sums(ctx context.Context, provider *core.Provide
 		return nil, errors.New("core.ProviderVersions doesn't contain any platforms")
 	}
 
+	// To retrieve the SHA256SUM, we need to construct a core.Provider that has all required fields set to download the provider from upstream.
+	// As the SHA256SUM file is the same for all platforms, we iterate over the versions and choose the first platform from the matching version.
 	clone := provider.Clone()
-	clone.OS = versions.Versions[0].Platforms[0].OS
-	clone.Arch = versions.Versions[0].Platforms[0].Arch
+	for _, v := range versions.Versions {
+		if v.Version == provider.Version {
+			clone.OS = v.Platforms[0].OS
+			clone.Arch = v.Platforms[0].Arch
+			break
+		}
+	}
+
 	providerUpstream, err := s.upstream.getProvider(ctx, clone)
 	if err != nil {
 		return nil, err

@@ -165,7 +165,7 @@ func Test_service_ListProviderVersions(t *testing.T) {
 								Version:     "0.1.2",
 								OS:          "linux",
 								Arch:        "amd64",
-								DownloadURL: "https://terraform.exaple.com/",
+								DownloadURL: "https://terraform.example.com/",
 							},
 							{
 								Namespace:   "hashicorp",
@@ -173,7 +173,7 @@ func Test_service_ListProviderVersions(t *testing.T) {
 								Version:     "0.1.2",
 								OS:          "linux",
 								Arch:        "arm64",
-								DownloadURL: "https://terraform.exaple.com/",
+								DownloadURL: "https://terraform.example.com/",
 							},
 							{
 								Namespace:   "hashicorp",
@@ -181,7 +181,7 @@ func Test_service_ListProviderVersions(t *testing.T) {
 								Version:     "1.2.3",
 								OS:          "linux",
 								Arch:        "amd64",
-								DownloadURL: "https://terraform.exaple.com/",
+								DownloadURL: "https://terraform.example.com/",
 							},
 						}, nil
 					},
@@ -254,6 +254,82 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "dissimilar platforms for the versions",
+			// This test case replicates the condition under which this bug occurred:
+			// https://github.com/TierMobility/boring-registry/pull/143#discussion_r1335798065
+			svc: &service{
+				upstream: &mockedUpstreamProvider{
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return &core.ProviderVersions{
+							Versions: []core.ProviderVersion{
+								{
+									Version: "1.0.0",
+									Platforms: []core.Platform{
+										{
+											OS:   "solaris",
+											Arch: "arm64",
+										},
+										{
+											OS:   "linux",
+											Arch: "amd64",
+										},
+									},
+								},
+								{
+									Version: "2.0.0",
+									Platforms: []core.Platform{
+										{
+											OS:   "linux",
+											Arch: "amd64",
+										},
+									},
+								},
+							},
+						}, nil
+					},
+					customGetProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
+						if provider.OS != "linux" {
+							t.Errorf("ListProviderInstallation() wanted OS=linux got=%s", provider.OS)
+						} else if provider.Arch != "amd64" {
+							t.Errorf("ListProviderInstallation() wanted Arch=amd64 got=%s", provider.Arch)
+						}
+						return &core.Provider{
+							Hostname:   "registry.example.com",
+							Namespace:  "hashicorp",
+							Name:       "random",
+							Version:    "2.0.0",
+							SHASumsURL: "https://registry.example.com/this/is/the/shasums/file",
+						}, nil
+					},
+					customShaSums: func(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error) {
+						return &core.Sha256Sums{
+							Entries: map[string][]byte{
+								"terraform-provider-random_2.0.0_linux_amd64.zip": []byte("123456789"),
+							},
+						}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				provider: &core.Provider{
+					Hostname:  "registry.example.com",
+					Namespace: "hashicorp",
+					Name:      "random",
+					Version:   "2.0.0",
+				},
+			},
+			want: &ListProviderInstallationResponse{
+				Archives: map[string]Archive{
+					"linux_amd64": {
+						Url:    "terraform-provider-random_2.0.0_linux_amd64.zip",
+						Hashes: []string{fmt.Sprintf("zh:%x", []byte("123456789"))},
+					},
+				},
+				mirrorSource: mirrorSource{isMirror: false},
+			},
+		},
+		{
 			name: "requested version not in upstream versions but in mirror versions",
 			svc: &service{
 				upstream: &mockedUpstreamProvider{
@@ -286,7 +362,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 								Version:     "2.0.0",
 								OS:          "linux",
 								Arch:        "amd64",
-								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
+								DownloadURL: "https://terraform.example.com/pre-signed-url",
 							},
 							{
 								Namespace:   "hashicorp",
@@ -294,7 +370,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 								Version:     "2.0.0",
 								OS:          "linux",
 								Arch:        "arm64",
-								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
+								DownloadURL: "https://terraform.example.com/pre-signed-url",
 							},
 						}, nil
 					},
@@ -331,11 +407,11 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			want: &ListProviderInstallationResponse{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "https://terraform.exaple.com/pre-signed-url",
+						Url:    "https://terraform.example.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("123456789"))},
 					},
 					"linux_arm64": {
-						Url:    "https://terraform.exaple.com/pre-signed-url",
+						Url:    "https://terraform.example.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
 					},
 				},
@@ -434,7 +510,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 								Version:     "1.2.3",
 								OS:          "linux",
 								Arch:        "amd64",
-								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
+								DownloadURL: "https://terraform.example.com/pre-signed-url",
 							},
 							{
 								Namespace:   "hashicorp",
@@ -442,7 +518,7 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 								Version:     "1.2.3",
 								OS:          "linux",
 								Arch:        "arm64",
-								DownloadURL: "https://terraform.exaple.com/pre-signed-url",
+								DownloadURL: "https://terraform.example.com/pre-signed-url",
 							},
 						}, nil
 					},
@@ -479,11 +555,11 @@ func Test_service_ListProviderInstallation(t *testing.T) {
 			want: &ListProviderInstallationResponse{
 				Archives: map[string]Archive{
 					"linux_amd64": {
-						Url:    "https://terraform.exaple.com/pre-signed-url",
+						Url:    "https://terraform.example.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("123456789"))},
 					},
 					"linux_arm64": {
-						Url:    "https://terraform.exaple.com/pre-signed-url",
+						Url:    "https://terraform.example.com/pre-signed-url",
 						Hashes: []string{fmt.Sprintf("zh:%x", []byte("987654321"))},
 					},
 				},
