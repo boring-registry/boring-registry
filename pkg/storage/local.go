@@ -7,13 +7,16 @@ import (
 	llog "log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
-	"reflect"
+	"syscall"
+	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/go-kit/kit/log"
 	"github.com/pkg/errors"
+	"golang.org/x/sync/errgroup"
 )
 
 type LocalFileSystem interface {
@@ -25,7 +28,7 @@ type LocalFileSystem interface {
 }
 
 type FileServer interface {
-	ListenAndServe() error
+	Serve(ctx context.Context) error
 	Addr() string
 }
 
@@ -37,11 +40,15 @@ type LocalStorage struct {
 	moduleArchiveFormat string
 }
 
-func NewLocalStorage(fs LocalFileSystem, server FileServer, storageDir, serverEndpoint, moduleArchiveFormat string) *LocalStorage {
-	// when use client to upload or migrate, no need to set up the http file server
-	if server != nil && !reflect.ValueOf(server).IsNil() {
+func NewLocalStorage(
+	ctx context.Context,
+	fs LocalFileSystem,
+	server FileServer,
+	storageDir, serverEndpoint, moduleArchiveFormat string,
+	needStartServer bool) *LocalStorage {
+	if needStartServer {
 		go func() {
-			if err := server.ListenAndServe(); err != nil {
+			if err := server.Serve(ctx); err != nil {
 				llog.Printf("error: %+v", err)
 			}
 		}()
@@ -56,16 +63,13 @@ func NewLocalStorage(fs LocalFileSystem, server FileServer, storageDir, serverEn
 	}
 }
 
-func NewDefaultLocalStorage(storageDir, moduleArchiveFormat, endpoint string, serverAddr string) *LocalStorage {
-	var server *fileServer
+func NewDefaultLocalStorage(ctx context.Context, storageDir, moduleArchiveFormat, endpoint string, serverAddr string) *LocalStorage {
+	var fileServer FileServer
 	if len(serverAddr) != 0 {
-		server = &fileServer{
-			addr: serverAddr,
-			path: storageDir,
-		}
+		fileServer = newFileServer(serverAddr, storageDir)
 	}
 
-	return NewLocalStorage(&fs{}, server, storageDir, endpoint, moduleArchiveFormat)
+	return NewLocalStorage(ctx, &fs{}, fileServer, storageDir, endpoint, moduleArchiveFormat, len(serverAddr) != 0)
 }
 
 func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, version, os_, arch string) (core.Provider, error) {
@@ -89,7 +93,7 @@ func (ls *LocalStorage) GetProvider(ctx context.Context, namespace, name, versio
 		return core.Provider{}, errors.New("arch argument is empty")
 	}
 
-	if ls.server == nil || reflect.ValueOf(ls.server).IsNil() {
+	if ls.server == nil {
 		return core.Provider{}, errors.New("http file server is not set up")
 	}
 
@@ -198,7 +202,7 @@ func (ls *LocalStorage) ListProviderVersions(ctx context.Context, namespace, nam
 
 	entries, err := ls.fs.ReadDir(dir)
 	if err != nil {
-		return nil, errors.Wrap(err, "read provider dir failed")
+		return nil, fmt.Errorf("read provider dir failed, error: %w", err)
 	}
 
 	collection := NewCollection()
@@ -371,7 +375,7 @@ func (ls *LocalStorage) ListModuleVersions(ctx context.Context, namespace, name,
 	dir := modulePathPrefix(ls.storageDir, namespace, name, provider)
 	entries, err := ls.fs.ReadDir(dir)
 	if err != nil {
-		return []core.Module{}, errors.Wrap(ErrModuleListFailed, err.Error())
+		return []core.Module{}, fmt.Errorf("module list failed, error: %v, %w", err.Error(), ErrModuleListFailed)
 	}
 
 	var (
@@ -469,12 +473,60 @@ func (fs *fs) MkdirAll(name string, perm os.FileMode) error {
 }
 
 type fileServer struct {
-	addr string
-	path string
+	addr   string
+	path   string
+	server *http.Server
 }
 
-func (s *fileServer) ListenAndServe() error {
-	return http.ListenAndServe(s.addr, http.FileServer(http.Dir(s.path)))
+func newFileServer(addr, path string) *fileServer {
+	return &fileServer{
+		addr: addr,
+		path: path,
+		server: &http.Server{
+			Addr:    addr,
+			Handler: http.FileServer(http.Dir(path)),
+		},
+	}
+}
+
+func (s *fileServer) Serve(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	sigint := make(chan os.Signal, 1)
+	signal.Notify(sigint, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	group, ctx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		return s.server.ListenAndServe()
+	})
+
+	group.Go(func() error {
+		select {
+		case <-sigint:
+			llog.Printf("recieved quit signal, graceful quitting...\n")
+			cancel()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		return nil
+	})
+
+	group.Go(func() error {
+		<-ctx.Done()
+
+		ctx, cancel = context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		llog.Printf("recieved quit signal, shutdown the server...\n")
+		if err := s.server.Shutdown(ctx); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	return group.Wait()
 }
 
 func (s *fileServer) Addr() string {

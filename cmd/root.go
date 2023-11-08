@@ -28,6 +28,14 @@ const (
 	logKeyTimestamp = "timestamp"
 )
 
+type command string
+
+const (
+	cmdUpload  command = "upload"
+	cmdServer  command = "server"
+	cmdMigrate command = "migrate"
+)
+
 var (
 	flagJSON  bool
 	flagDebug bool
@@ -151,7 +159,7 @@ func bindFlags(cmd *cobra.Command, v *viper.Viper) {
 	})
 }
 
-func setupStorage(ctx context.Context, command string) (storage.Storage, error) {
+func setupStorage(ctx context.Context, cmd command) (storage.Storage, error) {
 	switch {
 	case flagS3Bucket != "":
 		return storage.NewS3Storage(ctx,
@@ -172,11 +180,15 @@ func setupStorage(ctx context.Context, command string) (storage.Storage, error) 
 		)
 	case flagLocalStorageDir != "":
 		var addr string
-		if command == "server" {
+		if cmd == cmdServer {
 			addr = flagLocalStorageServerAddr
 		}
 
-		return storage.NewDefaultLocalStorage(flagLocalStorageDir, flagModuleArchiveFormat, flagLocalStorageServerEndpoint, addr), nil
+		return storage.NewDefaultLocalStorage(ctx,
+			flagLocalStorageDir,
+			flagModuleArchiveFormat,
+			flagLocalStorageServerEndpoint,
+			addr), nil
 	default:
 		return nil, errors.New("please specify a valid storage provider")
 	}

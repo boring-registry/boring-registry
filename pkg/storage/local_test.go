@@ -153,6 +153,10 @@ func (m *mockFileServer) Addr() string {
 	return m.addr
 }
 
+func (m *mockFileServer) Serve(ctx context.Context) error {
+	return nil
+}
+
 func TestLocalStorage_GetProvider(t *testing.T) {
 	type args struct {
 		namespace string
@@ -358,7 +362,14 @@ func TestLocalStorage_GetProvider(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ls := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			ls := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false)
 			p, err := ls.GetProvider(
 				context.Background(),
 				tc.args.namespace,
@@ -495,7 +506,14 @@ func TestLocalStorage_ListProviderVersions(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			storage := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false)
 			got, err := storage.ListProviderVersions(context.Background(), tc.args.namespace, tc.args.name)
 			assert.Equal(t, tc.expectErr, err != nil)
 			if err == nil {
@@ -585,7 +603,14 @@ func TestLocalStorage_UploadProviderReleaseFiles(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			storage := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false)
 			err := storage.UploadProviderReleaseFiles(context.Background(), tc.args.namespace, tc.args.name, tc.args.filename, tc.args.file)
 			assert.Equal(t, tc.expectErr, err != nil)
 			if err == nil {
@@ -661,7 +686,15 @@ func TestLocalStorage_SigningKeys(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			storage := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false,
+			)
 			got, err := storage.SigningKeys(context.Background(), tc.args.namespace)
 			assert.Equal(t, tc.expectErr, err != nil)
 			if err == nil {
@@ -769,7 +802,15 @@ func TestLocalStorage_GetModule(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			storage := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false,
+			)
 			got, err := storage.GetModule(context.Background(), tc.args.namespace, tc.args.name, tc.args.provider, tc.args.version)
 			assert.Equal(t, tc.expectErr, err != nil)
 			if err == nil {
@@ -864,7 +905,14 @@ func TestLocalStorage_ListModuleVersions(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			storage := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false)
 			got, err := storage.ListModuleVersions(context.Background(), tc.args.namespace, tc.args.name, tc.args.provider)
 			assert.Equal(t, tc.expectErr, err != nil)
 			if err == nil {
@@ -965,7 +1013,16 @@ func TestLocalStorage_UploadModule(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			storage := NewLocalStorage(tc.attrs.lfs, tc.attrs.server, tc.attrs.storageDir, tc.attrs.serverEndpoint, tc.attrs.moduleArchiveFormat)
+			storage := NewLocalStorage(
+				context.Background(),
+				tc.attrs.lfs,
+				tc.attrs.server,
+				tc.attrs.storageDir,
+				tc.attrs.serverEndpoint,
+				tc.attrs.moduleArchiveFormat,
+				false,
+			)
+
 			got, err := storage.UploadModule(context.Background(), tc.args.namespace, tc.args.name, tc.args.provider, tc.args.version, tc.args.body)
 			assert.Equal(t, tc.expectErr, err != nil)
 			if err == nil {

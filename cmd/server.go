@@ -112,6 +112,9 @@ var serverCmd = &cobra.Command{
 		group.Go(func() error {
 			<-ctx.Done()
 
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
 			if err := server.Shutdown(ctx); err != nil {
 				if err != context.Canceled {
 					_ = level.Error(logger).Log(
@@ -247,7 +250,7 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
-	s, err := setupStorage(context.TODO(), "server")
+	s, err := setupStorage(context.TODO(), cmdServer)
 	if err != nil {
 		return nil, err
 	}

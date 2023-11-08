@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-version"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -40,7 +39,7 @@ func archiveModules(root string, storage module.Storage) error {
 func processModule(path string, storage module.Storage) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
-		return errors.Wrap(err, "parse module file failed")
+		return fmt.Errorf("parse module file failed, error: %w", err)
 	}
 
 	_ = level.Debug(logger).Log(
@@ -82,7 +81,7 @@ func processModule(path string, storage module.Storage) error {
 				"msg", "module already exists",
 				"download_url", res.DownloadURL,
 			)
-			return errors.New("module already exists")
+			return fmt.Errorf("module already exists")
 		}
 	}
 
