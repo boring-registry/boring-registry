@@ -1,10 +1,11 @@
 package storage
 
 import (
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProviderPath(t *testing.T) {
@@ -62,9 +63,9 @@ func TestProviderPath(t *testing.T) {
 			os:                "linux",
 			arch:              "amd64",
 			expectedPanic:     false,
-			expectedArchive:   "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
-			expectedShasum:    "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
-			expectedShasumSig: "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
+			expectedArchive:   "storagePrefix/mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
+			expectedShasum:    "storagePrefix/mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
+			expectedShasumSig: "storagePrefix/mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
 		},
 		{
 			annotation:        "all parameters for internal storage are set",
@@ -126,7 +127,7 @@ func TestSigningKeysPath(t *testing.T) {
 			pt:         mirrorProviderType,
 			hostname:   "terraform.example.com",
 			namespace:  "hashicorp",
-			expected:   "prefix/mirror/terraform.example.com/hashicorp/signing-keys.json",
+			expected:   "prefix/mirror/providers/terraform.example.com/hashicorp/signing-keys.json",
 		},
 	}
 
