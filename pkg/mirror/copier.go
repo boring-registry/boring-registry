@@ -17,8 +17,8 @@ type Copier interface {
 	copy(provider *core.Provider)
 }
 
-// mirror implements Copier and ensures that requested providers are replicated to the internal storage asynchronously
-type mirror struct {
+// copier implements Copier and ensures that requested providers are replicated to the internal storage asynchronously
+type copier struct {
 	// done is used to signal termination to potentially multiple goroutines at once
 	done chan struct{}
 
@@ -28,7 +28,7 @@ type mirror struct {
 }
 
 // copy should be started in a separate goroutine
-func (m *mirror) copy(provider *core.Provider) {
+func (c *copier) copy(provider *core.Provider) {
 	begin := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -36,7 +36,7 @@ func (m *mirror) copy(provider *core.Provider) {
 	// A goroutine that terminates all pending downloads in case the application is shutting down
 	go func() {
 		select {
-		case <-m.done:
+		case <-c.done:
 			cancel()
 		case <-ctx.Done():
 			// No-op as the copy process either succeeded and the deferred cancel() function was called
@@ -45,39 +45,39 @@ func (m *mirror) copy(provider *core.Provider) {
 	}()
 
 	// We download the files from upstream and mirror them to our storage
-	if err := m.signingKeys(ctx, provider); err != nil {
-		_ = m.logger.Log(logKeyValues(provider, err))
+	if err := c.signingKeys(ctx, provider); err != nil {
+		_ = c.logger.Log(logKeyValues(provider, err))
 		return
 	}
 
-	if err := m.sha256Sums(ctx, provider); err != nil {
-		_ = m.logger.Log(logKeyValues(provider, err))
+	if err := c.sha256Sums(ctx, provider); err != nil {
+		_ = c.logger.Log(logKeyValues(provider, err))
 		return
 	}
 
-	if err := m.sha256SumsSignature(ctx, provider); err != nil {
-		_ = m.logger.Log(logKeyValues(provider, err))
+	if err := c.sha256SumsSignature(ctx, provider); err != nil {
+		_ = c.logger.Log(logKeyValues(provider, err))
 		return
 	}
 
 	// Request the provider archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.DownloadURL, nil)
 	if err != nil {
-		_ = m.logger.Log(logKeyValues(provider, err))
+		_ = c.logger.Log(logKeyValues(provider, err))
 		return
 	}
-	resp, err := m.client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
-		_ = m.logger.Log(logKeyValues(provider, err))
+		_ = c.logger.Log(logKeyValues(provider, err))
 		return
 	}
 	defer resp.Body.Close()
 
 	fileName := provider.ArchiveFileName()
-	if err = m.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
-		_ = m.logger.Log(logKeyValues(provider, err))
+	if err = c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
+		_ = c.logger.Log(logKeyValues(provider, err))
 	}
-	_ = m.logger.Log(
+	_ = c.logger.Log(
 		"op", "CopyProvider",
 		"hostname", provider.Hostname,
 		"namespace", provider.Namespace,
@@ -90,9 +90,9 @@ func (m *mirror) copy(provider *core.Provider) {
 }
 
 // check if the signing keys exist, if not add it
-func (m *mirror) signingKeys(ctx context.Context, provider *core.Provider) error {
+func (c *copier) signingKeys(ctx context.Context, provider *core.Provider) error {
 	needsUpdate := true
-	storedKeys, err := m.storage.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
+	storedKeys, err := c.storage.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
 	if err != nil {
 		if !errors.Is(err, core.ErrObjectNotFound) {
 			return err
@@ -108,15 +108,15 @@ func (m *mirror) signingKeys(ctx context.Context, provider *core.Provider) error
 		return nil
 	}
 
-	return m.storage.UploadMirroredSigningKeys(ctx, provider.Hostname, provider.Namespace, storedKeys)
+	return c.storage.UploadMirroredSigningKeys(ctx, provider.Hostname, provider.Namespace, storedKeys)
 }
 
-func (m *mirror) sha256SumsSignature(ctx context.Context, provider *core.Provider) error {
+func (c *copier) sha256SumsSignature(ctx context.Context, provider *core.Provider) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.SHASumsSignatureURL, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := m.client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -126,15 +126,15 @@ func (m *mirror) sha256SumsSignature(ctx context.Context, provider *core.Provide
 	}
 
 	fileName := provider.ShasumSignatureFileName()
-	return m.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body)
+	return c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body)
 }
 
-func (m *mirror) sha256Sums(ctx context.Context, provider *core.Provider) error {
+func (c *copier) sha256Sums(ctx context.Context, provider *core.Provider) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.SHASumsURL, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := m.client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -144,16 +144,16 @@ func (m *mirror) sha256Sums(ctx context.Context, provider *core.Provider) error 
 	}
 
 	fileName := provider.ShasumFileName()
-	return m.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body)
+	return c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body)
 }
 
-func (m *mirror) shutdown(ctx context.Context) {
+func (c *copier) shutdown(ctx context.Context) {
 	<-ctx.Done()
-	close(m.done)
+	close(c.done)
 }
 
-func NewMirror(ctx context.Context, logger log.Logger, storage Storage) Copier {
-	m := &mirror{
+func NewCopier(ctx context.Context, logger log.Logger, storage Storage) Copier {
+	m := &copier{
 		done:   make(chan struct{}),
 		logger: logger,
 		client: &http.Client{

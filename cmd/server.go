@@ -68,7 +68,8 @@ var (
 	flagAuthOktaClaims []string
 
 	// Provider Network Mirror
-	flagProviderNetworkMirrorEnabled bool
+	flagProviderNetworkMirrorEnabled            bool
+	flagProviderNetworkMirrorPullThroughEnabled bool
 )
 
 var serverCmd = &cobra.Command{
@@ -204,7 +205,8 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 
 	// Provider Network Mirror options
-	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "enable-provider-pull-through-mirror", true, "Enable the provider pull-through mirror")
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "network-mirror", true, "Enable the provider network mirror")
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughEnabled, "network-mirror-pull-through", false, "Enable the pull-through provider network mirror. This setting takes no effect if network-mirror is disabled")
 }
 
 // TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
@@ -294,8 +296,15 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	}
 
 	if flagProviderNetworkMirrorEnabled {
-		mirrorCopier := mirror.NewMirror(ctx, logger, s)
-		if err := registerMirror(mux, s, mirrorCopier); err != nil {
+		var svc mirror.Service
+		if flagProviderNetworkMirrorPullThroughEnabled {
+			copier := mirror.NewCopier(ctx, logger, s)
+			svc = mirror.NewPullThroughMirror(s, copier)
+		} else {
+			svc = mirror.NewMirror(s)
+		}
+
+		if err := registerMirror(mux, s, svc); err != nil {
 			return nil, err
 		}
 	}
@@ -393,11 +402,8 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 	return nil
 }
 
-func registerMirror(mux *http.ServeMux, s storage.Storage, c mirror.Copier) error {
-	service := mirror.NewService(s, c)
-	{
-		service = mirror.LoggingMiddleware(logger)(service)
-	}
+func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) error {
+	service := mirror.LoggingMiddleware(logger)(svc)
 
 	opts := []httptransport.ServerOption{
 		httptransport.ServerErrorHandler(

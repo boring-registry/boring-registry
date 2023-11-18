@@ -21,7 +21,7 @@ var exampleSigningKeys = core.SigningKeys{
 	},
 }
 
-func Test_mirror_signingKeys(t *testing.T) {
+func Test_copier_signingKeys(t *testing.T) {
 	type fields struct {
 		done    chan struct{}
 		storage Storage
@@ -112,7 +112,7 @@ func Test_mirror_signingKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &mirror{
+			m := &copier{
 				done:    tt.fields.done,
 				storage: tt.fields.storage,
 			}
@@ -123,7 +123,7 @@ func Test_mirror_signingKeys(t *testing.T) {
 	}
 }
 
-func Test_mirror_sha256SumsSignature(t *testing.T) {
+func Test_copier_sha256SumsSignature(t *testing.T) {
 	type fields struct {
 		done    chan struct{}
 		storage Storage
@@ -200,7 +200,7 @@ func Test_mirror_sha256SumsSignature(t *testing.T) {
 				}
 			}))
 
-			m := &mirror{
+			m := &copier{
 				done:    tt.fields.done,
 				storage: tt.fields.storage,
 				client:  server.Client(),
@@ -216,7 +216,7 @@ func Test_mirror_sha256SumsSignature(t *testing.T) {
 	}
 }
 
-func Test_mirror_sha256Sums(t *testing.T) {
+func Test_copier_sha256Sums(t *testing.T) {
 	tests := []struct {
 		name       string
 		storage    Storage
@@ -261,12 +261,12 @@ func Test_mirror_sha256Sums(t *testing.T) {
 				}
 			}))
 			tt.provider.SHASumsURL = server.URL
-			m := &mirror{
+			m := &copier{
 				storage: tt.storage,
 				client:  server.Client(),
 			}
 			if err := m.sha256Sums(context.Background(), tt.provider); (err != nil) != tt.wantErr {
-				t.Errorf("mirror.sha256Sums() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("sha256Sums() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
