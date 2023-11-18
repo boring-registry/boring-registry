@@ -20,7 +20,7 @@ type providerType string
 type moduleType string
 
 // providerStoragePrefix returns a prefix in the form of either <prefix>/providers/<namespace>/<name>
-// or <prefix>/mirror/<hostname>/<namespace>/<name> prefix
+// or <prefix>/mirror/providers/<hostname>/<namespace>/<name> prefix
 func providerStoragePrefix(prefix string, t providerType, hostname, namespace, name string) string {
 	if t == mirrorProviderType && hostname == "" {
 		panic("hostname must not be empty for mirrored provider storage")
