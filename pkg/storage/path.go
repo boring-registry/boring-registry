@@ -58,7 +58,6 @@ func internalProviderPath(prefix, namespace, name, version, os, arch string) (st
 	return providerPath(prefix, internalProviderType, "", namespace, name, version, os, arch)
 }
 
-// TODO(oliviermichaelis): consider using /mirror/providers/<hostname>
 // mirrorProviderPath returns a full path to a mirrored provider archive
 func mirrorProviderPath(prefix, hostname, namespace, name, version, os, arch string) (string, string, string) {
 	return providerPath(prefix, mirrorProviderType, hostname, namespace, name, version, os, arch)
