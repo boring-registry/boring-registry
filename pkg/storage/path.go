@@ -12,7 +12,7 @@ import (
 
 const (
 	internalProviderType = providerType("providers")
-	mirrorProviderType   = providerType("mirror")
+	mirrorProviderType   = providerType("mirror/providers")
 	internalModuleType   = moduleType("modules")
 )
 
