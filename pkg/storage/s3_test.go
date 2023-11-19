@@ -4,28 +4,30 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
 
+	signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/pkg/errors"
-	"github.com/stretchr/testify/assert"
 	assertion "github.com/stretchr/testify/assert"
 )
 
 type mockS3Client struct {
-	errorFunc func() error
+	headObject func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
 }
 
 func (m *mockS3Client) HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
-	return nil, m.errorFunc()
+	return m.headObject(ctx, params, optFns...)
 }
 
 func (m *mockS3Client) ListObjectsV2(ctx context.Context, input *s3.ListObjectsV2Input, f ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
@@ -51,8 +53,9 @@ func (m *mockS3Uploader) Upload(ctx context.Context, input *s3.PutObjectInput, o
 }
 
 type mockS3Downloader struct {
-	payload []byte
-	error   bool
+	// data is a map that contains data which should be served under a given key
+	data  map[string][]byte
+	error bool
 }
 
 // Not 100% sure if that works correctly for large byte arrays
@@ -62,60 +65,81 @@ func (m *mockS3Downloader) Download(ctx context.Context, w io.WriterAt, input *s
 		return 0, errors.New("mocked error")
 	}
 
+	data, exists := m.data[*input.Key]
+	if !exists {
+		panic(fmt.Sprintf("key %s does not exist in mocked payload map", *input.Key))
+	}
+
 	var off int64 = 0
 	for {
-		written, err := w.WriteAt(m.payload, off)
+		written, err := w.WriteAt(data, off)
 		if err != nil {
 			return 0, err
 		}
 		off += int64(written)
-		if off == int64(len(m.payload)) {
+		if off == int64(len(m.data[*input.Key])) {
 			break
 		}
 	}
 	return 0, nil
 }
 
+type mockS3PresignClient struct{}
+
+func (m *mockS3PresignClient) PresignGetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.PresignOptions)) (*signer.PresignedHTTPRequest, error) {
+	return &signer.PresignedHTTPRequest{
+		URL: fmt.Sprintf("%s?presigned=true", *params.Key),
+	}, nil
+}
+
+func headExistingObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	return &s3.HeadObjectOutput{}, nil
+}
+
+func headNonExistingObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	return nil, &awshttp.ResponseError{
+		ResponseError: &smithyhttp.ResponseError{
+			Response: &smithyhttp.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusNotFound,
+				},
+			},
+		},
+	}
+}
+
 func TestS3Storage_UploadProviderReleaseFiles(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		description       string
-		namespace         string
-		name              string
-		filename          string
-		content           string
-		s3ClientErrorFunc func() error
-		wantErr           assert.ErrorAssertionFunc
+		description string
+		namespace   string
+		name        string
+		filename    string
+		content     string
+		client      s3ClientAPI
+		wantErr     assertion.ErrorAssertionFunc
 	}{
 		{
 			description: "provider file exists already",
 			namespace:   "hashicorp",
 			name:        "random",
 			filename:    "terraform-provider-random_2.0.0_linux_amd64.zip",
-			s3ClientErrorFunc: func() error {
-				return nil
+			client: &mockS3Client{
+				headObject: headExistingObject,
 			},
 			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
 				return assertion.Error(t, err)
 			},
 		},
 		{
-			description: "upload file",
+			description: "upload file successfully",
 			namespace:   "hashicorp",
 			name:        "random",
 			filename:    "terraform-provider-random_2.0.0_linux_amd64.zip",
 			content:     "test",
-			s3ClientErrorFunc: func() error {
-				return &awshttp.ResponseError{
-					ResponseError: &smithyhttp.ResponseError{
-						Response: &smithyhttp.Response{
-							Response: &http.Response{
-								StatusCode: http.StatusNotFound,
-							},
-						},
-					},
-				}
+			client: &mockS3Client{
+				headObject: headNonExistingObject,
 			},
 			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
 				return !assertion.NoError(t, err)
@@ -127,9 +151,7 @@ func TestS3Storage_UploadProviderReleaseFiles(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			u := &mockS3Uploader{}
 			s := S3Storage{
-				client: &mockS3Client{
-					errorFunc: tc.s3ClientErrorFunc,
-				},
+				client:   tc.client,
 				uploader: u,
 			}
 			s.uploader = u
@@ -170,44 +192,54 @@ func TestSigningKeys(t *testing.T) {
 
 	testCases := []struct {
 		annotation    string
-		payload       []byte
+		data          map[string][]byte
 		namespace     string
 		returnError   bool
 		expectedError bool
 		expect        core.SigningKeys
 	}{
 		{
-			annotation:    "empty namespace",
-			payload:       validSigningKeysBytes,
+			annotation: "empty namespace",
+			data: map[string][]byte{
+				"providers/hashicorp/signing-keys.json": validSigningKeysBytes,
+			},
 			namespace:     "",
 			expectedError: true,
 			expect:        validSigningKeys,
 		},
 		{
-			annotation:    "download fails",
-			payload:       validSigningKeysBytes,
+			annotation: "download fails",
+			data: map[string][]byte{
+				"providers/hashicorp/signing-keys.json": validSigningKeysBytes,
+			},
 			namespace:     "hashicorp",
 			returnError:   true,
 			expectedError: true,
 			expect:        validSigningKeys,
 		},
 		{
-			annotation:    "empty object",
-			payload:       []byte(""),
+			annotation: "empty object",
+			data: map[string][]byte{
+				"providers/hashicorp/signing-keys.json": []byte(""),
+			},
 			namespace:     "hashicorp",
 			expectedError: true,
 			expect:        validSigningKeys,
 		},
 		{
-			annotation:    "only a single gpg_public_key for the provider namespace",
-			payload:       validGPGPublicKeyBytes,
+			annotation: "only single gpg_public_key for the provider namespace",
+			data: map[string][]byte{
+				"providers/hashicorp/signing-keys.json": validGPGPublicKeyBytes,
+			},
 			namespace:     "hashicorp",
 			expectedError: false,
 			expect:        validSigningKeys,
 		},
 		{
-			annotation:    "signing_keys with a single gpg_public_key",
-			payload:       validSigningKeysBytes,
+			annotation: "signing_keys with a single gpg_public_key",
+			data: map[string][]byte{
+				"providers/hashicorp/signing-keys.json": validSigningKeysBytes,
+			},
 			namespace:     "hashicorp",
 			expectedError: false,
 			expect:        validSigningKeys,
@@ -218,24 +250,168 @@ func TestSigningKeys(t *testing.T) {
 		tc := tc
 		t.Run(tc.annotation, func(t *testing.T) {
 			s := S3Storage{
-				downloader: &mockS3Downloader{payload: tc.payload, error: tc.returnError},
+				downloader: &mockS3Downloader{data: tc.data, error: tc.returnError},
 				client: &mockS3Client{
-					errorFunc: func() error {
-						return nil
-					},
+					headObject: headExistingObject,
 				},
 			}
 
 			result, err := s.SigningKeys(context.Background(), tc.namespace)
 
 			if !tc.expectedError {
-				assert.NoError(t, err)
+				assertion.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				assertion.Error(t, err)
 				return
 			}
 
-			assert.Equal(t, &tc.expect, result)
+			assertion.Equal(t, &tc.expect, result)
+		})
+	}
+}
+
+func TestS3Storage_getProvider(t *testing.T) {
+	type fields struct {
+		client     s3ClientAPI
+		downloader s3DownloaderAPI
+	}
+	type args struct {
+		pt       providerType
+		provider *core.Provider
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *core.Provider
+		wantErr bool
+	}{
+		{
+			name: "provider does not exist",
+			fields: fields{
+				client: &mockS3Client{
+					headObject: headNonExistingObject,
+				},
+				downloader: &mockS3Downloader{},
+			},
+			args: args{
+				pt: internalProviderType,
+				provider: &core.Provider{
+					Namespace: "example",
+					Name:      "dummy",
+					Version:   "1.0.0",
+					OS:        "linux",
+					Arch:      "amd64",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "internal provider exists",
+			fields: fields{
+				client: &mockS3Client{
+					headObject: headExistingObject,
+				},
+				downloader: &mockS3Downloader{
+					data: map[string][]byte{
+						"providers/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS": []byte("10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89  terraform-provider-dummy_1.0.0_linux_amd64.zip"),
+						"providers/example/signing-keys.json":                               []byte(`{"gpg_public_keys":[{"key_id":"47422B4AA9FA381B","ascii_armor":"test"}]}`),
+					},
+				},
+			},
+			args: args{
+				pt: internalProviderType,
+				provider: &core.Provider{
+					Namespace: "example",
+					Name:      "dummy",
+					Version:   "1.0.0",
+					OS:        "linux",
+					Arch:      "amd64",
+				},
+			},
+			want: &core.Provider{
+				Namespace:           "example",
+				Name:                "dummy",
+				Version:             "1.0.0",
+				OS:                  "linux",
+				Arch:                "amd64",
+				Filename:            "terraform-provider-dummy_1.0.0_linux_amd64.zip",
+				DownloadURL:         "providers/example/dummy/terraform-provider-dummy_1.0.0_linux_amd64.zip?presigned=true",
+				Shasum:              "10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89",
+				SHASumsURL:          "providers/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS?presigned=true",
+				SHASumsSignatureURL: "providers/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS.sig?presigned=true",
+				SigningKeys: core.SigningKeys{
+					GPGPublicKeys: []core.GPGPublicKey{
+						{
+							KeyID:      "47422B4AA9FA381B",
+							ASCIIArmor: "test",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "mirrored provider exists",
+			fields: fields{
+				client: &mockS3Client{
+					headObject: headExistingObject,
+				},
+				downloader: &mockS3Downloader{
+					data: map[string][]byte{
+						"mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS": []byte("10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89  terraform-provider-dummy_1.0.0_linux_amd64.zip"),
+						"mirror/providers/terraform.example.com/example/signing-keys.json":                               []byte(`{"gpg_public_keys":[{"key_id":"47422B4AA9FA381B","ascii_armor":"test"}]}`),
+					},
+				},
+			},
+			args: args{
+				pt: mirrorProviderType,
+				provider: &core.Provider{
+					Hostname:  "terraform.example.com",
+					Namespace: "example",
+					Name:      "dummy",
+					Version:   "1.0.0",
+					OS:        "linux",
+					Arch:      "amd64",
+				},
+			},
+			want: &core.Provider{
+				Hostname:            "terraform.example.com",
+				Namespace:           "example",
+				Name:                "dummy",
+				Version:             "1.0.0",
+				OS:                  "linux",
+				Arch:                "amd64",
+				Filename:            "terraform-provider-dummy_1.0.0_linux_amd64.zip",
+				DownloadURL:         "mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_linux_amd64.zip?presigned=true",
+				Shasum:              "10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89",
+				SHASumsURL:          "mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS?presigned=true",
+				SHASumsSignatureURL: "mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS.sig?presigned=true",
+				SigningKeys: core.SigningKeys{
+					GPGPublicKeys: []core.GPGPublicKey{
+						{
+							KeyID:      "47422B4AA9FA381B",
+							ASCIIArmor: "test",
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &S3Storage{
+				client:        tt.fields.client,
+				presignClient: &mockS3PresignClient{},
+				downloader:    tt.fields.downloader,
+			}
+			got, err := s.getProvider(context.Background(), tt.args.pt, tt.args.provider)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("S3Storage.getProvider() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("S3Storage.getProvider() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

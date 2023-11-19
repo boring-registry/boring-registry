@@ -15,6 +15,7 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/config"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -43,11 +44,17 @@ type s3DownloaderAPI interface {
 	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(api *s3manager.Downloader)) (n int64, err error)
 }
 
+// s3PresignClientAPI is used to mock the AWS APIs
+// See https://aws.github.io/aws-sdk-go-v2/docs/unit-testing/
+type s3PresignClientAPI interface {
+	PresignGetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.PresignOptions)) (*signer.PresignedHTTPRequest, error)
+}
+
 // S3Storage is a Storage implementation backed by S3.
 // S3Storage implements module.Storage and provider.Storage
 type S3Storage struct {
 	client              s3ClientAPI
-	presignClient       *s3.PresignClient
+	presignClient       s3PresignClientAPI
 	downloader          s3DownloaderAPI
 	uploader            s3UploaderAPI
 	bucket              string
@@ -458,7 +465,7 @@ func (s *S3Storage) presignedURL(ctx context.Context, key string) (string, error
 			Bucket: aws.String(s.bucket),
 			Key:    aws.String(key),
 		},
-		s3.WithPresignExpires(s.signedURLExpiry), // TODO(oliviermichaelis): check if we need to set it back to 15min
+		s3.WithPresignExpires(s.signedURLExpiry),
 	)
 
 	return presignResult.URL, err
