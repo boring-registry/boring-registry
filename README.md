@@ -104,13 +104,22 @@ The Boring-Registry is using the following storage layout inside the storage bac
 │           └── <provider>
 │               ├── <namespace>-<name>-<provider>-<version>.tar.gz
 │               └── <namespace>-<name>-<provider>-<version>.tar.gz
-└── providers
-    └── <namespace>
-        ├── signing-keys.json
-        └── <name>
-            ├── terraform-provider-<name>_<version>_SHA256SUMS
-            ├── terraform-provider-<name>_<version>_SHA256SUMS.sig
-            └── terraform-provider-<name>_<version>_<os>_<arch>.zip
+├── providers
+│   └── <namespace>
+│       ├── signing-keys.json
+│       └── <name>
+│           ├── terraform-provider-<name>_<version>_SHA256SUMS
+│           ├── terraform-provider-<name>_<version>_SHA256SUMS.sig
+│           └── terraform-provider-<name>_<version>_<os>_<arch>.zip
+└── mirror
+    └── providers
+        └── <hostname>
+            └── <namespace>
+                ├── signing-keys.json
+                └── <name>
+                    ├── terraform-provider-<name>_<version>_SHA256SUMS
+                    ├── terraform-provider-<name>_<version>_SHA256SUMS.sig
+                    └── terraform-provider-<name>_<version>_<os>_<arch>.zip
 ```
 
 * The `<bucket_prefix>` is an optional prefix under which the Boring-Registry storage is organized and can be set with the `--storage-s3-prefix` or `--storage-gcs-prefix` flags.
@@ -124,14 +133,24 @@ An example without any placeholders could be the following.
 │           └── aws
 │               ├── tier-tls-private-key-aws-0.1.0.tar.gz
 │               └── tier-tls-private-key-aws-0.1.1.tar.gz
-└── providers
-    └── tier
-        ├── signing-keys.json
-        └── dummy
-            ├── terraform-provider-dummy_0.1.0_SHA256SUMS
-            ├── terraform-provider-dummy_0.1.0_SHA256SUMS.sig
-            ├── terraform-provider-dummy_0.1.0_linux_amd64.zip
-            └── terraform-provider-dummy_0.1.0_linux_arm64.zip
+├── providers
+│   └── tier
+│       ├── signing-keys.json
+│       └── dummy
+│           ├── terraform-provider-dummy_0.1.0_SHA256SUMS
+│           ├── terraform-provider-dummy_0.1.0_SHA256SUMS.sig
+│           ├── terraform-provider-dummy_0.1.0_linux_amd64.zip
+│           └── terraform-provider-dummy_0.1.0_linux_arm64.zip
+└── mirror
+    └── providers
+        └── terraform.example.com
+            └── example
+                ├── signing-keys.json
+                └── random
+                    ├── terraform-provider-random_0.1.0_SHA256SUMS
+                    ├── terraform-provider-random_0.1.0_SHA256SUMS.sig
+                    └── terraform-provider-random_0.1.0_linux_amd64.zip
+
 ```
 
 ## Publishing Modules
@@ -309,3 +328,34 @@ release:
 changelog:
   skip: true
 ```
+
+## Provider Network Mirror
+
+> [!NOTE]
+> The Provider Network Mirror feature is available starting from `v0.12.0`.
+> The Network Mirror is enabled by default, but can be disabled with `--network-mirror=false`.
+
+The boring-registry implements the [Provider Network Mirror Protocol](https://developer.hashicorp.com/terraform/internals/provider-network-mirror-protocol) to provide an alternative installation source for providers.
+
+Check the [Terraform CLI documentation](https://developer.hashicorp.com/terraform/cli/config/config-file#provider-installation) to learn how to configure Terraform to use the provider network mirror.
+In the following is an example for a `.terraformrc`:
+```hcl
+provider_installation {
+  network_mirror {
+    url = "https://boring-registry.example.com:5601/v1/mirror/"
+  }
+}
+```
+
+To populate the mirror, the provider release artifacts need to be uploaded to the storage backend.
+Refer to the [Internal Storage Layout](#internal-storage-layout) section for an overview of the required structure.
+The [`terraform providers mirror`](https://developer.hashicorp.com/terraform/cli/commands/providers/mirror) command is a good starting point for collecting the necessary files.
+
+### Pull-through mirror
+
+As part of the Provider Network Mirror, a pull-through mirror can optionally be activated with `--network-mirror-pull-through=true`.
+
+The pull-through functionality makes it possible that the providers do not have to be uploaded upfront to the storage backend.
+Instead, boring-registry serves the providers of the origin registry and mirrors them automatically to the storage backend on the first download. 
+On the subsequent download request, boring-registry serves the providers directly from the storage backend.
+This can significantly speed up the `terraform init` phase and in some cases save additional traffic costs.
