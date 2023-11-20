@@ -78,7 +78,7 @@ func downloadEndpoint(svc Service) endpoint.Endpoint {
 			Arch:                res.Arch,
 			DownloadURL:         res.DownloadURL,
 			Filename:            res.Filename,
-			Shasum:              res.Shasum,
+			Shasum:              res.SHASum,
 			SigningKeys:         res.SigningKeys,
 			ShasumsURL:          res.SHASumsURL,
 			ShasumsSignatureURL: res.SHASumsSignatureURL,

@@ -112,6 +112,9 @@ var serverCmd = &cobra.Command{
 		group.Go(func() error {
 			<-ctx.Done()
 
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
 			if err := server.Shutdown(ctx); err != nil {
 				if err != context.Canceled {
 					_ = level.Error(logger).Log(
@@ -199,31 +202,6 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 }
 
-// TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
-func setupStorage(ctx context.Context) (storage.Storage, error) {
-	switch {
-	case flagS3Bucket != "":
-		return storage.NewS3Storage(ctx,
-			flagS3Bucket,
-			storage.WithS3StorageBucketPrefix(flagS3Prefix),
-			storage.WithS3StorageBucketRegion(flagS3Region),
-			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
-			storage.WithS3StoragePathStyle(flagS3PathStyle),
-			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
-			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
-		)
-	case flagGCSBucket != "":
-		return storage.NewGCSStorage(flagGCSBucket,
-			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
-			storage.WithGCSServiceAccount(flagGCSServiceAccount),
-			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
-			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
-		)
-	default:
-		return nil, errors.New("please specify a valid storage provider")
-	}
-}
-
 func serveMux() (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
@@ -272,7 +250,7 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
-	s, err := setupStorage(context.TODO())
+	s, err := setupStorage(context.TODO(), cmdServer)
 	if err != nil {
 		return nil, err
 	}

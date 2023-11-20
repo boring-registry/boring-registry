@@ -10,6 +10,6 @@ RUN CGO_ENABLED=0 go install -mod=vendor github.com/TierMobility/boring-registry
 
 FROM gcr.io/distroless/base:nonroot
 
-COPY --from=build /go/bin/boring-registry /
+COPY --from=build ${BASEDIR}/registry /
 
 ENTRYPOINT ["/boring-registry", "server"]

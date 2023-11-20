@@ -278,7 +278,7 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 		Version:             version,
 		OS:                  os,
 		Arch:                arch,
-		Shasum:              shasum,
+		SHASum:              shasum,
 		Filename:            path.Base(archivePath),
 		DownloadURL:         zipURL,
 		SHASumsURL:          shasumsURL,
