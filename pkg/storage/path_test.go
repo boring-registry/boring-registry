@@ -1,13 +1,14 @@
 package storage
 
 import (
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestInternalProviderStoragePrefix(t *testing.T) {
+func TestProviderPath(t *testing.T) {
 	t.Parallel()
 
 	testCase := []struct {
@@ -20,27 +21,27 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 		version           string
 		os                string
 		arch              string
-		expectedError     bool
+		expectedPanic     bool
 		expectedArchive   string
 		expectedShasum    string
 		expectedShasumSig string
 	}{
 		{
 			annotation:    "every input is missing",
-			expectedError: true,
+			expectedPanic: true,
 		},
 		{
 			annotation:    "only prefix is passed",
 			prefix:        "storage",
 			providerType:  internalProviderType,
-			expectedError: true,
+			expectedPanic: true,
 		},
 		{
 			annotation:    "mirror type and hostname is missing",
 			prefix:        "storage",
 			providerType:  mirrorProviderType,
 			hostname:      "",
-			expectedError: true,
+			expectedPanic: true,
 		},
 		{
 			annotation:    "mirror type and hostname is missing",
@@ -49,7 +50,7 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 			hostname:      "registry.terraform.io",
 			namespace:     "hashicorp",
 			name:          "",
-			expectedError: true,
+			expectedPanic: true,
 		},
 		{
 			annotation:        "all parameters for mirror storage are set",
@@ -61,10 +62,10 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 			version:           "3.1.0",
 			os:                "linux",
 			arch:              "amd64",
-			expectedError:     false,
-			expectedArchive:   "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
-			expectedShasum:    "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
-			expectedShasumSig: "storagePrefix/mirror/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
+			expectedPanic:     false,
+			expectedArchive:   "storagePrefix/mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
+			expectedShasum:    "storagePrefix/mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
+			expectedShasumSig: "storagePrefix/mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
 		},
 		{
 			annotation:        "all parameters for internal storage are set",
@@ -76,7 +77,7 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 			version:           "3.1.0",
 			os:                "linux",
 			arch:              "amd64",
-			expectedError:     false,
+			expectedPanic:     false,
 			expectedArchive:   "storagePrefix/providers/hashicorp/random/terraform-provider-random_3.1.0_linux_amd64.zip",
 			expectedShasum:    "storagePrefix/providers/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS",
 			expectedShasumSig: "storagePrefix/providers/hashicorp/random/terraform-provider-random_3.1.0_SHA256SUMS.sig",
@@ -86,14 +87,15 @@ func TestInternalProviderStoragePrefix(t *testing.T) {
 	for _, tc := range testCase {
 		tc := tc
 		t.Run(tc.annotation, func(t *testing.T) {
-			archive, shasum, shasumSig, err := providerPath(tc.prefix, tc.providerType, tc.hostname, tc.namespace, tc.name, tc.version, tc.os, tc.arch)
-			if !tc.expectedError {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-				return
-			}
+			defer func() {
+				if tc.expectedPanic {
+					if r := recover(); r == nil {
+						t.Errorf("The code did not panic")
+					}
+				}
+			}()
 
+			archive, shasum, shasumSig := providerPath(tc.prefix, tc.providerType, tc.hostname, tc.namespace, tc.name, tc.version, tc.os, tc.arch)
 			assert.Equal(t, tc.expectedArchive, archive)
 			assert.Equal(t, tc.expectedShasum, shasum)
 			assert.Equal(t, tc.expectedShasumSig, shasumSig)
@@ -107,21 +109,32 @@ func TestSigningKeysPath(t *testing.T) {
 	testCase := []struct {
 		annotation string
 		prefix     string
+		pt         providerType
+		hostname   string
 		namespace  string
 		expected   string
 	}{
 		{
-			annotation: "with prefix and namespace",
+			annotation: "internal keys with prefix and namespace",
 			prefix:     "prefix",
+			pt:         internalProviderType,
 			namespace:  "hashicorp",
 			expected:   "prefix/providers/hashicorp/signing-keys.json",
+		},
+		{
+			annotation: "mirrored keys with prefix and namespace",
+			prefix:     "prefix",
+			pt:         mirrorProviderType,
+			hostname:   "terraform.example.com",
+			namespace:  "hashicorp",
+			expected:   "prefix/mirror/providers/terraform.example.com/hashicorp/signing-keys.json",
 		},
 	}
 
 	for _, tc := range testCase {
 		tc := tc
 		t.Run(tc.annotation, func(t *testing.T) {
-			result := signingKeysPath(tc.prefix, tc.namespace)
+			result := signingKeysPath(tc.prefix, tc.pt, tc.hostname, tc.namespace)
 			assert.Equal(t, tc.expected, result)
 		})
 	}

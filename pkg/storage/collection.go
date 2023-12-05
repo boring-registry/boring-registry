@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+
 	"github.com/TierMobility/boring-registry/pkg/core"
 )
 
@@ -15,17 +16,17 @@ func NewCollection() *Collection {
 	}
 }
 
-func (s *Collection) List() []core.ProviderVersion {
-	var out []core.ProviderVersion
+func (s *Collection) List() *core.ProviderVersions {
+	var out core.ProviderVersions
 
 	for _, provider := range s.m {
-		out = append(out, provider)
+		out.Versions = append(out.Versions, provider)
 	}
 
-	return out
+	return &out
 }
 
-func (s *Collection) Add(provider core.Provider) {
+func (s *Collection) Add(provider *core.Provider) {
 	id := fmt.Sprintf("%s/%s/%s", provider.Namespace, provider.Name, provider.Version)
 
 	if _, ok := s.m[id]; !ok {

@@ -1,5 +1,6 @@
 package discovery
 
+// See https://developer.hashicorp.com/terraform/internals/remote-service-discovery
 type Discovery struct {
 	LoginV1     *LoginV1 `json:"login.v1,omitempty"`
 	ModulesV1   string   `json:"modules.v1,omitempty"`

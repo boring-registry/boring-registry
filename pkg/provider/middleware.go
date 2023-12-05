@@ -3,11 +3,12 @@ package provider
 import (
 	"context"
 	"fmt"
-	"github.com/TierMobility/boring-registry/pkg/core"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/TierMobility/boring-registry/pkg/core"
+
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 )
 
 // Middleware is a Service middleware.
@@ -28,7 +29,7 @@ func LoggingMiddleware(logger log.Logger) Middleware {
 	}
 }
 
-func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace, name string) (providers []core.ProviderVersion, err error) {
+func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace, name string) (versions *core.ProviderVersions, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {

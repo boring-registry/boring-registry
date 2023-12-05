@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+
 	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/endpoint"
@@ -12,36 +13,11 @@ type listRequest struct {
 	name      string
 }
 
-type listResponse struct {
-	Versions []listResponseVersion `json:"versions,omitempty"`
-}
-
-type listResponseVersion struct {
-	Version   string          `json:"version,omitempty"`
-	Platforms []core.Platform `json:"platforms,omitempty"`
-}
-
 func listEndpoint(svc Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listRequest)
 
-		res, err := svc.ListProviderVersions(ctx, req.namespace, req.name)
-		if err != nil {
-			return nil, err
-		}
-
-		var versions []listResponseVersion
-
-		for _, provider := range res {
-			versions = append(versions, listResponseVersion{
-				Version:   provider.Version,
-				Platforms: provider.Platforms,
-			})
-		}
-
-		return listResponse{
-			Versions: versions,
-		}, nil
+		return svc.ListProviderVersions(ctx, req.namespace, req.name)
 	}
 }
 

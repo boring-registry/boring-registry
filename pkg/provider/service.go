@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+
 	"github.com/TierMobility/boring-registry/pkg/core"
 )
 
@@ -9,7 +10,7 @@ import (
 // For more information see: https://www.terraform.io/docs/internals/provider-registry-protocol.html.
 type Service interface {
 	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error)
-	ListProviderVersions(ctx context.Context, namespace, name string) ([]core.ProviderVersion, error)
+	ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error)
 }
 
 type service struct {
@@ -24,19 +25,9 @@ func NewService(storage Storage) Service {
 }
 
 func (s *service) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
-	res, err := s.storage.GetProvider(ctx, namespace, name, version, os, arch)
-	if err != nil {
-		return core.Provider{}, err
-	}
-
-	return res, nil
+	return s.storage.GetProvider(ctx, namespace, name, version, os, arch)
 }
 
-func (s *service) ListProviderVersions(ctx context.Context, namespace, name string) ([]core.ProviderVersion, error) {
-	res, err := s.storage.ListProviderVersions(ctx, namespace, name)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
+func (s *service) ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error) {
+	return s.storage.ListProviderVersions(ctx, namespace, name)
 }

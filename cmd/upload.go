@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/go-kit/log/level"
 	"os"
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"github.com/go-kit/log/level"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
 	"github.com/TierMobility/boring-registry/pkg/provider"
@@ -125,10 +126,10 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 	}
 
 	f, err := os.Open(flagFileSha256Sums)
-	defer f.Close()
 	if err != nil {
 		return fmt.Errorf("failed to open file at path %s: %w", flagFileSha256Sums, err)
 	}
+	defer f.Close()
 
 	sums, err := core.NewSha256Sums(filepath.Base(flagFileSha256Sums), f)
 	if err != nil {
@@ -189,14 +190,14 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		baseDir := filepath.Dir(flagFileSha256Sums)
-		for _, entry := range sums.Entries {
-			archivePath := filepath.Join(baseDir, entry.FileName)
+		for fileName := range sums.Entries {
+			archivePath := filepath.Join(baseDir, fileName)
 			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, providerName); err != nil {
 				return err
 			}
 			_ = level.Info(logger).Log(
 				"msg", "successfully published provider binary",
-				"name", entry.FileName,
+				"name", fileName,
 			)
 		}
 	}
@@ -233,22 +234,20 @@ func validateShaSums(sums *core.Sha256Sums) error {
 
 		for _, archivePath := range flagProviderArchivePaths {
 			fileName := filepath.Base(archivePath)
-			for _, l := range sums.Entries {
-				if fileName == l.FileName {
-					if err := validateShaSumsEntry(archivePath, l.Sum); err != nil {
-						return fmt.Errorf("failed to validate checksum for file %s", l.FileName)
-					}
-
-					break
-				}
+			checksum, exists := sums.Entries[fileName]
+			if !exists {
+				return fmt.Errorf("checksum for file %s is missing", fileName)
+			}
+			if err := validateShaSumsEntry(archivePath, checksum); err != nil {
+				return fmt.Errorf("failed to validate checksum for file %s", fileName)
 			}
 			return fmt.Errorf("failed to find entry for %s in file %s", fileName, flagFileSha256Sums)
 		}
 	} else {
 		baseDir := filepath.Dir(flagFileSha256Sums)
-		for _, l := range sums.Entries {
-			if err := validateShaSumsEntry(filepath.Join(baseDir, l.FileName), l.Sum); err != nil {
-				return fmt.Errorf("failed to validate checksum for file %s", l.FileName)
+		for fileName, checksum := range sums.Entries {
+			if err := validateShaSumsEntry(filepath.Join(baseDir, fileName), checksum); err != nil {
+				return fmt.Errorf("failed to validate checksum for file %s", fileName)
 			}
 		}
 	}
@@ -263,10 +262,10 @@ func validateShaSumsEntry(path string, checksum []byte) error {
 	}
 
 	f, err := os.Open(path)
-	defer f.Close()
 	if err != nil {
 		return fmt.Errorf("failed to open provided archive file: %s", path)
 	}
+	defer f.Close()
 
 	c, err := core.Sha256Checksum(f)
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/discovery"
+	"github.com/TierMobility/boring-registry/pkg/mirror"
 	"github.com/TierMobility/boring-registry/pkg/module"
 	"github.com/TierMobility/boring-registry/pkg/provider"
 	"github.com/TierMobility/boring-registry/pkg/storage"
@@ -39,6 +40,7 @@ var (
 	prefix          = fmt.Sprintf("/%s", apiVersion)
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
+	prefixMirror    = fmt.Sprintf("%s/mirror", prefix)
 )
 
 var (
@@ -64,6 +66,10 @@ var (
 	// Okta auth.
 	flagAuthOktaIssuer string
 	flagAuthOktaClaims []string
+
+	// Provider Network Mirror
+	flagProviderNetworkMirrorEnabled            bool
+	flagProviderNetworkMirrorPullThroughEnabled bool
 )
 
 var serverCmd = &cobra.Command{
@@ -75,7 +81,7 @@ var serverCmd = &cobra.Command{
 
 		group, ctx := errgroup.WithContext(ctx)
 
-		mux, err := serveMux()
+		mux, err := serveMux(ctx)
 		if err != nil {
 			return errors.Wrap(err, "failed to setup server")
 		}
@@ -197,6 +203,10 @@ func init() {
 	serverCmd.Flags().StringVar(&flagLoginToken, "login-token", "", "The server's token endpoint")
 	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{10000, 10010}, "Inclusive range of TCP ports that Terraform may use")
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
+
+	// Provider Network Mirror options
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "network-mirror", true, "Enable the provider network mirror")
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughEnabled, "network-mirror-pull-through", false, "Enable the pull-through provider network mirror. This setting takes no effect if network-mirror is disabled")
 }
 
 // TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
@@ -224,7 +234,7 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 	}
 }
 
-func serveMux() (*http.ServeMux, error) {
+func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
 	options := []discovery.Option{
@@ -272,7 +282,7 @@ func serveMux() (*http.ServeMux, error) {
 
 	registerMetrics(mux)
 
-	s, err := setupStorage(context.TODO())
+	s, err := setupStorage(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -283,6 +293,20 @@ func serveMux() (*http.ServeMux, error) {
 
 	if err := registerProvider(mux, s); err != nil {
 		return nil, err
+	}
+
+	if flagProviderNetworkMirrorEnabled {
+		var svc mirror.Service
+		if flagProviderNetworkMirrorPullThroughEnabled {
+			copier := mirror.NewCopier(ctx, logger, s)
+			svc = mirror.NewPullThroughMirror(s, copier)
+		} else {
+			svc = mirror.NewMirror(s)
+		}
+
+		if err := registerMirror(mux, s, svc); err != nil {
+			return nil, err
+		}
 	}
 
 	return mux, nil
@@ -368,6 +392,34 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 		http.StripPrefix(
 			prefixProviders,
 			provider.MakeHandler(
+				service,
+				authMiddleware(logger),
+				opts...,
+			),
+		),
+	)
+
+	return nil
+}
+
+func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) error {
+	service := mirror.LoggingMiddleware(logger)(svc)
+
+	opts := []httptransport.ServerOption{
+		httptransport.ServerErrorHandler(
+			transport.NewLogErrorHandler(logger),
+		),
+		httptransport.ServerErrorEncoder(mirror.ErrorEncoder),
+		httptransport.ServerBefore(
+			httptransport.PopulateRequestContext,
+		),
+	}
+
+	mux.Handle(
+		fmt.Sprintf(`%s/`, prefixMirror),
+		http.StripPrefix(
+			prefixMirror,
+			mirror.MakeHandler(
 				service,
 				authMiddleware(logger),
 				opts...,

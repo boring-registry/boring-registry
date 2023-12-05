@@ -32,7 +32,7 @@ func TestProvider_ArchiveFileName(t *testing.T) {
 		name             string
 		provider         Provider
 		expectedFileName string
-		expectError      bool
+		expectedPanic    bool
 	}{
 		{
 			name: "valid provider",
@@ -43,7 +43,7 @@ func TestProvider_ArchiveFileName(t *testing.T) {
 				Arch:    "amd64",
 			},
 			expectedFileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
-			expectError:      false,
+			expectedPanic:    false,
 		},
 		{
 			name: "missing name",
@@ -52,19 +52,50 @@ func TestProvider_ArchiveFileName(t *testing.T) {
 				OS:      "linux",
 				Arch:    "amd64",
 			},
-			expectError: true,
+			expectedPanic: true,
+		},
+		{
+			name: "missing version",
+			provider: Provider{
+				Name: "random",
+				OS:   "linux",
+				Arch: "amd64",
+			},
+			expectedPanic: true,
+		},
+		{
+			name: "missing os",
+			provider: Provider{
+				Name:    "random",
+				Version: "2.0.0",
+				Arch:    "amd64",
+			},
+			expectedPanic: true,
+		},
+		{
+			name: "missing arch",
+			provider: Provider{
+				Name:    "random",
+				Version: "2.0.0",
+				OS:      "linux",
+			},
+			expectedPanic: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			fileName, err := tc.provider.ArchiveFileName()
-			if tc.expectError {
-				assert.Error(err)
-			} else {
-				assert.Equal(tc.expectedFileName, fileName)
-			}
+			defer func() {
+				if tc.expectedPanic {
+					if r := recover(); r == nil {
+						t.Errorf("The code did not panic")
+					}
+				}
+			}()
+
+			fileName := tc.provider.ArchiveFileName()
+			assert.Equal(tc.expectedFileName, fileName)
 		})
 	}
 }
@@ -77,7 +108,7 @@ func TestProvider_ShasumFileName(t *testing.T) {
 		name             string
 		provider         Provider
 		expectedFileName string
-		expectError      bool
+		expectedPanic    bool
 	}{
 		{
 			name: "valid provider",
@@ -86,26 +117,29 @@ func TestProvider_ShasumFileName(t *testing.T) {
 				Version: "2.0.0",
 			},
 			expectedFileName: "terraform-provider-random_2.0.0_SHA256SUMS",
-			expectError:      false,
+			expectedPanic:    false,
 		},
 		{
 			name: "missing name",
 			provider: Provider{
 				Version: "2.0.0",
 			},
-			expectError: true,
+			expectedPanic: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			fileName, err := tc.provider.ShasumFileName()
-			if tc.expectError {
-				assert.Error(err)
-			} else {
-				assert.Equal(tc.expectedFileName, fileName)
-			}
+			defer func() {
+				if tc.expectedPanic {
+					if r := recover(); r == nil {
+						t.Errorf("The code did not panic")
+					}
+				}
+			}()
+			fileName := tc.provider.ShasumFileName()
+			assert.Equal(tc.expectedFileName, fileName)
 		})
 	}
 }
@@ -118,7 +152,7 @@ func TestProvider_ShasumSignatureFileName(t *testing.T) {
 		name             string
 		provider         Provider
 		expectedFileName string
-		expectError      bool
+		expectedPanic    bool
 	}{
 		{
 			name: "valid provider",
@@ -127,26 +161,36 @@ func TestProvider_ShasumSignatureFileName(t *testing.T) {
 				Version: "2.0.0",
 			},
 			expectedFileName: "terraform-provider-random_2.0.0_SHA256SUMS.sig",
-			expectError:      false,
+			expectedPanic:    false,
+		},
+		{
+			name: "missing name",
+			provider: Provider{
+				Version: "2.0.0",
+			},
+			expectedPanic: true,
 		},
 		{
 			name: "missing version",
 			provider: Provider{
 				Name: "random",
 			},
-			expectError: true,
+			expectedPanic: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			fileName, err := tc.provider.ShasumSignatureFileName()
-			if tc.expectError {
-				assert.Error(err)
-			} else {
-				assert.Equal(tc.expectedFileName, fileName)
-			}
+			defer func() {
+				if tc.expectedPanic {
+					if r := recover(); r == nil {
+						t.Errorf("The code did not panic")
+					}
+				}
+			}()
+			fileName := tc.provider.ShasumSignatureFileName()
+			assert.Equal(tc.expectedFileName, fileName)
 		})
 	}
 }
@@ -356,42 +400,92 @@ Fyw/Va0=
 	}
 }
 
-func TestSha256SumsEntry_String(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
+func TestProvider_Clone(t *testing.T) {
+	type fields struct {
+		Hostname            string
+		Namespace           string
+		Name                string
+		Version             string
+		OS                  string
+		Arch                string
+		Filename            string
+		DownloadURL         string
+		Shasum              string
+		SHASumsURL          string
+		SHASumsSignatureURL string
+		SigningKeys         SigningKeys
+		Platforms           []Platform
+	}
+	tests := []struct {
 		name     string
-		sum      []byte
-		fileName string
-		want     string
+		provider Provider
 	}{
 		{
-			name:     "valid fields",
-			sum:      []byte("1234567890"),
-			fileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
-			want:     "31323334353637383930 terraform-provider-random_2.0.0_linux_amd64.zip",
+			name: "provider without SigningKeys",
+			provider: Provider{
+				Hostname:  "registry.example.com",
+				Namespace: "hashicorp",
+				Name:      "random",
+				Version:   "1.2.3",
+				OS:        "linux",
+				Arch:      "amd64",
+			},
+		},
+		{
+			name: "provider with all fields non-empty",
+			provider: Provider{
+				Hostname:            "registry.example.com",
+				Namespace:           "hashicorp",
+				Name:                "random",
+				Version:             "1.2.3",
+				OS:                  "linux",
+				Arch:                "amd64",
+				Filename:            "terraform-provider-random_2.0.0_linux_amd64.zip",
+				DownloadURL:         "registry.example.com/terraform-provider-random_2.0.0_linux_amd64.zip",
+				Shasum:              "123456789",
+				SHASumsURL:          "registry.example.com/terraform-provider-random_2.0.0_SHA256SUMS",
+				SHASumsSignatureURL: "registry.example.com/terraform-provider-random_2.0.0_SHA256SUMS.sig",
+				SigningKeys: SigningKeys{
+					GPGPublicKeys: []GPGPublicKey{
+						{
+							KeyID: "123456789",
+							ASCIIArmor: `-----BEGIN PGP PUBLIC KEY BLOCK-----
+-----END PGP PUBLIC KEY BLOCK-----`,
+						},
+					},
+				},
+				Platforms: []Platform{
+					{
+						OS:   "linux",
+						Arch: "amd64",
+					},
+					{
+						OS:   "linux",
+						Arch: "arm64",
+					},
+				},
+			},
 		},
 	}
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			s := &Sha256SumsEntry{
-				Sum:      tc.sum,
-				FileName: tc.fileName,
-			}
-			assertion.Equal(t, tc.want, s.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cloned := tt.provider.Clone()
+			assertion.Equalf(t, tt.provider, *cloned, "Clone()")
+			assertion.Equal(t, tt.provider.Platforms, cloned.Platforms)
+			assertion.Equal(t, tt.provider.SigningKeys.GPGPublicKeys, cloned.SigningKeys.GPGPublicKeys)
 		})
 	}
 }
 
-func TestNewSha256SumsEntry(t *testing.T) {
+func Test_parseSha256Line(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name    string
-		line    string
-		want    Sha256SumsEntry
-		wantErr assertion.ErrorAssertionFunc
+		name         string
+		line         string
+		wantBytes    []byte
+		wantFileName string
+		wantErr      assertion.ErrorAssertionFunc
 	}{
 		{
 			name: "empty line",
@@ -401,12 +495,10 @@ func TestNewSha256SumsEntry(t *testing.T) {
 			},
 		},
 		{
-			name: "valid line",
-			line: "5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a  terraform-provider-random_2.0.0_linux_amd64.zip",
-			want: Sha256SumsEntry{
-				Sum:      decodeHexString("5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a"),
-				FileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
-			},
+			name:         "valid line",
+			line:         "5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a  terraform-provider-random_2.0.0_linux_amd64.zip",
+			wantBytes:    decodeHexString("5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a"),
+			wantFileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
 			wantErr: func(t assertion.TestingT, err error, _ ...interface{}) bool {
 				return assertion.NoError(t, err)
 			},
@@ -415,11 +507,12 @@ func TestNewSha256SumsEntry(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := NewSha256SumsEntry(tc.line)
-			if !tc.wantErr(t, err, fmt.Sprintf("NewSha256SumsEntry(%v)", tc.line)) {
+			b, fileName, err := parseSha256Line(tc.line)
+			if !tc.wantErr(t, err, fmt.Sprintf("parseSha256Line(%v)", tc.line)) {
 				return
 			}
-			assertion.Equalf(t, tc.want, got, "NewSha256SumsEntry(%v)", tc.line)
+			assertion.Equalf(t, tc.wantBytes, b, "parseSha256Line(%v)", tc.line)
+			assertion.Equalf(t, tc.wantFileName, fileName, "parseSha256Line(%v)", tc.line)
 		})
 	}
 }
@@ -455,6 +548,49 @@ func TestSha256Sums_Name(t *testing.T) {
 	}
 }
 
+func TestSha256Sums_Checksum(t *testing.T) {
+	const sha256Sums = `be3f1e818ca58a960fd1c80216a691bbd4827c505ab7916fb68ddd186032286e  terraform-provider-random_2.0.0_linux_386.zip
+5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a  terraform-provider-random_2.0.0_linux_amd64.zip
+29df160b8b618227197cc9984c47412461ad66a300a8fc1db4052398bf5656ac  terraform-provider-random_2.0.0_linux_arm.zip
+`
+	sums, err := NewSha256Sums("terraform-provider-random_2.0.0_SHA256SUMS", strings.NewReader(sha256Sums))
+	if err != nil {
+		panic(err)
+	}
+
+	tests := []struct {
+		name     string
+		fileName string
+		want     string
+		wantErr  assertion.ErrorAssertionFunc
+	}{
+		{
+			name:     "file name is not in entries",
+			fileName: "terraform-provider-dummy_2.0.0_linux_amd64.zip",
+			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
+				return assertion.Error(t, err)
+			},
+		},
+		{
+			name:     "file name is in entries",
+			fileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
+			want:     "5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a",
+			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
+				return assertion.NoError(t, err)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sums.Checksum(tt.fileName)
+			if !tt.wantErr(t, err, fmt.Sprintf("Checksum(%v)", tt.fileName)) {
+				return
+			}
+			assertion.Equalf(t, tt.want, got, "Checksum(%v)", tt.fileName)
+		})
+	}
+}
+
 func TestNewSha256Sums(t *testing.T) {
 	t.Parallel()
 
@@ -486,25 +622,24 @@ func TestNewSha256Sums(t *testing.T) {
 			},
 		},
 		{
+			name:     "valid filename and invalid content",
+			filename: "terraform-provider-random_0.1.0_SHA256SUMS",
+			wantErr: func(t assertion.TestingT, err error, i ...interface{}) bool {
+				return assertion.Error(t, err)
+			},
+			content: `be3f1e818ca58a960fd1c80216a691bbd4827c505ab7916fb68ddd186032286e thisbreaksit test terraform-provider-random_2.0.0_linux_386.zip`,
+		},
+		{
 			name:     "valid filename and content",
 			filename: "terraform-provider-random_0.1.0_SHA256SUMS",
 			content: `be3f1e818ca58a960fd1c80216a691bbd4827c505ab7916fb68ddd186032286e  terraform-provider-random_2.0.0_linux_386.zip
 5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a  terraform-provider-random_2.0.0_linux_amd64.zip
 29df160b8b618227197cc9984c47412461ad66a300a8fc1db4052398bf5656ac  terraform-provider-random_2.0.0_linux_arm.zip`,
 			want: &Sha256Sums{
-				Entries: []Sha256SumsEntry{
-					{
-						Sum:      decodeHexString("be3f1e818ca58a960fd1c80216a691bbd4827c505ab7916fb68ddd186032286e"),
-						FileName: "terraform-provider-random_2.0.0_linux_386.zip",
-					},
-					{
-						Sum:      decodeHexString("5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a"),
-						FileName: "terraform-provider-random_2.0.0_linux_amd64.zip",
-					},
-					{
-						Sum:      decodeHexString("29df160b8b618227197cc9984c47412461ad66a300a8fc1db4052398bf5656ac"),
-						FileName: "terraform-provider-random_2.0.0_linux_arm.zip",
-					},
+				Entries: map[string][]byte{
+					"terraform-provider-random_2.0.0_linux_386.zip":   decodeHexString("be3f1e818ca58a960fd1c80216a691bbd4827c505ab7916fb68ddd186032286e"),
+					"terraform-provider-random_2.0.0_linux_amd64.zip": decodeHexString("5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a"),
+					"terraform-provider-random_2.0.0_linux_arm.zip":   decodeHexString("29df160b8b618227197cc9984c47412461ad66a300a8fc1db4052398bf5656ac"),
 				},
 				Filename: "terraform-provider-random_0.1.0_SHA256SUMS",
 			},
