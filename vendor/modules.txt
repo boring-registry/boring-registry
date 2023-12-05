@@ -23,7 +23,7 @@ cloud.google.com/go/storage
 cloud.google.com/go/storage/internal
 cloud.google.com/go/storage/internal/apiv2
 cloud.google.com/go/storage/internal/apiv2/storagepb
-# github.com/ProtonMail/go-crypto v0.0.0-20230528122434-6f98819771a1
+# github.com/ProtonMail/go-crypto v0.0.0-20230923063757-afb1ddc0824c
 ## explicit; go 1.13
 github.com/ProtonMail/go-crypto/bitcurves
 github.com/ProtonMail/go-crypto/brainpool

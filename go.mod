@@ -5,7 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/iam v1.1.4
 	cloud.google.com/go/storage v1.33.0
-	github.com/ProtonMail/go-crypto v0.0.0-20230528122434-6f98819771a1
+	github.com/ProtonMail/go-crypto v0.0.0-20230923063757-afb1ddc0824c
 	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.67
