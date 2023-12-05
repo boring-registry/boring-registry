@@ -13,7 +13,7 @@ require (
 	github.com/aws/smithy-go v1.13.5
 	github.com/go-kit/kit v0.12.0
 	github.com/go-kit/log v0.2.1
-	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl v1.0.0
