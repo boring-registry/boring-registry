@@ -4,6 +4,7 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	s3cust "github.com/aws/aws-sdk-go-v2/service/s3/internal/customizations"
@@ -14,18 +15,20 @@ import (
 	"sync"
 )
 
-// This action filters the contents of an Amazon S3 object based on a simple
-// structured query language (SQL) statement. In the request, along with the SQL
-// expression, you must also specify a data serialization format (JSON, CSV, or
-// Apache Parquet) of the object. Amazon S3 uses this format to parse object data
-// into records, and returns only records that match the specified SQL expression.
-// You must also specify the data serialization format for the response. This
-// action is not supported by Amazon S3 on Outposts. For more information about
-// Amazon S3 Select, see Selecting Content from Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/selecting-content-from-objects.html)
+// This operation is not supported by directory buckets. This action filters the
+// contents of an Amazon S3 object based on a simple structured query language
+// (SQL) statement. In the request, along with the SQL expression, you must also
+// specify a data serialization format (JSON, CSV, or Apache Parquet) of the
+// object. Amazon S3 uses this format to parse object data into records, and
+// returns only records that match the specified SQL expression. You must also
+// specify the data serialization format for the response. This functionality is
+// not supported for Amazon S3 on Outposts. For more information about Amazon S3
+// Select, see Selecting Content from Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/selecting-content-from-objects.html)
 // and SELECT Command (https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-glacier-select-sql-reference-select.html)
-// in the Amazon S3 User Guide. Permissions You must have s3:GetObject permission
-// for this operation. Amazon S3 Select does not support anonymous access. For more
-// information about permissions, see Specifying Permissions in a Policy (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html)
+// in the Amazon S3 User Guide. Permissions You must have the s3:GetObject
+// permission for this operation. Amazon S3 Select does not support anonymous
+// access. For more information about permissions, see Specifying Permissions in a
+// Policy (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html)
 // in the Amazon S3 User Guide. Object Data Formats You can use Amazon S3 Select to
 // query objects that have the following format properties:
 //   - CSV, JSON, and Parquet - Objects must be in CSV, JSON, or Parquet format.
@@ -59,9 +62,12 @@ import (
 //     request (see SelectObjectContentRequest - ScanRange (https://docs.aws.amazon.com/AmazonS3/latest/API/API_SelectObjectContent.html#AmazonS3-SelectObjectContent-request-ScanRange)
 //     in the request parameters), you cannot specify the range of bytes of an object
 //     to return.
-//   - GLACIER, DEEP_ARCHIVE and REDUCED_REDUNDANCY storage classes: You cannot
-//     specify the GLACIER, DEEP_ARCHIVE, or REDUCED_REDUNDANCY storage classes. For
-//     more information, about storage classes see Storage Classes (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingMetadata.html#storage-class-intro)
+//   - The GLACIER , DEEP_ARCHIVE , and REDUCED_REDUNDANCY storage classes, or the
+//     ARCHIVE_ACCESS and DEEP_ARCHIVE_ACCESS access tiers of the INTELLIGENT_TIERING
+//     storage class: You cannot query objects in the GLACIER , DEEP_ARCHIVE , or
+//     REDUCED_REDUNDANCY storage classes, nor objects in the ARCHIVE_ACCESS or
+//     DEEP_ARCHIVE_ACCESS access tiers of the INTELLIGENT_TIERING storage class. For
+//     more information about storage classes, see Using Amazon S3 storage classes (https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html)
 //     in the Amazon S3 User Guide.
 //
 // Special Errors For a list of special errors for this operation, see List of
@@ -125,9 +131,9 @@ type SelectObjectContentInput struct {
 	// This member is required.
 	OutputSerialization *types.OutputSerialization
 
-	// The account ID of the expected bucket owner. If the bucket is owned by a
-	// different account, the request fails with the HTTP status code 403 Forbidden
-	// (access denied).
+	// The account ID of the expected bucket owner. If the account ID that you provide
+	// does not match the actual owner of the bucket, the request fails with the HTTP
+	// status code 403 Forbidden (access denied).
 	ExpectedBucketOwner *string
 
 	// Specifies if periodic request progress information should be enabled.
@@ -165,6 +171,11 @@ type SelectObjectContentInput struct {
 	noSmithyDocumentSerde
 }
 
+func (in *SelectObjectContentInput) bindEndpointParams(p *EndpointParameters) {
+	p.Bucket = in.Bucket
+
+}
+
 type SelectObjectContentOutput struct {
 	eventStream *SelectObjectContentEventStream
 
@@ -180,12 +191,22 @@ func (o *SelectObjectContentOutput) GetStream() *SelectObjectContentEventStream 
 }
 
 func (c *Client) addOperationSelectObjectContentMiddlewares(stack *middleware.Stack, options Options) (err error) {
+	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+		return err
+	}
 	err = stack.Serialize.Add(&awsRestxml_serializeOpSelectObjectContent{}, middleware.After)
 	if err != nil {
 		return err
 	}
 	err = stack.Deserialize.Add(&awsRestxml_deserializeOpSelectObjectContent{}, middleware.After)
 	if err != nil {
+		return err
+	}
+	if err := addProtocolFinalizerMiddlewares(stack, options, "SelectObjectContent"); err != nil {
+		return fmt.Errorf("add protocol finalizers: %v", err)
+	}
+
+	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
 		return err
 	}
 	if err = addEventStreamSelectObjectContentMiddleware(stack, options); err != nil {
@@ -209,19 +230,19 @@ func (c *Client) addOperationSelectObjectContentMiddlewares(stack *middleware.St
 	if err = addRetryMiddlewares(stack, options); err != nil {
 		return err
 	}
-	if err = addHTTPSignerV4Middleware(stack, options); err != nil {
-		return err
-	}
 	if err = awsmiddleware.AddRawResponseToMetadata(stack); err != nil {
 		return err
 	}
 	if err = awsmiddleware.AddRecordResponseTiming(stack); err != nil {
 		return err
 	}
-	if err = addClientUserAgent(stack); err != nil {
+	if err = addClientUserAgent(stack, options); err != nil {
 		return err
 	}
-	if err = swapWithCustomHTTPSignerMiddleware(stack, options); err != nil {
+	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addPutBucketContextMiddleware(stack); err != nil {
 		return err
 	}
 	if err = addOpSelectObjectContentValidationMiddleware(stack); err != nil {
@@ -251,14 +272,26 @@ func (c *Client) addOperationSelectObjectContentMiddlewares(stack *middleware.St
 	if err = addRequestResponseLogging(stack, options); err != nil {
 		return err
 	}
+	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (v *SelectObjectContentInput) bucket() (string, bool) {
+	if v.Bucket == nil {
+		return "", false
+	}
+	return *v.Bucket, true
 }
 
 func newServiceMetadataMiddleware_opSelectObjectContent(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{
 		Region:        region,
 		ServiceID:     ServiceID,
-		SigningName:   "s3",
 		OperationName: "SelectObjectContent",
 	}
 }

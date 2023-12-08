@@ -4,32 +4,36 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	internalChecksum "github.com/aws/aws-sdk-go-v2/service/internal/checksum"
 	s3cust "github.com/aws/aws-sdk-go-v2/service/s3/internal/customizations"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/aws/smithy-go/ptr"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// Creates a replication configuration or replaces an existing one. For more
-// information, see Replication (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication.html)
+// This operation is not supported by directory buckets. Creates a replication
+// configuration or replaces an existing one. For more information, see Replication (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication.html)
 // in the Amazon S3 User Guide. Specify the replication configuration in the
 // request body. In the replication configuration, you provide the name of the
 // destination bucket or buckets where you want Amazon S3 to replicate objects, the
 // IAM role that Amazon S3 can assume to replicate objects on your behalf, and
-// other relevant information. A replication configuration must include at least
-// one rule, and can contain a maximum of 1,000. Each rule identifies a subset of
-// objects to replicate by filtering the objects in the source bucket. To choose
-// additional subsets of objects to replicate, add a rule for each subset. To
-// specify a subset of the objects in the source bucket to apply a replication rule
-// to, add the Filter element as a child of the Rule element. You can filter
-// objects based on an object key prefix, one or more object tags, or both. When
-// you add the Filter element in the configuration, you must also add the following
-// elements: DeleteMarkerReplication , Status , and Priority . If you are using an
-// earlier version of the replication configuration, Amazon S3 handles replication
-// of delete markers differently. For more information, see Backward Compatibility (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-backward-compat-considerations)
+// other relevant information. You can invoke this request for a specific Amazon
+// Web Services Region by using the aws:RequestedRegion (https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-requestedregion)
+// condition key. A replication configuration must include at least one rule, and
+// can contain a maximum of 1,000. Each rule identifies a subset of objects to
+// replicate by filtering the objects in the source bucket. To choose additional
+// subsets of objects to replicate, add a rule for each subset. To specify a subset
+// of the objects in the source bucket to apply a replication rule to, add the
+// Filter element as a child of the Rule element. You can filter objects based on
+// an object key prefix, one or more object tags, or both. When you add the Filter
+// element in the configuration, you must also add the following elements:
+// DeleteMarkerReplication , Status , and Priority . If you are using an earlier
+// version of the replication configuration, Amazon S3 handles replication of
+// delete markers differently. For more information, see Backward Compatibility (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-add-config.html#replication-backward-compat-considerations)
 // . For information about enabling versioning on a bucket, see Using Versioning (https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html)
 // . Handling Replication of Encrypted Objects By default, Amazon S3 doesn't
 // replicate objects that are stored at rest using server-side encryption with KMS
@@ -80,12 +84,12 @@ type PutBucketReplicationInput struct {
 	// This member is required.
 	ReplicationConfiguration *types.ReplicationConfiguration
 
-	// Indicates the algorithm used to create the checksum for the object when using
-	// the SDK. This header will not provide any additional functionality if not using
-	// the SDK. When sending this header, there must be a corresponding x-amz-checksum
-	// or x-amz-trailer header sent. Otherwise, Amazon S3 fails the request with the
-	// HTTP status code 400 Bad Request . For more information, see Checking object
-	// integrity (https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html)
+	// Indicates the algorithm used to create the checksum for the object when you use
+	// the SDK. This header will not provide any additional functionality if you don't
+	// use the SDK. When you send this header, there must be a corresponding
+	// x-amz-checksum or x-amz-trailer header sent. Otherwise, Amazon S3 fails the
+	// request with the HTTP status code 400 Bad Request . For more information, see
+	// Checking object integrity (https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html)
 	// in the Amazon S3 User Guide. If you provide an individual checksum, Amazon S3
 	// ignores any provided ChecksumAlgorithm parameter.
 	ChecksumAlgorithm types.ChecksumAlgorithm
@@ -97,15 +101,20 @@ type PutBucketReplicationInput struct {
 	// or Amazon Web Services SDKs, this field is calculated automatically.
 	ContentMD5 *string
 
-	// The account ID of the expected bucket owner. If the bucket is owned by a
-	// different account, the request fails with the HTTP status code 403 Forbidden
-	// (access denied).
+	// The account ID of the expected bucket owner. If the account ID that you provide
+	// does not match the actual owner of the bucket, the request fails with the HTTP
+	// status code 403 Forbidden (access denied).
 	ExpectedBucketOwner *string
 
 	// A token to allow Object Lock to be enabled for an existing bucket.
 	Token *string
 
 	noSmithyDocumentSerde
+}
+
+func (in *PutBucketReplicationInput) bindEndpointParams(p *EndpointParameters) {
+	p.Bucket = in.Bucket
+	p.UseS3ExpressControlEndpoint = ptr.Bool(true)
 }
 
 type PutBucketReplicationOutput struct {
@@ -116,12 +125,22 @@ type PutBucketReplicationOutput struct {
 }
 
 func (c *Client) addOperationPutBucketReplicationMiddlewares(stack *middleware.Stack, options Options) (err error) {
+	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+		return err
+	}
 	err = stack.Serialize.Add(&awsRestxml_serializeOpPutBucketReplication{}, middleware.After)
 	if err != nil {
 		return err
 	}
 	err = stack.Deserialize.Add(&awsRestxml_deserializeOpPutBucketReplication{}, middleware.After)
 	if err != nil {
+		return err
+	}
+	if err := addProtocolFinalizerMiddlewares(stack, options, "PutBucketReplication"); err != nil {
+		return fmt.Errorf("add protocol finalizers: %v", err)
+	}
+
+	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
 		return err
 	}
 	if err = addSetLoggerMiddleware(stack, options); err != nil {
@@ -142,16 +161,13 @@ func (c *Client) addOperationPutBucketReplicationMiddlewares(stack *middleware.S
 	if err = addRetryMiddlewares(stack, options); err != nil {
 		return err
 	}
-	if err = addHTTPSignerV4Middleware(stack, options); err != nil {
-		return err
-	}
 	if err = awsmiddleware.AddRawResponseToMetadata(stack); err != nil {
 		return err
 	}
 	if err = awsmiddleware.AddRecordResponseTiming(stack); err != nil {
 		return err
 	}
-	if err = addClientUserAgent(stack); err != nil {
+	if err = addClientUserAgent(stack, options); err != nil {
 		return err
 	}
 	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
@@ -160,7 +176,10 @@ func (c *Client) addOperationPutBucketReplicationMiddlewares(stack *middleware.S
 	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
 		return err
 	}
-	if err = swapWithCustomHTTPSignerMiddleware(stack, options); err != nil {
+	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addPutBucketContextMiddleware(stack); err != nil {
 		return err
 	}
 	if err = addOpPutBucketReplicationValidationMiddleware(stack); err != nil {
@@ -193,14 +212,29 @@ func (c *Client) addOperationPutBucketReplicationMiddlewares(stack *middleware.S
 	if err = addRequestResponseLogging(stack, options); err != nil {
 		return err
 	}
+	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = s3cust.AddExpressDefaultChecksumMiddleware(stack); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (v *PutBucketReplicationInput) bucket() (string, bool) {
+	if v.Bucket == nil {
+		return "", false
+	}
+	return *v.Bucket, true
 }
 
 func newServiceMetadataMiddleware_opPutBucketReplication(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{
 		Region:        region,
 		ServiceID:     ServiceID,
-		SigningName:   "s3",
 		OperationName: "PutBucketReplication",
 	}
 }
