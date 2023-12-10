@@ -4,27 +4,30 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	internalChecksum "github.com/aws/aws-sdk-go-v2/service/internal/checksum"
 	s3cust "github.com/aws/aws-sdk-go-v2/service/s3/internal/customizations"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/aws/smithy-go/ptr"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// Sets the cors configuration for your bucket. If the configuration exists,
-// Amazon S3 replaces it. To use this operation, you must be allowed to perform the
-// s3:PutBucketCORS action. By default, the bucket owner has this permission and
-// can grant it to others. You set this configuration on a bucket so that the
-// bucket can service cross-origin requests. For example, you might want to enable
-// a request whose origin is http://www.example.com to access your Amazon S3
-// bucket at my.example.bucket.com by using the browser's XMLHttpRequest
-// capability. To enable cross-origin resource sharing (CORS) on a bucket, you add
-// the cors subresource to the bucket. The cors subresource is an XML document in
-// which you configure rules that identify origins and the HTTP methods that can be
-// executed on your bucket. The document is limited to 64 KB in size. When Amazon
-// S3 receives a cross-origin request (or a pre-flight OPTIONS request) against a
+// This operation is not supported by directory buckets. Sets the cors
+// configuration for your bucket. If the configuration exists, Amazon S3 replaces
+// it. To use this operation, you must be allowed to perform the s3:PutBucketCORS
+// action. By default, the bucket owner has this permission and can grant it to
+// others. You set this configuration on a bucket so that the bucket can service
+// cross-origin requests. For example, you might want to enable a request whose
+// origin is http://www.example.com to access your Amazon S3 bucket at
+// my.example.bucket.com by using the browser's XMLHttpRequest capability. To
+// enable cross-origin resource sharing (CORS) on a bucket, you add the cors
+// subresource to the bucket. The cors subresource is an XML document in which you
+// configure rules that identify origins and the HTTP methods that can be executed
+// on your bucket. The document is limited to 64 KB in size. When Amazon S3
+// receives a cross-origin request (or a pre-flight OPTIONS request) against a
 // bucket, it evaluates the cors configuration on the bucket and uses the first
 // CORSRule rule that matches the incoming browser request to enable a cross-origin
 // request. For a rule to match, the following conditions must be met:
@@ -70,12 +73,12 @@ type PutBucketCorsInput struct {
 	// This member is required.
 	CORSConfiguration *types.CORSConfiguration
 
-	// Indicates the algorithm used to create the checksum for the object when using
-	// the SDK. This header will not provide any additional functionality if not using
-	// the SDK. When sending this header, there must be a corresponding x-amz-checksum
-	// or x-amz-trailer header sent. Otherwise, Amazon S3 fails the request with the
-	// HTTP status code 400 Bad Request . For more information, see Checking object
-	// integrity (https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html)
+	// Indicates the algorithm used to create the checksum for the object when you use
+	// the SDK. This header will not provide any additional functionality if you don't
+	// use the SDK. When you send this header, there must be a corresponding
+	// x-amz-checksum or x-amz-trailer header sent. Otherwise, Amazon S3 fails the
+	// request with the HTTP status code 400 Bad Request . For more information, see
+	// Checking object integrity (https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html)
 	// in the Amazon S3 User Guide. If you provide an individual checksum, Amazon S3
 	// ignores any provided ChecksumAlgorithm parameter.
 	ChecksumAlgorithm types.ChecksumAlgorithm
@@ -87,12 +90,17 @@ type PutBucketCorsInput struct {
 	// Amazon Web Services SDKs, this field is calculated automatically.
 	ContentMD5 *string
 
-	// The account ID of the expected bucket owner. If the bucket is owned by a
-	// different account, the request fails with the HTTP status code 403 Forbidden
-	// (access denied).
+	// The account ID of the expected bucket owner. If the account ID that you provide
+	// does not match the actual owner of the bucket, the request fails with the HTTP
+	// status code 403 Forbidden (access denied).
 	ExpectedBucketOwner *string
 
 	noSmithyDocumentSerde
+}
+
+func (in *PutBucketCorsInput) bindEndpointParams(p *EndpointParameters) {
+	p.Bucket = in.Bucket
+	p.UseS3ExpressControlEndpoint = ptr.Bool(true)
 }
 
 type PutBucketCorsOutput struct {
@@ -103,12 +111,22 @@ type PutBucketCorsOutput struct {
 }
 
 func (c *Client) addOperationPutBucketCorsMiddlewares(stack *middleware.Stack, options Options) (err error) {
+	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+		return err
+	}
 	err = stack.Serialize.Add(&awsRestxml_serializeOpPutBucketCors{}, middleware.After)
 	if err != nil {
 		return err
 	}
 	err = stack.Deserialize.Add(&awsRestxml_deserializeOpPutBucketCors{}, middleware.After)
 	if err != nil {
+		return err
+	}
+	if err := addProtocolFinalizerMiddlewares(stack, options, "PutBucketCors"); err != nil {
+		return fmt.Errorf("add protocol finalizers: %v", err)
+	}
+
+	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
 		return err
 	}
 	if err = addSetLoggerMiddleware(stack, options); err != nil {
@@ -129,16 +147,13 @@ func (c *Client) addOperationPutBucketCorsMiddlewares(stack *middleware.Stack, o
 	if err = addRetryMiddlewares(stack, options); err != nil {
 		return err
 	}
-	if err = addHTTPSignerV4Middleware(stack, options); err != nil {
-		return err
-	}
 	if err = awsmiddleware.AddRawResponseToMetadata(stack); err != nil {
 		return err
 	}
 	if err = awsmiddleware.AddRecordResponseTiming(stack); err != nil {
 		return err
 	}
-	if err = addClientUserAgent(stack); err != nil {
+	if err = addClientUserAgent(stack, options); err != nil {
 		return err
 	}
 	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
@@ -147,7 +162,10 @@ func (c *Client) addOperationPutBucketCorsMiddlewares(stack *middleware.Stack, o
 	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
 		return err
 	}
-	if err = swapWithCustomHTTPSignerMiddleware(stack, options); err != nil {
+	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addPutBucketContextMiddleware(stack); err != nil {
 		return err
 	}
 	if err = addOpPutBucketCorsValidationMiddleware(stack); err != nil {
@@ -180,14 +198,29 @@ func (c *Client) addOperationPutBucketCorsMiddlewares(stack *middleware.Stack, o
 	if err = addRequestResponseLogging(stack, options); err != nil {
 		return err
 	}
+	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = s3cust.AddExpressDefaultChecksumMiddleware(stack); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (v *PutBucketCorsInput) bucket() (string, bool) {
+	if v.Bucket == nil {
+		return "", false
+	}
+	return *v.Bucket, true
 }
 
 func newServiceMetadataMiddleware_opPutBucketCors(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{
 		Region:        region,
 		ServiceID:     ServiceID,
-		SigningName:   "s3",
 		OperationName: "PutBucketCors",
 	}
 }

@@ -86,6 +86,7 @@ const (
 	BucketLocationConstraintApNortheast2 BucketLocationConstraint = "ap-northeast-2"
 	BucketLocationConstraintApNortheast3 BucketLocationConstraint = "ap-northeast-3"
 	BucketLocationConstraintApSouth1     BucketLocationConstraint = "ap-south-1"
+	BucketLocationConstraintApSouth2     BucketLocationConstraint = "ap-south-2"
 	BucketLocationConstraintApSoutheast1 BucketLocationConstraint = "ap-southeast-1"
 	BucketLocationConstraintApSoutheast2 BucketLocationConstraint = "ap-southeast-2"
 	BucketLocationConstraintApSoutheast3 BucketLocationConstraint = "ap-southeast-3"
@@ -96,6 +97,7 @@ const (
 	BucketLocationConstraintEuCentral1   BucketLocationConstraint = "eu-central-1"
 	BucketLocationConstraintEuNorth1     BucketLocationConstraint = "eu-north-1"
 	BucketLocationConstraintEuSouth1     BucketLocationConstraint = "eu-south-1"
+	BucketLocationConstraintEuSouth2     BucketLocationConstraint = "eu-south-2"
 	BucketLocationConstraintEuWest1      BucketLocationConstraint = "eu-west-1"
 	BucketLocationConstraintEuWest2      BucketLocationConstraint = "eu-west-2"
 	BucketLocationConstraintEuWest3      BucketLocationConstraint = "eu-west-3"
@@ -119,6 +121,7 @@ func (BucketLocationConstraint) Values() []BucketLocationConstraint {
 		"ap-northeast-2",
 		"ap-northeast-3",
 		"ap-south-1",
+		"ap-south-2",
 		"ap-southeast-1",
 		"ap-southeast-2",
 		"ap-southeast-3",
@@ -129,6 +132,7 @@ func (BucketLocationConstraint) Values() []BucketLocationConstraint {
 		"eu-central-1",
 		"eu-north-1",
 		"eu-south-1",
+		"eu-south-2",
 		"eu-west-1",
 		"eu-west-2",
 		"eu-west-3",
@@ -159,6 +163,22 @@ func (BucketLogsPermission) Values() []BucketLogsPermission {
 		"FULL_CONTROL",
 		"READ",
 		"WRITE",
+	}
+}
+
+type BucketType string
+
+// Enum values for BucketType
+const (
+	BucketTypeDirectory BucketType = "Directory"
+)
+
+// Values returns all known values for BucketType. Note that this can be expanded
+// in the future, and so it is only as up to date as the client. The ordering of
+// this slice is not guaranteed to be stable across updates.
+func (BucketType) Values() []BucketType {
+	return []BucketType{
+		"Directory",
 	}
 }
 
@@ -235,6 +255,22 @@ func (CompressionType) Values() []CompressionType {
 		"NONE",
 		"GZIP",
 		"BZIP2",
+	}
+}
+
+type DataRedundancy string
+
+// Enum values for DataRedundancy
+const (
+	DataRedundancySingleAvailabilityZone DataRedundancy = "SingleAvailabilityZone"
+)
+
+// Values returns all known values for DataRedundancy. Note that this can be
+// expanded in the future, and so it is only as up to date as the client. The
+// ordering of this slice is not guaranteed to be stable across updates.
+func (DataRedundancy) Values() []DataRedundancy {
+	return []DataRedundancy{
+		"SingleAvailabilityZone",
 	}
 }
 
@@ -543,6 +579,8 @@ const (
 	InventoryOptionalFieldIntelligentTieringAccessTier InventoryOptionalField = "IntelligentTieringAccessTier"
 	InventoryOptionalFieldBucketKeyStatus              InventoryOptionalField = "BucketKeyStatus"
 	InventoryOptionalFieldChecksumAlgorithm            InventoryOptionalField = "ChecksumAlgorithm"
+	InventoryOptionalFieldObjectAccessControlList      InventoryOptionalField = "ObjectAccessControlList"
+	InventoryOptionalFieldObjectOwner                  InventoryOptionalField = "ObjectOwner"
 )
 
 // Values returns all known values for InventoryOptionalField. Note that this can
@@ -563,6 +601,8 @@ func (InventoryOptionalField) Values() []InventoryOptionalField {
 		"IntelligentTieringAccessTier",
 		"BucketKeyStatus",
 		"ChecksumAlgorithm",
+		"ObjectAccessControlList",
+		"ObjectOwner",
 	}
 }
 
@@ -581,6 +621,22 @@ func (JSONType) Values() []JSONType {
 	return []JSONType{
 		"DOCUMENT",
 		"LINES",
+	}
+}
+
+type LocationType string
+
+// Enum values for LocationType
+const (
+	LocationTypeAvailabilityZone LocationType = "AvailabilityZone"
+)
+
+// Values returns all known values for LocationType. Note that this can be
+// expanded in the future, and so it is only as up to date as the client. The
+// ordering of this slice is not guaranteed to be stable across updates.
+func (LocationType) Values() []LocationType {
+	return []LocationType{
+		"AvailabilityZone",
 	}
 }
 
@@ -812,6 +868,7 @@ const (
 	ObjectStorageClassOutposts           ObjectStorageClass = "OUTPOSTS"
 	ObjectStorageClassGlacierIr          ObjectStorageClass = "GLACIER_IR"
 	ObjectStorageClassSnow               ObjectStorageClass = "SNOW"
+	ObjectStorageClassExpressOnezone     ObjectStorageClass = "EXPRESS_ONEZONE"
 )
 
 // Values returns all known values for ObjectStorageClass. Note that this can be
@@ -829,6 +886,7 @@ func (ObjectStorageClass) Values() []ObjectStorageClass {
 		"OUTPOSTS",
 		"GLACIER_IR",
 		"SNOW",
+		"EXPRESS_ONEZONE",
 	}
 }
 
@@ -848,6 +906,22 @@ func (ObjectVersionStorageClass) Values() []ObjectVersionStorageClass {
 	}
 }
 
+type OptionalObjectAttributes string
+
+// Enum values for OptionalObjectAttributes
+const (
+	OptionalObjectAttributesRestoreStatus OptionalObjectAttributes = "RestoreStatus"
+)
+
+// Values returns all known values for OptionalObjectAttributes. Note that this
+// can be expanded in the future, and so it is only as up to date as the client.
+// The ordering of this slice is not guaranteed to be stable across updates.
+func (OptionalObjectAttributes) Values() []OptionalObjectAttributes {
+	return []OptionalObjectAttributes{
+		"RestoreStatus",
+	}
+}
+
 type OwnerOverride string
 
 // Enum values for OwnerOverride
@@ -861,6 +935,24 @@ const (
 func (OwnerOverride) Values() []OwnerOverride {
 	return []OwnerOverride{
 		"Destination",
+	}
+}
+
+type PartitionDateSource string
+
+// Enum values for PartitionDateSource
+const (
+	PartitionDateSourceEventTime    PartitionDateSource = "EventTime"
+	PartitionDateSourceDeliveryTime PartitionDateSource = "DeliveryTime"
+)
+
+// Values returns all known values for PartitionDateSource. Note that this can be
+// expanded in the future, and so it is only as up to date as the client. The
+// ordering of this slice is not guaranteed to be stable across updates.
+func (PartitionDateSource) Values() []PartitionDateSource {
+	return []PartitionDateSource{
+		"EventTime",
+		"DeliveryTime",
 	}
 }
 
@@ -982,10 +1074,11 @@ type ReplicationStatus string
 
 // Enum values for ReplicationStatus
 const (
-	ReplicationStatusComplete ReplicationStatus = "COMPLETE"
-	ReplicationStatusPending  ReplicationStatus = "PENDING"
-	ReplicationStatusFailed   ReplicationStatus = "FAILED"
-	ReplicationStatusReplica  ReplicationStatus = "REPLICA"
+	ReplicationStatusComplete  ReplicationStatus = "COMPLETE"
+	ReplicationStatusPending   ReplicationStatus = "PENDING"
+	ReplicationStatusFailed    ReplicationStatus = "FAILED"
+	ReplicationStatusReplica   ReplicationStatus = "REPLICA"
+	ReplicationStatusCompleted ReplicationStatus = "COMPLETED"
 )
 
 // Values returns all known values for ReplicationStatus. Note that this can be
@@ -997,6 +1090,7 @@ func (ReplicationStatus) Values() []ReplicationStatus {
 		"PENDING",
 		"FAILED",
 		"REPLICA",
+		"COMPLETED",
 	}
 }
 
@@ -1070,8 +1164,9 @@ type ServerSideEncryption string
 
 // Enum values for ServerSideEncryption
 const (
-	ServerSideEncryptionAes256 ServerSideEncryption = "AES256"
-	ServerSideEncryptionAwsKms ServerSideEncryption = "aws:kms"
+	ServerSideEncryptionAes256     ServerSideEncryption = "AES256"
+	ServerSideEncryptionAwsKms     ServerSideEncryption = "aws:kms"
+	ServerSideEncryptionAwsKmsDsse ServerSideEncryption = "aws:kms:dsse"
 )
 
 // Values returns all known values for ServerSideEncryption. Note that this can be
@@ -1081,6 +1176,25 @@ func (ServerSideEncryption) Values() []ServerSideEncryption {
 	return []ServerSideEncryption{
 		"AES256",
 		"aws:kms",
+		"aws:kms:dsse",
+	}
+}
+
+type SessionMode string
+
+// Enum values for SessionMode
+const (
+	SessionModeReadOnly  SessionMode = "ReadOnly"
+	SessionModeReadWrite SessionMode = "ReadWrite"
+)
+
+// Values returns all known values for SessionMode. Note that this can be expanded
+// in the future, and so it is only as up to date as the client. The ordering of
+// this slice is not guaranteed to be stable across updates.
+func (SessionMode) Values() []SessionMode {
+	return []SessionMode{
+		"ReadOnly",
+		"ReadWrite",
 	}
 }
 
@@ -1117,6 +1231,7 @@ const (
 	StorageClassOutposts           StorageClass = "OUTPOSTS"
 	StorageClassGlacierIr          StorageClass = "GLACIER_IR"
 	StorageClassSnow               StorageClass = "SNOW"
+	StorageClassExpressOnezone     StorageClass = "EXPRESS_ONEZONE"
 )
 
 // Values returns all known values for StorageClass. Note that this can be
@@ -1134,6 +1249,7 @@ func (StorageClass) Values() []StorageClass {
 		"OUTPOSTS",
 		"GLACIER_IR",
 		"SNOW",
+		"EXPRESS_ONEZONE",
 	}
 }
 

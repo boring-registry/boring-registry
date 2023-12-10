@@ -4,22 +4,25 @@ package s3
 
 import (
 	"context"
+	"fmt"
 	awsmiddleware "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	s3cust "github.com/aws/aws-sdk-go-v2/service/s3/internal/customizations"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/aws/smithy-go/ptr"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
-// This implementation of the GET action uses the acl subresource to return the
-// access control list (ACL) of a bucket. To use GET to return the ACL of the
-// bucket, you must have READ_ACP access to the bucket. If READ_ACP permission is
-// granted to the anonymous user, you can return the ACL of the bucket without
-// using an authorization header. To use this API operation against an access
-// point, provide the alias of the access point in place of the bucket name. To use
-// this API operation against an Object Lambda access point, provide the alias of
-// the Object Lambda access point in place of the bucket name. If the Object Lambda
+// This operation is not supported by directory buckets. This implementation of
+// the GET action uses the acl subresource to return the access control list (ACL)
+// of a bucket. To use GET to return the ACL of the bucket, you must have the
+// READ_ACP access to the bucket. If READ_ACP permission is granted to the
+// anonymous user, you can return the ACL of the bucket without using an
+// authorization header. When you use this API operation with an access point,
+// provide the alias of the access point in place of the bucket name. When you use
+// this API operation with an Object Lambda access point, provide the alias of the
+// Object Lambda access point in place of the bucket name. If the Object Lambda
 // access point alias in a request is not valid, the error code
 // InvalidAccessPointAliasError is returned. For more information about
 // InvalidAccessPointAliasError , see List of Error Codes (https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList)
@@ -48,24 +51,29 @@ func (c *Client) GetBucketAcl(ctx context.Context, params *GetBucketAclInput, op
 
 type GetBucketAclInput struct {
 
-	// Specifies the S3 bucket whose ACL is being requested. To use this API operation
-	// against an access point, provide the alias of the access point in place of the
-	// bucket name. To use this API operation against an Object Lambda access point,
-	// provide the alias of the Object Lambda access point in place of the bucket name.
-	// If the Object Lambda access point alias in a request is not valid, the error
-	// code InvalidAccessPointAliasError is returned. For more information about
-	// InvalidAccessPointAliasError , see List of Error Codes (https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList)
+	// Specifies the S3 bucket whose ACL is being requested. When you use this API
+	// operation with an access point, provide the alias of the access point in place
+	// of the bucket name. When you use this API operation with an Object Lambda access
+	// point, provide the alias of the Object Lambda access point in place of the
+	// bucket name. If the Object Lambda access point alias in a request is not valid,
+	// the error code InvalidAccessPointAliasError is returned. For more information
+	// about InvalidAccessPointAliasError , see List of Error Codes (https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList)
 	// .
 	//
 	// This member is required.
 	Bucket *string
 
-	// The account ID of the expected bucket owner. If the bucket is owned by a
-	// different account, the request fails with the HTTP status code 403 Forbidden
-	// (access denied).
+	// The account ID of the expected bucket owner. If the account ID that you provide
+	// does not match the actual owner of the bucket, the request fails with the HTTP
+	// status code 403 Forbidden (access denied).
 	ExpectedBucketOwner *string
 
 	noSmithyDocumentSerde
+}
+
+func (in *GetBucketAclInput) bindEndpointParams(p *EndpointParameters) {
+	p.Bucket = in.Bucket
+	p.UseS3ExpressControlEndpoint = ptr.Bool(true)
 }
 
 type GetBucketAclOutput struct {
@@ -83,12 +91,22 @@ type GetBucketAclOutput struct {
 }
 
 func (c *Client) addOperationGetBucketAclMiddlewares(stack *middleware.Stack, options Options) (err error) {
+	if err := stack.Serialize.Add(&setOperationInputMiddleware{}, middleware.After); err != nil {
+		return err
+	}
 	err = stack.Serialize.Add(&awsRestxml_serializeOpGetBucketAcl{}, middleware.After)
 	if err != nil {
 		return err
 	}
 	err = stack.Deserialize.Add(&awsRestxml_deserializeOpGetBucketAcl{}, middleware.After)
 	if err != nil {
+		return err
+	}
+	if err := addProtocolFinalizerMiddlewares(stack, options, "GetBucketAcl"); err != nil {
+		return fmt.Errorf("add protocol finalizers: %v", err)
+	}
+
+	if err = addlegacyEndpointContextSetter(stack, options); err != nil {
 		return err
 	}
 	if err = addSetLoggerMiddleware(stack, options); err != nil {
@@ -109,16 +127,13 @@ func (c *Client) addOperationGetBucketAclMiddlewares(stack *middleware.Stack, op
 	if err = addRetryMiddlewares(stack, options); err != nil {
 		return err
 	}
-	if err = addHTTPSignerV4Middleware(stack, options); err != nil {
-		return err
-	}
 	if err = awsmiddleware.AddRawResponseToMetadata(stack); err != nil {
 		return err
 	}
 	if err = awsmiddleware.AddRecordResponseTiming(stack); err != nil {
 		return err
 	}
-	if err = addClientUserAgent(stack); err != nil {
+	if err = addClientUserAgent(stack, options); err != nil {
 		return err
 	}
 	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {
@@ -127,7 +142,10 @@ func (c *Client) addOperationGetBucketAclMiddlewares(stack *middleware.Stack, op
 	if err = smithyhttp.AddCloseResponseBodyMiddleware(stack); err != nil {
 		return err
 	}
-	if err = swapWithCustomHTTPSignerMiddleware(stack, options); err != nil {
+	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addPutBucketContextMiddleware(stack); err != nil {
 		return err
 	}
 	if err = addOpGetBucketAclValidationMiddleware(stack); err != nil {
@@ -157,14 +175,26 @@ func (c *Client) addOperationGetBucketAclMiddlewares(stack *middleware.Stack, op
 	if err = addRequestResponseLogging(stack, options); err != nil {
 		return err
 	}
+	if err = addDisableHTTPSMiddleware(stack, options); err != nil {
+		return err
+	}
+	if err = addSerializeImmutableHostnameBucketMiddleware(stack, options); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (v *GetBucketAclInput) bucket() (string, bool) {
+	if v.Bucket == nil {
+		return "", false
+	}
+	return *v.Bucket, true
 }
 
 func newServiceMetadataMiddleware_opGetBucketAcl(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{
 		Region:        region,
 		ServiceID:     ServiceID,
-		SigningName:   "s3",
 		OperationName: "GetBucketAcl",
 	}
 }
