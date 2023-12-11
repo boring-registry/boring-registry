@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +18,6 @@ import (
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"cloud.google.com/go/storage"
 	"github.com/go-kit/log"
-	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 )
@@ -37,11 +37,11 @@ func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, v
 	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
-		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleNotFound, err)
 	}
 	url, err := s.presignedURL(ctx, attrs.Name)
 	if err != nil {
-		return core.Module{}, errors.Wrap(ErrModuleNotFound, err.Error())
+		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleNotFound, err)
 	}
 	return core.Module{
 		Namespace: namespace,
@@ -101,15 +101,15 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 
 	key := modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat)
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
-		return core.Module{}, errors.Wrap(ErrModuleAlreadyExists, key)
+		return core.Module{}, fmt.Errorf("%w: %s", ErrModuleAlreadyExists, key)
 	}
 
 	wc := s.sc.Bucket(s.bucket).Object(key).NewWriter(ctx)
 	if _, err := io.Copy(wc, body); err != nil {
-		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
+		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleUploadFailed, err)
 	}
 	if err := wc.Close(); err != nil {
-		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
+		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleUploadFailed, err)
 	}
 
 	return s.GetModule(ctx, namespace, name, provider, version)
@@ -485,7 +485,7 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 	} else {
 		conf, err := google.JWTConfigFromJSON(cred.JSON)
 		if err != nil {
-			return "", errors.Wrap(err, "could not get jwt config")
+			return "", fmt.Errorf("could not get jwt config: %w", err)
 		}
 		opts := &storage.SignedURLOptions{
 			Scheme:         storage.SigningSchemeV4,

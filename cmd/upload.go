@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,7 +16,6 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/provider"
 
 	"github.com/hashicorp/go-version"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 )
 

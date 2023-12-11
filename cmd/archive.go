@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-version"
-	"github.com/pkg/errors"
 )
 
 const (

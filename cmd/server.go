@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -11,16 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-kit/kit/endpoint"
-	httptransport "github.com/go-kit/kit/transport/http"
-
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-kit/kit/transport"
-	"github.com/pkg/errors"
-
-	"golang.org/x/sync/errgroup"
-
 	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/discovery"
 	"github.com/TierMobility/boring-registry/pkg/mirror"
@@ -28,8 +19,15 @@ import (
 	"github.com/TierMobility/boring-registry/pkg/provider"
 	"github.com/TierMobility/boring-registry/pkg/storage"
 
+	"github.com/go-kit/kit/endpoint"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/kit/transport"
+	httptransport "github.com/go-kit/kit/transport/http"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -83,7 +81,7 @@ var serverCmd = &cobra.Command{
 
 		mux, err := serveMux(ctx)
 		if err != nil {
-			return errors.Wrap(err, "failed to setup server")
+			return fmt.Errorf("failed to setup server: %w", err)
 		}
 
 		server := &http.Server{

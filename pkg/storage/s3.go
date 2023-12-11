@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +22,6 @@ import (
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-kit/log"
-	"github.com/pkg/errors"
 )
 
 // s3ClientAPI is used to mock the AWS APIs
@@ -102,7 +102,7 @@ func (s *S3Storage) ListModuleVersions(ctx context.Context, namespace, name, pro
 	for paginator.HasMorePages() {
 		resp, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, errors.Wrap(ErrModuleListFailed, err.Error())
+			return nil, fmt.Errorf("%v: %w", ErrModuleListFailed, err)
 		}
 
 		for _, obj := range resp.Contents {
@@ -146,7 +146,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 	key := modulePath(s.bucketPrefix, namespace, name, provider, version, DefaultModuleArchiveFormat)
 
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
-		return core.Module{}, errors.Wrap(ErrModuleAlreadyExists, key)
+		return core.Module{}, fmt.Errorf("%w: %s", ErrModuleAlreadyExists, key)
 	}
 
 	input := &s3.PutObjectInput{
@@ -156,7 +156,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 	}
 
 	if _, err := s.uploader.Upload(ctx, input); err != nil {
-		return core.Module{}, errors.Wrapf(ErrModuleUploadFailed, err.Error())
+		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleUploadFailed, err)
 	}
 
 	return s.GetModule(ctx, namespace, name, provider, version)
@@ -271,7 +271,7 @@ func (s *S3Storage) getProvider(ctx context.Context, pt providerType, provider *
 	}
 	provider.SHASumsURL, err = s.presignedURL(ctx, shasumPath)
 	if err != nil {
-		return nil, errors.Wrap(err, shasumPath)
+		return nil, fmt.Errorf("failed to generate presigned url for %s: %w", shasumPath, err)
 	}
 	provider.SHASumsSignatureURL, err = s.presignedURL(ctx, shasumSigPath)
 	if err != nil {
@@ -521,7 +521,7 @@ func (s *S3Storage) download(ctx context.Context, key string) ([]byte, error) {
 	}
 
 	if _, err := s.downloader.Download(ctx, buf, input); err != nil {
-		return nil, errors.Wrapf(err, "failed to download: %s", key)
+		return nil, fmt.Errorf("failed to download %s: %w", key, err)
 	}
 
 	return buf.Bytes(), nil
@@ -613,7 +613,7 @@ func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption
 	if s.bucketRegion == "" {
 		region, err := s3manager.GetBucketRegion(ctx, client, s.bucket)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to determine bucket region")
+			return nil, fmt.Errorf("failed to determine bucket region: %w", err)
 		}
 		s.bucketRegion = region
 	}
