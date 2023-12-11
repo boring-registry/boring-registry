@@ -20,7 +20,7 @@ jobs:
         go-version: ^1.21
 
     - name: Check out code into the Go module directory
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Format
       run: files="$(gofmt -l pkg cmd)"; if [ -n "$files" ]; then echo -e "Files are not properly formatted:\n$files"; exit 1; fi
@@ -34,7 +34,7 @@ jobs:
   lint-helm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -74,7 +74,7 @@ jobs:
     if: ${{ github.ref_name == github.event.repository.default_branch }} # https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
     steps:
       - run: echo "this is ${{ github.ref_name }} and ${{ github.event.repository.default_branch }}"
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install yq
         run: sudo snap install yq
@@ -114,7 +114,7 @@ jobs:
       - check-helm-publish
     if: ${{ needs.check-helm-publish.outputs.IS_PUBLISHED == 'false' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: azure/setup-helm@v3
 
       - name: Helm login to GitHub Container Registry
