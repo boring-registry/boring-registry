@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	jwtverifier "github.com/okta/okta-jwt-verifier-golang/v2"
-	"github.com/pkg/errors"
 )
 
 type OktaProvider struct {
@@ -27,7 +27,7 @@ func (p *OktaProvider) Verify(ctx context.Context, token string) error {
 	}
 
 	if _, err := verifier.VerifyIdToken(token); err != nil {
-		return errors.Wrap(ErrInvalidToken, err.Error())
+		return fmt.Errorf("%v: %w", ErrInvalidToken, err)
 	}
 
 	return nil

@@ -2,13 +2,13 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 )
 
 type muxVar string
@@ -57,12 +57,12 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 func decodeListRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	namespace, ok := ctx.Value(varNamespace).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "namespace")
+		return nil, fmt.Errorf("%w: namespace", ErrVarMissing)
 	}
 
 	name, ok := ctx.Value(varName).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "name")
+		return nil, fmt.Errorf("%w: name", ErrVarMissing)
 	}
 
 	return listRequest{
@@ -74,27 +74,27 @@ func decodeListRequest(ctx context.Context, r *http.Request) (interface{}, error
 func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	namespace, ok := ctx.Value(varNamespace).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "namespace")
+		return nil, fmt.Errorf("%w: namespace", ErrVarMissing)
 	}
 
 	name, ok := ctx.Value(varName).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "name")
+		return nil, fmt.Errorf("%w: name", ErrVarMissing)
 	}
 
 	version, ok := ctx.Value(varVersion).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "version")
+		return nil, fmt.Errorf("%w: version", ErrVarMissing)
 	}
 
 	os, ok := ctx.Value(varOS).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "os")
+		return nil, fmt.Errorf("%w: os", ErrVarMissing)
 	}
 
 	arch, ok := ctx.Value(varArch).(string)
 	if !ok {
-		return nil, errors.Wrap(ErrVarMissing, "arch")
+		return nil, fmt.Errorf("%w: arch", ErrVarMissing)
 	}
 
 	return downloadRequest{
