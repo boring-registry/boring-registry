@@ -17,6 +17,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
 	github.com/hashicorp/hcl v1.0.0
+	github.com/hashicorp/hcl/v2 v2.19.1
 	github.com/okta/okta-jwt-verifier-golang/v2 v2.0.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/cobra v1.8.0
