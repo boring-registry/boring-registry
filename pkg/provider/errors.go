@@ -3,10 +3,6 @@ package provider
 import "errors"
 
 var (
+	// Provider errors
 	ErrProviderNotFound = errors.New("failed to locate provider")
-)
-
-// Transport errors.
-var (
-	ErrVarMissing = errors.New("variable missing")
 )

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/TierMobility/boring-registry/pkg/auth"
 	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/auth/jwt"
@@ -203,28 +202,18 @@ func encodeMirroredResponse(ctx context.Context, w http.ResponseWriter, response
 	return nil
 }
 
-// ErrorEncoder translates domain specific errors to HTTP status codes.
+// ErrorEncoder translates domain specific errors to HTTP status codes
 func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	var providerErr *core.ProviderError
 	if errors.As(err, &providerErr) {
 		w.WriteHeader(providerErr.StatusCode)
-	} else if errors.Is(err, ErrVarMissing) {
-		w.WriteHeader(http.StatusBadRequest)
-	} else if errors.Is(err, auth.ErrInvalidToken) || errors.Is(err, auth.ErrUnauthorized) {
-		w.WriteHeader(http.StatusUnauthorized)
+	} else if errors.Is(err, ErrUpstreamNotFound) {
+		w.WriteHeader(http.StatusNotFound)
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(core.GenericError(err))
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	_ = json.NewEncoder(w).Encode(struct {
-		Errors []string `json:"errors"`
-	}{
-		Errors: []string{
-			err.Error(),
-		},
-	})
+	core.HandleErrorResponse(err, w)
 }
 
 func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
@@ -241,7 +230,7 @@ func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
 
 func decodeUpstreamProviderResponse(r *http.Response) (*core.Provider, error) {
 	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code is %d instead of 200", r.StatusCode)
+		return nil, fmt.Errorf("%w: status code is %d instead of 200", ErrUpstreamNotFound, r.StatusCode)
 	}
 
 	var response core.Provider
@@ -253,7 +242,7 @@ func decodeUpstreamProviderResponse(r *http.Response) (*core.Provider, error) {
 
 func decodeUpstreamListProviderVersionsResponse(r *http.Response) (*core.ProviderVersions, error) {
 	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status code is %d instead of 200", r.StatusCode)
+		return nil, fmt.Errorf("%w: status code is %d instead of 200", ErrUpstreamNotFound, r.StatusCode)
 	}
 
 	var response core.ProviderVersions

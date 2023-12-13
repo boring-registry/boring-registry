@@ -2,12 +2,11 @@ package module
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/TierMobility/boring-registry/pkg/auth"
+	"github.com/TierMobility/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -60,17 +59,17 @@ func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport
 func decodeListRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	namespace, ok := ctx.Value(varNamespace).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: namespace", ErrVarMissing)
+		return nil, fmt.Errorf("%w: namespace", core.ErrVarMissing)
 	}
 
 	name, ok := ctx.Value(varName).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: name", ErrVarMissing)
+		return nil, fmt.Errorf("%w: name", core.ErrVarMissing)
 	}
 
 	provider, ok := ctx.Value(varProvider).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: provider", ErrVarMissing)
+		return nil, fmt.Errorf("%w: provider", core.ErrVarMissing)
 	}
 
 	return listRequest{
@@ -83,22 +82,22 @@ func decodeListRequest(ctx context.Context, r *http.Request) (interface{}, error
 func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	namespace, ok := ctx.Value(varNamespace).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: namespace", ErrVarMissing)
+		return nil, fmt.Errorf("%w: namespace", core.ErrVarMissing)
 	}
 
 	name, ok := ctx.Value(varName).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: names", ErrVarMissing)
+		return nil, fmt.Errorf("%w: names", core.ErrVarMissing)
 	}
 
 	provider, ok := ctx.Value(varProvider).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: provider", ErrVarMissing)
+		return nil, fmt.Errorf("%w: provider", core.ErrVarMissing)
 	}
 
 	version, ok := ctx.Value(varVersion).(string)
 	if !ok {
-		return nil, fmt.Errorf("%w: version", ErrVarMissing)
+		return nil, fmt.Errorf("%w: version", core.ErrVarMissing)
 	}
 
 	return downloadRequest{
@@ -109,23 +108,16 @@ func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, e
 	}, nil
 }
 
-// ErrorEncoder translates domain specific errors to HTTP status codes.
+// ErrorEncoder translates domain specific errors to HTTP status codes
 func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
-	if errors.Is(err, ErrVarMissing) {
-		w.WriteHeader(http.StatusBadRequest)
-	} else if errors.Is(err, auth.ErrUnauthorized) {
-		w.WriteHeader(http.StatusUnauthorized)
+
+	if errors.Is(err, ErrModuleNotFound) {
+		w.WriteHeader(http.StatusNotFound)
 	} else {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(core.GenericError(err))
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	_ = json.NewEncoder(w).Encode(struct {
-		Error string `json:"error"`
-	}{
-		Error: err.Error(),
-	})
+	core.HandleErrorResponse(err, w)
 }
 
 func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {

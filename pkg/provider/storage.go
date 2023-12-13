@@ -11,7 +11,7 @@ import (
 
 // Storage represents the Storage of Terraform providers.
 type Storage interface {
-	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error)
+	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error)
 	ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error)
 
 	// UploadProviderReleaseFiles is used to upload all artifacts which make up a provider release

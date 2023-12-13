@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/TierMobility/boring-registry/pkg/module"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -74,7 +75,7 @@ func (s *S3Storage) GetModule(ctx context.Context, namespace, name, provider, ve
 	if err != nil {
 		return core.Module{}, err
 	} else if !exists {
-		return core.Module{}, ErrModuleNotFound
+		return core.Module{}, module.ErrModuleNotFound
 	}
 
 	presigned, err := s.presignedURL(ctx, key)
@@ -102,7 +103,7 @@ func (s *S3Storage) ListModuleVersions(ctx context.Context, namespace, name, pro
 	for paginator.HasMorePages() {
 		resp, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("%v: %w", ErrModuleListFailed, err)
+			return nil, fmt.Errorf("%v: %w", module.ErrModuleListFailed, err)
 		}
 
 		for _, obj := range resp.Contents {
@@ -146,7 +147,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 	key := modulePath(s.bucketPrefix, namespace, name, provider, version, DefaultModuleArchiveFormat)
 
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
-		return core.Module{}, fmt.Errorf("%w: %s", ErrModuleAlreadyExists, key)
+		return core.Module{}, fmt.Errorf("%w: %s", module.ErrModuleAlreadyExists, key)
 	}
 
 	input := &s3.PutObjectInput{
@@ -156,7 +157,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 	}
 
 	if _, err := s.uploader.Upload(ctx, input); err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleUploadFailed, err)
+		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleUploadFailed, err)
 	}
 
 	return s.GetModule(ctx, namespace, name, provider, version)
@@ -257,11 +258,7 @@ func (s *S3Storage) getProvider(ctx context.Context, pt providerType, provider *
 	if exists, err := s.objectExists(ctx, archivePath); err != nil {
 		return nil, err
 	} else if !exists {
-		return nil, &core.ProviderError{
-			Reason:     "failed to locate provider",
-			Provider:   provider,
-			StatusCode: http.StatusNotFound,
-		}
+		return nil, noMatchingProviderFound(provider)
 	}
 
 	var err error
@@ -303,7 +300,7 @@ func (s *S3Storage) getProvider(ctx context.Context, pt providerType, provider *
 	return provider, nil
 }
 
-func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
+func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error) {
 	p, err := s.getProvider(ctx, internalProviderType, &core.Provider{
 		Namespace: namespace,
 		Name:      name,
@@ -312,7 +309,7 @@ func (s *S3Storage) GetProvider(ctx context.Context, namespace, name, version, o
 		Arch:      arch,
 	})
 
-	return *p, err
+	return p, err
 }
 
 func (s *S3Storage) GetMirroredProvider(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -332,7 +329,7 @@ func (s *S3Storage) listProviderVersions(ctx context.Context, pt providerType, p
 	for paginator.HasMorePages() {
 		resp, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("%v, %w", ErrProviderListFailed, err)
+			return nil, fmt.Errorf("failed to page next page: %w", err)
 		}
 
 		for _, obj := range resp.Contents {
@@ -495,7 +492,7 @@ func (s *S3Storage) upload(ctx context.Context, key string, reader io.Reader, ov
 		if err != nil {
 			return err
 		} else if exists {
-			return ErrObjectAlreadyExists
+			return fmt.Errorf("failed to upload key %s: %w", key, core.ErrObjectAlreadyExists)
 		}
 	}
 
