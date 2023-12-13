@@ -191,7 +191,7 @@ type ProviderOption func(option *providerOption)
 
 // parseSha256Line parses a line as found in the *_SHA256SUMS file
 func parseSha256Line(line string) ([]byte, string, error) {
-	r := regexp.MustCompile("\\s+")
+	r := regexp.MustCompile(`\s+`)
 	s := r.Split(line, -1)
 	if len(s) != 2 {
 		return nil, "", fmt.Errorf("line contains %d parts instead of 2", len(s))
@@ -225,7 +225,7 @@ func (s *Sha256Sums) Name() (string, error) {
 func (s *Sha256Sums) Checksum(fileName string) (string, error) {
 	checksum, exists := s.Entries[fileName]
 	if !exists {
-		return "", errors.New(fmt.Sprintf("no checksum for file %s", fileName))
+		return "", fmt.Errorf("no checksum for file %s", fileName)
 	}
 	return fmt.Sprintf("%x", checksum), nil
 }

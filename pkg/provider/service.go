@@ -9,7 +9,7 @@ import (
 // Service implements the Provider Registry Protocol.
 // For more information see: https://www.terraform.io/docs/internals/provider-registry-protocol.html.
 type Service interface {
-	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error)
+	GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error)
 	ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error)
 }
 
@@ -24,7 +24,7 @@ func NewService(storage Storage) Service {
 	}
 }
 
-func (s *service) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
+func (s *service) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error) {
 	return s.storage.GetProvider(ctx, namespace, name, version, os, arch)
 }
 

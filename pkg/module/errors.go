@@ -2,7 +2,10 @@ package module
 
 import "errors"
 
-// Transport errors.
 var (
-	ErrVarMissing = errors.New("variable missing")
+	// Module errors
+	ErrModuleNotFound      = errors.New("failed to locate module")
+	ErrModuleUploadFailed  = errors.New("failed to upload module")
+	ErrModuleAlreadyExists = errors.New("module already exists")
+	ErrModuleListFailed    = errors.New("failed to list module versions")
 )

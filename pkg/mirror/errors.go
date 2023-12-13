@@ -3,5 +3,5 @@ package mirror
 import "errors"
 
 var (
-	ErrVarMissing = errors.New("variable missing")
+	ErrUpstreamNotFound = errors.New("not found upstream")
 )

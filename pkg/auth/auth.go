@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/TierMobility/boring-registry/pkg/core"
+
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/go-kit/kit/log"
@@ -20,16 +22,16 @@ func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 				return next(ctx, request)
 			}
 
-			var err error
 			if token, ok := tokenValue.(string); ok {
 				for _, provider := range providers {
-					err = provider.Verify(ctx, token)
+					err := provider.Verify(ctx, token)
 					if err != nil {
 						_ = level.Debug(logger).Log(
 							"provider", provider,
 							"msg", "failed to verify token",
 							"err", err,
 						)
+						return nil, fmt.Errorf("failed to verify token: %w", err)
 					} else {
 						_ = level.Debug(logger).Log(
 							"provider", provider,
@@ -40,9 +42,11 @@ func Middleware(logger log.Logger, providers ...Provider) endpoint.Middleware {
 						return next(ctx, request)
 					}
 				}
+			} else {
+				return nil, fmt.Errorf("%w: request does not contain a token", core.ErrUnauthorized)
 			}
 
-			return nil, fmt.Errorf("%w: %v", ErrUnauthorized, err)
+			return nil, core.ErrUnauthorized
 		}
 	}
 }

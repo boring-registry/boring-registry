@@ -49,7 +49,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace,
 	return mw.next.ListProviderVersions(ctx, namespace, name)
 }
 
-func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (provider core.Provider, err error) {
+func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (provider *core.Provider, err error) {
 	defer func(begin time.Time) {
 		logger := level.Info(mw.logger)
 		if err != nil {

@@ -379,7 +379,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 		httptransport.ServerErrorHandler(
 			transport.NewLogErrorHandler(logger),
 		),
-		httptransport.ServerErrorEncoder(module.ErrorEncoder),
+		httptransport.ServerErrorEncoder(provider.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
 		),

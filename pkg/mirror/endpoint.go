@@ -41,7 +41,7 @@ func listProviderVersionsEndpoint(svc Service) endpoint.Endpoint {
 		}
 
 		if provider.Hostname == "" || provider.Namespace == "" || provider.Name == "" {
-			return nil, ErrVarMissing
+			return nil, core.ErrVarMissing
 		}
 
 		return svc.ListProviderVersions(ctx, provider)
@@ -122,7 +122,7 @@ func retrieveProviderArchiveEndpoint(svc Service) endpoint.Endpoint {
 		}
 
 		if provider.Hostname == "" || provider.Namespace == "" || provider.Name == "" || provider.Version == "" || provider.OS == "" || provider.Arch == "" {
-			return nil, ErrVarMissing
+			return nil, core.ErrVarMissing
 		}
 
 		return svc.RetrieveProviderArchive(ctx, provider)

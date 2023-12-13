@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/TierMobility/boring-registry/pkg/core"
+
 	jwtverifier "github.com/okta/okta-jwt-verifier-golang/v2"
 )
 
@@ -27,7 +29,7 @@ func (p *OktaProvider) Verify(ctx context.Context, token string) error {
 	}
 
 	if _, err := verifier.VerifyIdToken(token); err != nil {
-		return fmt.Errorf("%v: %w", ErrInvalidToken, err)
+		return fmt.Errorf("%v: %w", core.ErrInvalidToken, err)
 	}
 
 	return nil

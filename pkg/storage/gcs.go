@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"path"
 	"path/filepath"
 	"time"
 
 	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/TierMobility/boring-registry/pkg/module"
 
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
@@ -37,11 +37,11 @@ func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, v
 	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleNotFound, err)
+		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleNotFound, err)
 	}
 	url, err := s.presignedURL(ctx, attrs.Name)
 	if err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleNotFound, err)
+		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleNotFound, err)
 	}
 	return core.Module{
 		Namespace: namespace,
@@ -101,15 +101,15 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 
 	key := modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat)
 	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
-		return core.Module{}, fmt.Errorf("%w: %s", ErrModuleAlreadyExists, key)
+		return core.Module{}, fmt.Errorf("%w: %s", module.ErrModuleAlreadyExists, key)
 	}
 
 	wc := s.sc.Bucket(s.bucket).Object(key).NewWriter(ctx)
 	if _, err := io.Copy(wc, body); err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleUploadFailed, err)
+		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleUploadFailed, err)
 	}
 	if err := wc.Close(); err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", ErrModuleUploadFailed, err)
+		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleUploadFailed, err)
 	}
 
 	return s.GetModule(ctx, namespace, name, provider, version)
@@ -201,11 +201,7 @@ func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider 
 	if exists, err := s.objectExists(ctx, archivePath); err != nil {
 		return nil, err
 	} else if !exists {
-		return nil, &core.ProviderError{
-			Reason:     "failed to locate provider",
-			Provider:   provider,
-			StatusCode: http.StatusNotFound,
-		}
+		return nil, noMatchingProviderFound(provider)
 	}
 
 	var err error
@@ -247,7 +243,7 @@ func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider 
 	return provider, nil
 }
 
-func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (core.Provider, error) {
+func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error) {
 	p, err := s.getProvider(ctx, internalProviderType, &core.Provider{
 		Namespace: namespace,
 		Name:      name,
@@ -255,7 +251,7 @@ func (s *GCSStorage) GetProvider(ctx context.Context, namespace, name, version, 
 		OS:        os,
 		Arch:      arch,
 	})
-	return *p, err
+	return p, err
 }
 
 func (s *GCSStorage) GetMirroredProvider(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -413,7 +409,7 @@ func (s *GCSStorage) upload(ctx context.Context, key string, reader io.Reader, o
 		if err != nil {
 			return err
 		} else if exists {
-			return ErrObjectAlreadyExists
+			return fmt.Errorf("failed to upload key %s: %w", key, core.ErrObjectAlreadyExists)
 		}
 	}
 

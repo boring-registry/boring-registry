@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"strings"
+
+	"github.com/TierMobility/boring-registry/pkg/core"
 )
 
 type StaticProvider struct {
@@ -18,7 +20,7 @@ func (p *StaticProvider) Verify(ctx context.Context, token string) error {
 		}
 	}
 
-	return ErrInvalidToken
+	return core.ErrInvalidToken
 }
 
 func NewStaticProvider(tokens ...string) Provider {

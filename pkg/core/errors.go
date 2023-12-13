@@ -1,13 +1,24 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 )
 
 var (
-	ErrObjectNotFound = errors.New("failed to locate object")
+	// Transport errors
+	ErrVarMissing = errors.New("variable missing")
+
+	// Auth errors
+	ErrUnauthorized = errors.New("unauthorized")           // Middleware error
+	ErrInvalidToken = errors.New("failed to verify token") // Provider error
+
+	// Storage errors
+	ErrObjectNotFound      = errors.New("failed to locate object")
+	ErrObjectAlreadyExists = errors.New("object already exists")
 )
 
 type ProviderError struct {
@@ -40,4 +51,31 @@ func (p ProviderError) Error() string {
 	message := sb.String()
 	message = strings.TrimSuffix(message, ", ")
 	return message
+}
+
+// GenericError returns the HTTP status code for module-agnostic boring-registry errors
+func GenericError(err error) int {
+	if errors.Is(err, ErrVarMissing) {
+		return http.StatusBadRequest
+	} else if errors.Is(err, ErrInvalidToken) || errors.Is(err, ErrUnauthorized) {
+		return http.StatusUnauthorized
+	} else if errors.Is(err, ErrObjectAlreadyExists) {
+		return http.StatusConflict
+	}
+
+	// Default error
+	return http.StatusInternalServerError
+}
+
+// HandleErrorResponse handles the HTTP response for errors
+func HandleErrorResponse(err error, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	_ = json.NewEncoder(w).Encode(struct {
+		Errors []string `json:"errors"`
+	}{
+		Errors: []string{
+			err.Error(),
+		},
+	})
 }
