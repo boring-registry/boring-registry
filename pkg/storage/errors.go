@@ -3,7 +3,7 @@ package storage
 import (
 	"net/http"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
 func noMatchingProviderFound(provider *core.Provider) error {

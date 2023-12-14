@@ -1,4 +1,4 @@
-module github.com/TierMobility/boring-registry
+module github.com/boring-registry/boring-registry
 
 go 1.21
 

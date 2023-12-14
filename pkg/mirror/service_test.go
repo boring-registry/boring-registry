@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
 type mockedUpstreamProvider struct {
@@ -262,7 +262,7 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 		{
 			name: "dissimilar platforms for the versions",
 			// This test case replicates the condition under which this bug occurred:
-			// https://github.com/TierMobility/boring-registry/pull/143#discussion_r1335798065
+			// https://github.com/boring-registry/boring-registry/pull/143#discussion_r1335798065
 			svc: &pullTroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {

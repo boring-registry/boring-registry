@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TierMobility/boring-registry/pkg/module"
+	"github.com/boring-registry/boring-registry/pkg/module"
 
 	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-version"

@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
 // Service implements the Provider Registry Protocol.

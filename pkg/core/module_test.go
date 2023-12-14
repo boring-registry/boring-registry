@@ -1,8 +1,9 @@
 package core
 
 import (
-	assertion "github.com/stretchr/testify/assert"
 	"testing"
+
+	assertion "github.com/stretchr/testify/assert"
 )
 
 func TestModule_ID(t *testing.T) {

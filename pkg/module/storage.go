@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/log"
 )

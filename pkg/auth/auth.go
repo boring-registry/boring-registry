@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
