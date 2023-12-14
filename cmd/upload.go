@@ -241,7 +241,6 @@ func validateShaSums(sums *core.Sha256Sums) error {
 			if err := validateShaSumsEntry(archivePath, checksum); err != nil {
 				return fmt.Errorf("failed to validate checksum for file %s", fileName)
 			}
-			return fmt.Errorf("failed to find entry for %s in file %s", fileName, flagFileSha256Sums)
 		}
 	} else {
 		baseDir := filepath.Dir(flagFileSha256Sums)
