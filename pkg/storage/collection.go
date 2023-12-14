@@ -3,7 +3,7 @@ package storage
 import (
 	"fmt"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
 type Collection struct {

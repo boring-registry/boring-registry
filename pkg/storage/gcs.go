@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/TierMobility/boring-registry/pkg/module"
+	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/module"
 
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"

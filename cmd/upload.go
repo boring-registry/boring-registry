@@ -10,10 +10,10 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/go-kit/log/level"
+	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/provider"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/TierMobility/boring-registry/pkg/provider"
+	"github.com/go-kit/log/level"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"

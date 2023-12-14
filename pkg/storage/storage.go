@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/TierMobility/boring-registry/pkg/mirror"
-	"github.com/TierMobility/boring-registry/pkg/module"
-	"github.com/TierMobility/boring-registry/pkg/provider"
+	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/mirror"
+	"github.com/boring-registry/boring-registry/pkg/module"
+	"github.com/boring-registry/boring-registry/pkg/provider"
 )
 
 const (

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
 type StaticProvider struct {

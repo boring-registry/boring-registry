@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 
 	"github.com/go-kit/log"
 )

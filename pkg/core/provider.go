@@ -121,7 +121,7 @@ func NewProviderFromArchive(filename string) (Provider, error) {
 }
 
 // SigningKeys represents the signing-keys.json that we expect in the storage backend
-// https://github.com/TierMobility/boring-registry#gpg-public-key-format
+// https://github.com/boring-registry/boring-registry#gpg-public-key-format
 type SigningKeys struct {
 	GPGPublicKeys []GPGPublicKey `json:"gpg_public_keys,omitempty"`
 }

@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/auth"
-	"github.com/TierMobility/boring-registry/pkg/discovery"
-	"github.com/TierMobility/boring-registry/pkg/mirror"
-	"github.com/TierMobility/boring-registry/pkg/module"
-	"github.com/TierMobility/boring-registry/pkg/provider"
-	"github.com/TierMobility/boring-registry/pkg/storage"
+	"github.com/boring-registry/boring-registry/pkg/auth"
+	"github.com/boring-registry/boring-registry/pkg/discovery"
+	"github.com/boring-registry/boring-registry/pkg/mirror"
+	"github.com/boring-registry/boring-registry/pkg/module"
+	"github.com/boring-registry/boring-registry/pkg/provider"
+	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/go-kit/kit/endpoint"
 	"github.com/go-kit/kit/log"

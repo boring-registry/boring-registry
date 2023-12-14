@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
-	"github.com/TierMobility/boring-registry/pkg/discovery"
+	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/discovery"
 )
 
 // Service implements the Provider Network Mirror Protocol.

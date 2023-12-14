@@ -2,7 +2,8 @@ package module
 
 import (
 	"context"
-	"github.com/TierMobility/boring-registry/pkg/core"
+
+	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
 // Service implements the Module Registry Protocol.

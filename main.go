@@ -1,6 +1,6 @@
 package main
 
-import "github.com/TierMobility/boring-registry/cmd"
+import "github.com/boring-registry/boring-registry/cmd"
 
 func main() {
 	cmd.Execute()

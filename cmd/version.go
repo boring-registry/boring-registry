@@ -3,7 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/TierMobility/boring-registry/version"
+	"github.com/boring-registry/boring-registry/version"
+
 	"github.com/spf13/cobra"
 )
 

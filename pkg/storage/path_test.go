@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TierMobility/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -5,10 +5,11 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"github.com/TierMobility/boring-registry/pkg/core"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/boring-registry/boring-registry/pkg/core"
 
 	"github.com/stretchr/testify/assert"
 )
