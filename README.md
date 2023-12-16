@@ -35,12 +35,12 @@ Support for the [Module Registry Protocol](https://www.terraform.io/internals/mo
 ### Helm
 
 ```bash
-helm upgrade --install --wait --namespace default boring-registry oci://ghcr.io/tiermobility/charts/boring-registry
+helm upgrade --install --wait --namespace default boring-registry oci://ghcr.io/boring-registry/charts/boring-registry
 ```
 
 ### Docker Image
 
-Images are published to [`ghcr.io/tiermobility/boring-registry`](https://github.com/tiermobility/boring-registry/pkgs/container/boring-registry) for every tagged release of the project.
+Images are published to [`ghcr.io/boring-registry/boring-registry`](https://github.com/boring-registry/boring-registry/pkgs/container/boring-registry) for every tagged release of the project.
 
 ### Local
 
