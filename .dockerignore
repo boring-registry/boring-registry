@@ -1,0 +1,12 @@
+.github
+.vscode
+helm
+
+.gitignore
+.goreleaser.yml
+CODEOWNERS
+Dockerfile
+LICENSE
+Makefile
+README.md
+renovate.json

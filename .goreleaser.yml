@@ -11,7 +11,12 @@ builds:
       - windows
       - darwin
     ldflags:
-      - -s -w -X github.com/TierMobility/boring-registry/version.Version={{.Version}} -X github.com/TierMobility/boring-registry/version.Commit={{.Commit}} -X github.com/TierMobility/boring-registry/version.Date={{.Date}} -X github.com/TierMobility/boring-registry/version.BuiltBy=goreleaser
+      - -s
+      - -w
+      - -X github.com/boring-registry/boring-registry/version.Version={{.Version}}
+      - -X github.com/boring-registry/boring-registry/version.Commit={{.Commit}}
+      - -X github.com/boring-registry/boring-registry/version.Date={{.Date}}
+      - -X github.com/boring-registry/boring-registry/version.BuiltBy=goreleaser
 archives:
   - name_template: >-
       {{ .ProjectName }}_

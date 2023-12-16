@@ -86,7 +86,7 @@ jobs:
       - uses: octokit/request-action@v2.x
         id: get_chart
         with:
-          route: GET /orgs/tiermobility/packages/container/charts%2Fboring-registry/versions
+          route: GET /orgs/boring-registry/packages/container/charts%2Fboring-registry/versions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -118,9 +118,9 @@ jobs:
       - uses: azure/setup-helm@v3
 
       - name: Helm login to GitHub Container Registry
-        run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login https://ghcr.io --username TierMobility --password-stdin
+        run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login https://ghcr.io --username boring-registry --password-stdin
 
       - name: Publish helm chart to GitHub Container Registry
         run: |
           helm package helm/boring-registry
-          helm push ./boring-registry-${{ needs.check-helm-publish.outputs.VERSION }}.tgz oci://ghcr.io/tiermobility/charts
+          helm push ./boring-registry-${{ needs.check-helm-publish.outputs.VERSION }}.tgz oci://ghcr.io/boring-registry/charts
