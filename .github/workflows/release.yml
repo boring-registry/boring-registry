@@ -52,7 +52,7 @@ jobs:
         run: |
           changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
           if [[ -n "$changed" ]]; then
-            echo "::set-output name=changed::true"
+            echo "changed=true"
           fi
 
       - name: Run chart-testing (lint)
@@ -64,7 +64,7 @@ jobs:
 
       - name: Run chart-testing (install)
         run: ct install --charts helm/boring-registry
-        if: steps.list-changed.outputs.changed == 'true'
+        if: ${{ env.changed }} == 'true'
 
   check-helm-publish:
     runs-on: ubuntu-latest
@@ -81,12 +81,12 @@ jobs:
 
       - name: Get chart version from Chart.yaml
         id: local-chart-version
-        run: echo ::set-output name=VERSION::$(helm show chart helm/boring-registry | yq .version)
+        run: echo "VERSION=$(helm show chart helm/boring-registry | yq .version)"
 
       - uses: octokit/request-action@v2.x
         id: get_chart
         with:
-          route: GET /orgs/boring-registry/packages/container/charts%2Fboring-registry/versions
+          route: GET /orgs/tiermobility/packages/container/charts%2Fboring-registry/versions
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -94,19 +94,17 @@ jobs:
         id: tag-exists
         shell: bash
         run: |
-          echo "detected version in Chart.yaml is: ${{ steps.local-chart-version.outputs.VERSION }}"
-          result=$(echo "${{ steps.get_chart.outputs.data }}" | yq '.[].metadata.container.tags[] | select(. | contains("${{ steps.local-chart-version.outputs.VERSION }}"))')
+          echo "detected version in Chart.yaml is: ${{ env.VERSION }}"
+          result=$(echo "${{ steps.get_chart.outputs.data }}" | yq '.[].metadata.container.tags[] | select(. | contains("${{ env.VERSION }}"))')
           if [[ -z "$result" ]]
           then
-            echo "IS_PUBLISHED=false"
-            echo "::set-output name=IS_PUBLISHED::false"
+            echo "IS_PUBLISHED=false" >> $GITHUB_ENV
           else
-            echo "IS_PUBLISHED=true"
-            echo "::set-output name=IS_PUBLISHED::true"
+            echo "IS_PUBLISHED=true" >> $GITHUB_ENV
           fi
     outputs:
-      VERSION: ${{ steps.local-chart-version.outputs.VERSION }}
-      IS_PUBLISHED: ${{ steps.tag-exists.outputs.IS_PUBLISHED }}
+      VERSION: ${{ env.VERSION }}
+      IS_PUBLISHED: ${{ env.IS_PUBLISHED }}
 
   publish-helm-chart:
     runs-on: ubuntu-latest
