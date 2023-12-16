@@ -113,6 +113,8 @@ jobs:
     needs:
       - check-helm-publish
     if: ${{ needs.check-helm-publish.outputs.IS_PUBLISHED == 'false' }}
+    permissions:
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v3

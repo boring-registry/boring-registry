@@ -9,6 +9,8 @@ jobs:
   build-container:
     runs-on: ubuntu-latest
     name: build_container
+    permissions:
+      packages: write
     steps:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3

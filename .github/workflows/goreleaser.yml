@@ -9,6 +9,9 @@ jobs:
   goreleaser:
     name: Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
     steps:
 
       - name: Set up Go 1.x
