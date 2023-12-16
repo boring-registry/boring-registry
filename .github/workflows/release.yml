@@ -50,9 +50,11 @@ jobs:
       - name: Run chart-testing (list-changed)
         id: list-changed
         run: |
-          changed=$(ct list-changed --target-branch ${{ github.event.repository.default_branch }})
+          changed=$(ct list-changed --chart-dirs helm --target-branch ${{ github.event.repository.default_branch }})
           if [[ -n "$changed" ]]; then
-            echo "changed=true"
+            echo "changed=true" >> "$GITHUB_ENV"
+          else
+            echo "changed=false" >> "$GITHUB_ENV"
           fi
 
       - name: Run chart-testing (lint)
@@ -60,11 +62,11 @@ jobs:
 
       - name: Create kind cluster
         uses: helm/kind-action@v1
-        if: steps.list-changed.outputs.changed == 'true'
+        if: env.changed == 'true'
 
       - name: Run chart-testing (install)
         run: ct install --charts helm/boring-registry
-        if: ${{ env.changed }} == 'true'
+        if: env.changed == 'true'
 
   check-helm-publish:
     runs-on: ubuntu-latest
@@ -81,7 +83,7 @@ jobs:
 
       - name: Get chart version from Chart.yaml
         id: local-chart-version
-        run: echo "VERSION=$(helm show chart helm/boring-registry | yq .version)"
+        run: echo "VERSION=$(helm show chart helm/boring-registry | yq .version)" >> $GITHUB_ENV
 
       - uses: octokit/request-action@v2.x
         id: get_chart
