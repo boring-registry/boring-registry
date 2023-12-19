@@ -112,7 +112,7 @@ spec:
             {{- range .Values.server.extraEnvs }}
             - name: {{ .name }}
             {{- if .value }}
-              value: {{ .value }}
+              value: {{ .value | quote }}
             {{- else if .valueFrom }}
               valueFrom: {{ toYaml .valueFrom | nindent 16 }}
             {{- end }}
