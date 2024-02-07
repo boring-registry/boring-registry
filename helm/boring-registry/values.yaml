@@ -6,7 +6,7 @@
 global:
   image:
     repository: ghcr.io/boring-registry/boring-registry
-    tag: v0.12.0
+    tag: v0.13.0
     pullPolicy: Always
 
 nameOverride: ""
@@ -83,13 +83,13 @@ server:
   extraArgs: ""
 
   extraEnvs: []
-#    - name: AWS_DEFAULT_REGION
-#      value: us-east-1
-#    - name: AWS_ACCESS_KEY_ID
-#      valueFrom:
-#        secretKeyRef:
-#          name: example
-#          key: AWS_ACCESS_KEY_ID
+  #  - name: AWS_DEFAULT_REGION
+  #    value: us-east-1
+  #  - name: AWS_ACCESS_KEY_ID
+  #    valueFrom:
+  #      secretKeyRef:
+  #        name: example
+  #        key: AWS_ACCESS_KEY_ID
 
   # Port to listen on.
   port: 5601
