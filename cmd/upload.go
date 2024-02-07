@@ -256,7 +256,7 @@ func validateShaSums(sums *core.Sha256Sums) error {
 
 func validateShaSumsEntry(path string, checksum []byte) error {
 	binaryName := filepath.Base(path)
-	if !regexp.MustCompile("^terraform-provider-.+_.+_.+.zip$").MatchString(binaryName) {
+	if !regexp.MustCompile("^terraform-provider-.+_.+_.+.(zip|json)$").MatchString(binaryName) {
 		return fmt.Errorf("provider binary %s file name is invalid", binaryName)
 	}
 
