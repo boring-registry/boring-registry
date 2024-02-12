@@ -18,7 +18,4 @@ type Storage interface {
 
 	// SigningKeys downloads and returns the keys for a given namespace from the configured storage backend
 	SigningKeys(ctx context.Context, namespace string) (*core.SigningKeys, error)
-
-	// MigrateProviders is needed for the migration from 0.7.0 to 0.8.0
-	MigrateProviders(ctx context.Context, dryRun bool) error
 }
