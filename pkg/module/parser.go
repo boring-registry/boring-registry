@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/hashicorp/go-multierror"
@@ -71,7 +70,7 @@ func ParseFile(path string) (*Spec, error) {
 func Parse(r io.Reader) (*Spec, error) {
 	spec := &Spec{}
 
-	buf, err := ioutil.ReadAll(r)
+	buf, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
