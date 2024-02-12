@@ -9,8 +9,6 @@ import (
 	"sync"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-
-	"github.com/go-kit/kit/log"
 )
 
 // InmemStorage is a Storage implementation
@@ -102,7 +100,7 @@ func (s *InmemStorage) UploadModule(ctx context.Context, namespace, name, provid
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-func (s *InmemStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
+func (s *InmemStorage) MigrateModules(ctx context.Context, dryRun bool) error {
 	panic("MigrateModules should not be called for InmemStorage")
 }
 

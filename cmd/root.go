@@ -2,13 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -17,12 +15,6 @@ import (
 const (
 	projectName = "boring-registry"
 	envPrefix   = "BORING_REGISTRY"
-)
-
-const (
-	logKeyCaller    = "caller"
-	logKeyHostname  = "hostname"
-	logKeyTimestamp = "timestamp"
 )
 
 var (
@@ -44,10 +36,6 @@ var (
 	flagGCSSignedURLExpiry time.Duration
 )
 
-var (
-	logger log.Logger
-)
-
 var rootCmd = &cobra.Command{
 	Use:           projectName,
 	SilenceErrors: true,
@@ -56,10 +44,10 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		logger = setupLogger(os.Stdout)
+		setupLogger()
 
 		if flagDebug {
-			_ = level.Debug(logger).Log("msg", "debug mode enabled")
+			slog.Debug("debug mode enabled")
 		}
 
 		return nil
@@ -98,31 +86,24 @@ func initializeConfig(cmd *cobra.Command) error {
 	return nil
 }
 
-func setupLogger(w io.Writer) log.Logger {
-	logger := log.NewLogfmtLogger(w)
-
-	if flagJSON {
-		logger = log.NewJSONLogger(w)
+func setupLogger() {
+	handlerOptions := &slog.HandlerOptions{}
+	if flagDebug {
+		handlerOptions.Level = slog.LevelDebug
+		handlerOptions.AddSource = true
 	}
 
-	logger = log.With(logger,
-		logKeyCaller, log.Caller(5),
-		logKeyTimestamp, log.DefaultTimestampUTC,
-	)
-
-	logLevel := level.AllowInfo()
-	{
-		if flagDebug {
-			logLevel = level.AllowDebug()
-		}
-		logger = level.NewFilter(logger, logLevel)
+	var handler slog.Handler
+	if flagJSON {
+		handler = slog.NewJSONHandler(os.Stderr, handlerOptions)
+	} else {
+		handler = slog.NewTextHandler(os.Stderr, handlerOptions)
 	}
 
 	if hostname, err := os.Hostname(); err == nil {
-		logger = log.With(logger, logKeyHostname, hostname)
+		handler = handler.WithAttrs([]slog.Attr{slog.String("hostname", hostname)})
 	}
-
-	return logger
+	slog.SetDefault(slog.New(handler))
 }
 
 func bindFlags(cmd *cobra.Command, v *viper.Viper) {

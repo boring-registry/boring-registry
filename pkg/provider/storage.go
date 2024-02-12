@@ -5,8 +5,6 @@ import (
 	"io"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-
-	"github.com/go-kit/log"
 )
 
 // Storage represents the Storage of Terraform providers.
@@ -22,5 +20,5 @@ type Storage interface {
 	SigningKeys(ctx context.Context, namespace string) (*core.SigningKeys, error)
 
 	// MigrateProviders is needed for the migration from 0.7.0 to 0.8.0
-	MigrateProviders(ctx context.Context, logger log.Logger, dryRun bool) error
+	MigrateProviders(ctx context.Context, dryRun bool) error
 }

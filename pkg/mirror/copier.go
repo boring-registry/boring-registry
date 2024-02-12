@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-
-	"github.com/go-kit/log"
 )
 
 type Copier interface {
@@ -24,7 +23,7 @@ type copier struct {
 
 	storage Storage
 	client  *http.Client
-	logger  log.Logger
+	logger  *slog.Logger
 }
 
 // copy should be started in a separate goroutine
@@ -46,47 +45,38 @@ func (c *copier) copy(provider *core.Provider) {
 
 	// We download the files from upstream and mirror them to our storage
 	if err := c.signingKeys(ctx, provider); err != nil {
-		_ = c.logger.Log(logKeyValues(provider, err))
+		c.logger.Error("failed to copy signing keys", logKeyValues(provider, err))
 		return
 	}
 
 	if err := c.sha256Sums(ctx, provider); err != nil {
-		_ = c.logger.Log(logKeyValues(provider, err))
+		c.logger.Error("failed to copy SHA256SUMS", logKeyValues(provider, err))
 		return
 	}
 
 	if err := c.sha256SumsSignature(ctx, provider); err != nil {
-		_ = c.logger.Log(logKeyValues(provider, err))
+		c.logger.Error("failed to copy SHA256SUMS.sig", logKeyValues(provider, err))
 		return
 	}
 
 	// Request the provider archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.DownloadURL, nil)
 	if err != nil {
-		_ = c.logger.Log(logKeyValues(provider, err))
+		c.logger.Error("failed to create provider download request", logKeyValues(provider, err))
 		return
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		_ = c.logger.Log(logKeyValues(provider, err))
+		c.logger.Error("failed to download provider", logKeyValues(provider, err))
 		return
 	}
 	defer resp.Body.Close()
 
 	fileName := provider.ArchiveFileName()
 	if err = c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
-		_ = c.logger.Log(logKeyValues(provider, err))
+		c.logger.Error("failed to upload provider to mirror", logKeyValues(provider, err))
 	}
-	_ = c.logger.Log(
-		"op", "CopyProvider",
-		"hostname", provider.Hostname,
-		"namespace", provider.Namespace,
-		"name", provider.Name,
-		"version", provider.Version,
-		"os", provider.OS,
-		"arch", provider.Arch,
-		"took", time.Since(begin),
-	)
+	c.logger.Info("successfully copied provider", logKeyValues(provider, nil), slog.String("took", time.Since(begin).String()))
 }
 
 // check if the signing keys exist, if not add it
@@ -152,7 +142,8 @@ func (c *copier) shutdown(ctx context.Context) {
 	close(c.done)
 }
 
-func NewCopier(ctx context.Context, logger log.Logger, storage Storage) Copier {
+func NewCopier(ctx context.Context, storage Storage) Copier {
+	logger := slog.Default().With(slog.String("component", "copier"))
 	m := &copier{
 		done:   make(chan struct{}),
 		logger: logger,
@@ -166,17 +157,16 @@ func NewCopier(ctx context.Context, logger log.Logger, storage Storage) Copier {
 	return m
 }
 
-func logKeyValues(provider *core.Provider, err error) []string {
-	return []string{
-		"op", "CopyProvider",
-		"hostname", provider.Hostname,
-		"namespace", provider.Namespace,
-		"name", provider.Name,
-		"version", provider.Version,
-		"os", provider.OS,
-		"arch", provider.Arch,
-		"err", err.Error(),
-	}
+func logKeyValues(provider *core.Provider, err error) slog.Attr {
+	return slog.Group("provider",
+		slog.String("hostname", provider.Hostname),
+		slog.String("namespace", provider.Namespace),
+		slog.String("name", provider.Name),
+		slog.String("version", provider.Version),
+		slog.String("os", provider.OS),
+		slog.String("arch", provider.Arch),
+		slog.String("err", err.Error()),
+	)
 }
 
 func mergeGPGPublicKeys(upstreamKeys, mirroredKeys []core.GPGPublicKey) ([]core.GPGPublicKey, bool) {

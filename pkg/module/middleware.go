@@ -2,48 +2,44 @@ package module
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 )
 
 // Middleware is a Service middleware.
 type Middleware func(Service) Service
 
 type loggingMiddleware struct {
-	next   Service
-	logger log.Logger
+	next Service
 }
 
 // LoggingMiddleware is a logging Service middleware.
-func LoggingMiddleware(logger log.Logger) Middleware {
+func LoggingMiddleware() Middleware {
 	return func(next Service) Service {
 		return &loggingMiddleware{
-			logger: logger,
-			next:   next,
+			next: next,
 		}
 	}
 }
 
 func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, name, provider string) (modules []core.Module, err error) {
 	defer func(begin time.Time) {
-		logger := level.Info(mw.logger)
+		logger := slog.Default().With(
+			slog.String("op", "ListModuleVersions"),
+			slog.Group("module",
+				slog.String("namespace", namespace),
+				slog.String("name", name),
+				slog.String("provider", provider),
+			),
+		)
 		if err != nil {
-			logger = level.Error(mw.logger)
+			logger.Error("failed to list module", slog.String("err", err.Error()))
+			return
 		}
 
-		_ = logger.Log(
-			"op", "ListModuleVersions",
-			"namespace", namespace,
-			"name", name,
-			"provider", provider,
-			"took", time.Since(begin),
-			"err", err,
-		)
-
+		logger.Info("list module version", slog.String("took", time.Since(begin).String()))
 	}(time.Now())
 
 	return mw.next.ListModuleVersions(ctx, namespace, name, provider)
@@ -51,18 +47,21 @@ func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, n
 
 func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, provider, version string) (module core.Module, err error) {
 	defer func(begin time.Time) {
-		logger := level.Info(mw.logger)
-		if err != nil {
-			logger = level.Error(mw.logger)
-		}
-
-		_ = logger.Log(
-			"op", "GetModule",
-			"module", module.ID(true),
-			"took", time.Since(begin),
-			"err", err,
+		logger := slog.Default().With(
+			slog.String("op", "GetModule"),
+			slog.Group("module",
+				slog.String("namespace", namespace),
+				slog.String("name", name),
+				slog.String("provider", provider),
+			),
 		)
 
+		if err != nil {
+			logger.Error("failed to get module", slog.String("err", err.Error()))
+			return
+		}
+
+		logger.Info("get module", slog.String("took", time.Since(begin).String()), slog.String("module", module.ID(true)))
 	}(time.Now())
 
 	return mw.next.GetModule(ctx, namespace, name, provider, version)

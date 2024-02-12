@@ -26,10 +26,10 @@ var migrateCmd = &cobra.Command{
 			return fmt.Errorf("failed to setup storage: %w", err)
 		}
 
-		if err := storageBackend.MigrateModules(ctx, logger, flagDryRun); err != nil {
+		if err := storageBackend.MigrateModules(ctx, flagDryRun); err != nil {
 			return err
 		}
 
-		return storageBackend.MigrateProviders(ctx, logger, flagDryRun)
+		return storageBackend.MigrateProviders(ctx, flagDryRun)
 	},
 }

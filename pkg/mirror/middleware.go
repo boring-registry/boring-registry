@@ -2,12 +2,10 @@ package mirror
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 )
 
 type mirrorSource struct {
@@ -22,28 +20,26 @@ func (m *mirrorSource) fromMirror() bool {
 type Middleware func(Service) Service
 
 type loggingMiddleware struct {
-	next   Service
-	logger log.Logger
+	next Service
 }
 
 func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *core.Provider) (providerVersions *ListProviderVersionsResponse, err error) {
 	defer func(begin time.Time) {
-		l := []interface{}{
-			"op", "ListProviderVersions",
-			"hostname", provider.Hostname,
-			"namespace", provider.Namespace,
-			"name", provider.Name,
-			"took", time.Since(begin),
-		}
-		logger := level.Info(mw.logger)
+		logger := slog.Default().With(
+			slog.String("op", "ListProviderVersions"),
+			slog.Group("provider",
+				slog.String("hostname", provider.Hostname),
+				slog.String("namespace", provider.Namespace),
+				slog.String("name", provider.Name),
+			),
+		)
+
 		if err != nil {
-			logger = level.Error(mw.logger)
-			l = append(l, "err", err)
-		} else {
-			l = append(l, "mirror", providerVersions.fromMirror())
+			logger.Error("failed to list provider versions", slog.String("err", err.Error()))
+			return
 		}
 
-		_ = logger.Log(l...)
+		logger.Info("list provider version", slog.String("took", time.Since(begin).String()), slog.Bool("mirror", providerVersions.fromMirror()))
 	}(time.Now())
 
 	return mw.next.ListProviderVersions(ctx, provider)
@@ -51,22 +47,21 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *
 
 func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provider *core.Provider) (archives *ListProviderInstallationResponse, err error) {
 	defer func(begin time.Time) {
-		l := []interface{}{
-			"op", "ListProviderInstallation",
-			"hostname", provider.Hostname,
-			"namespace", provider.Namespace,
-			"name", provider.Name,
-			"took", time.Since(begin),
-		}
-		logger := level.Info(mw.logger)
+		logger := slog.Default().With(
+			slog.String("op", "ListProviderInstallation"),
+			slog.Group("provider",
+				slog.String("hostname", provider.Hostname),
+				slog.String("namespace", provider.Namespace),
+				slog.String("name", provider.Name),
+			),
+		)
+
 		if err != nil {
-			logger = level.Error(mw.logger)
-			l = append(l, "err", err)
-		} else {
-			l = append(l, "mirror", archives.fromMirror())
+			logger.Error("failed to list provider installation", slog.String("err", err.Error()))
+			return
 		}
 
-		_ = logger.Log(l...)
+		logger.Info("list provider installation", slog.String("took", time.Since(begin).String()), slog.Bool("mirror", archives.fromMirror()))
 	}(time.Now())
 
 	return mw.next.ListProviderInstallation(ctx, provider)
@@ -74,36 +69,34 @@ func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provid
 
 func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, provider *core.Provider) (response *retrieveProviderArchiveResponse, err error) {
 	defer func(begin time.Time) {
-		l := []interface{}{
-			"op", "RetrieveProviderArchive",
-			"hostname", provider.Hostname,
-			"namespace", provider.Namespace,
-			"name", provider.Name,
-			"version", provider.Version,
-			"os", provider.OS,
-			"arch", provider.Arch,
-			"took", time.Since(begin),
-		}
-		logger := level.Info(mw.logger)
+		logger := slog.Default().With(
+			slog.String("op", "RetrieveProviderArchive"),
+			slog.Group("provider",
+				slog.String("hostname", provider.Hostname),
+				slog.String("namespace", provider.Namespace),
+				slog.String("name", provider.Name),
+				slog.String("version", provider.Version),
+				slog.String("os", provider.OS),
+				slog.String("arch", provider.Arch),
+			),
+		)
+
 		if err != nil {
-			logger = level.Error(mw.logger)
-			l = append(l, "err", err)
-		} else {
-			l = append(l, "mirror", response.fromMirror())
+			logger.Error("failed to retrieve provider archive", slog.String("err", err.Error()))
+			return
 		}
 
-		_ = logger.Log(l...)
+		logger.Info("retrieve provider archive", slog.String("took", time.Since(begin).String()), slog.Bool("mirror", response.fromMirror()))
 	}(time.Now())
 
 	return mw.next.RetrieveProviderArchive(ctx, provider)
 }
 
 // LoggingMiddleware is a logging Service middleware.
-func LoggingMiddleware(logger log.Logger) Middleware {
+func LoggingMiddleware() Middleware {
 	return func(next Service) Service {
 		return &loggingMiddleware{
-			logger: logger,
-			next:   next,
+			next: next,
 		}
 	}
 }
