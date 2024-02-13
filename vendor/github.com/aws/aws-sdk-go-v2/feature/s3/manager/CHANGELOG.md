@@ -1,3 +1,24 @@
+# v1.16.0 (2024-02-13)
+
+* **Feature**: Bump minimum Go version to 1.20 per our language support policy.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.15.15 (2024-01-24)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.15.14 (2024-01-22)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.15.13 (2024-01-18)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.15.12 (2024-01-16)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.15.11 (2024-01-05)
 
 * **Dependency Update**: Updated to the latest SDK module versions
