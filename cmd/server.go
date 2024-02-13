@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -20,9 +21,6 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/go-kit/kit/endpoint"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
-	"github.com/go-kit/kit/transport"
 	httptransport "github.com/go-kit/kit/transport/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -118,19 +116,13 @@ var serverCmd = &cobra.Command{
 
 			if err := server.Shutdown(ctx); err != nil {
 				if err != context.Canceled {
-					_ = level.Error(logger).Log(
-						"msg", "failed to terminate server",
-						"err", err,
-					)
+					slog.Error("failed to terminate server", slog.String("error", err.Error()))
 				}
 			}
 
 			if err := telemetryServer.Shutdown(ctx); err != nil {
 				if err != context.Canceled {
-					_ = level.Error(logger).Log(
-						"msg", "failed to terminate telemetry server",
-						"err", err,
-					)
+					slog.Error("failed to terminate telemetry server", slog.String("error", err.Error()))
 				}
 			}
 
@@ -139,9 +131,9 @@ var serverCmd = &cobra.Command{
 
 		// Main server.
 		group.Go(func() error {
-			logger := log.With(logger, "listen", flagListenAddr)
-			_ = level.Info(logger).Log("msg", "starting server")
-			defer level.Info(logger).Log("msg", "shutting down server")
+			logger := slog.Default().With(slog.String("listen", flagListenAddr))
+			logger.Info("starting server")
+			defer logger.Info("shutting down server")
 
 			if flagTLSCertFile != "" || flagTLSKeyFile != "" {
 				if err := server.ListenAndServeTLS(flagTLSCertFile, flagTLSKeyFile); err != nil {
@@ -161,9 +153,9 @@ var serverCmd = &cobra.Command{
 
 		// Telemetry server.
 		group.Go(func() error {
-			logger := log.With(logger, "listen", flagTelemetryListenAddr)
-			_ = level.Info(logger).Log("msg", "starting telemetry server")
-			defer level.Info(logger).Log("msg", "shutting down telemetry server")
+			logger := slog.Default().With(slog.String("listen", flagTelemetryListenAddr))
+			logger.Info("starting telemetry server")
+			defer logger.Info("shutting down telemetry server")
 
 			if err := telemetryServer.ListenAndServe(); err != nil {
 				if err != http.ErrServerClosed {
@@ -228,7 +220,7 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
 		)
 	default:
-		return nil, errors.New("please specify a valid storage provider")
+		return nil, errors.New("storage provider is not specified")
 	}
 }
 
@@ -296,7 +288,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	if flagProviderNetworkMirrorEnabled {
 		var svc mirror.Service
 		if flagProviderNetworkMirrorPullThroughEnabled {
-			copier := mirror.NewCopier(ctx, logger, s)
+			copier := mirror.NewCopier(ctx, s)
 			svc = mirror.NewPullThroughMirror(s, copier)
 		} else {
 			svc = mirror.NewMirror(s)
@@ -327,13 +319,10 @@ func registerMetrics(mux *http.ServeMux) {
 func registerModule(mux *http.ServeMux, s storage.Storage) error {
 	service := module.NewService(s)
 	{
-		service = module.LoggingMiddleware(logger)(service)
+		service = module.LoggingMiddleware()(service)
 	}
 
 	opts := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(
-			transport.NewLogErrorHandler(logger),
-		),
 		httptransport.ServerErrorEncoder(module.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
@@ -346,7 +335,7 @@ func registerModule(mux *http.ServeMux, s storage.Storage) error {
 			prefixModules,
 			module.MakeHandler(
 				service,
-				authMiddleware(logger),
+				authMiddleware(),
 				opts...,
 			),
 		),
@@ -355,7 +344,7 @@ func registerModule(mux *http.ServeMux, s storage.Storage) error {
 	return nil
 }
 
-func authMiddleware(logger log.Logger) endpoint.Middleware {
+func authMiddleware() endpoint.Middleware {
 	var providers []auth.Provider
 
 	if flagAuthStaticTokens != nil {
@@ -366,19 +355,16 @@ func authMiddleware(logger log.Logger) endpoint.Middleware {
 		providers = append(providers, auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...))
 	}
 
-	return auth.Middleware(logger, providers...)
+	return auth.Middleware(providers...)
 }
 
 func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 	service := provider.NewService(s)
 	{
-		service = provider.LoggingMiddleware(logger)(service)
+		service = provider.LoggingMiddleware()(service)
 	}
 
 	opts := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(
-			transport.NewLogErrorHandler(logger),
-		),
 		httptransport.ServerErrorEncoder(provider.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
@@ -391,7 +377,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 			prefixProviders,
 			provider.MakeHandler(
 				service,
-				authMiddleware(logger),
+				authMiddleware(),
 				opts...,
 			),
 		),
@@ -401,12 +387,9 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 }
 
 func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) error {
-	service := mirror.LoggingMiddleware(logger)(svc)
+	service := mirror.LoggingMiddleware()(svc)
 
 	opts := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(
-			transport.NewLogErrorHandler(logger),
-		),
 		httptransport.ServerErrorEncoder(mirror.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
@@ -419,7 +402,7 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) e
 			prefixMirror,
 			mirror.MakeHandler(
 				service,
-				authMiddleware(logger),
+				authMiddleware(),
 				opts...,
 			),
 		),

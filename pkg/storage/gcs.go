@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"time"
@@ -17,7 +18,6 @@ import (
 	credentials "cloud.google.com/go/iam/credentials/apiv1"
 	"cloud.google.com/go/iam/credentials/apiv1/credentialspb"
 	"cloud.google.com/go/storage"
-	"github.com/go-kit/log"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 )
@@ -115,7 +115,7 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
-func (s *GCSStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
+func (s *GCSStorage) MigrateModules(ctx context.Context, dryRun bool) error {
 	q := &storage.Query{
 		Prefix: modulePathPrefix(s.bucketPrefix, "", "", ""),
 	}
@@ -130,12 +130,13 @@ func (s *GCSStorage) MigrateModules(ctx context.Context, logger log.Logger, dryR
 
 		// Skip already migrated modules
 		if !isUnmigratedModule(s.bucketPrefix, attrs.Name) {
+			slog.Info("skipping...", slog.String("key", attrs.Name))
 			continue
 		}
 
 		targetKey := migrationTargetPath(s.bucketPrefix, s.moduleArchiveFormat, attrs.Name)
 		if dryRun {
-			_ = logger.Log("message", "skipping due to dry-run", "source", attrs.Name, "target", targetKey)
+			slog.Info("skipping due to dry-run", slog.String("source", attrs.Name), slog.String("target", targetKey))
 		} else {
 			src := s.sc.Bucket(s.bucket).Object(attrs.Name)
 			dst := s.sc.Bucket(s.bucket).Object(targetKey).If(storage.Conditions{DoesNotExist: true})
@@ -144,7 +145,7 @@ func (s *GCSStorage) MigrateModules(ctx context.Context, logger log.Logger, dryR
 				return fmt.Errorf("migration failed: %w", err)
 			}
 
-			_ = logger.Log("message", "copied module", "source", attrs.Name, "target", targetKey)
+			slog.Info("copied module", slog.String("source", attrs.Name), slog.String("target", targetKey))
 		}
 	}
 
@@ -152,7 +153,7 @@ func (s *GCSStorage) MigrateModules(ctx context.Context, logger log.Logger, dryR
 }
 
 // MigrateProviders is a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
-func (s *GCSStorage) MigrateProviders(ctx context.Context, logger log.Logger, dryRun bool) error {
+func (s *GCSStorage) MigrateProviders(ctx context.Context, dryRun bool) error {
 	q := &storage.Query{
 		Prefix: modulePathPrefix(s.bucketPrefix, "", "", ""),
 	}
@@ -173,7 +174,7 @@ func (s *GCSStorage) MigrateProviders(ctx context.Context, logger log.Logger, dr
 		targetKey := path.Join(directory, path.Base(attrs.Name))
 
 		if dryRun {
-			_ = logger.Log("message", "skipping due to dry-run", "source", attrs.Name, "target", targetKey)
+			slog.Info("skipping due to dry-run", slog.String("source", attrs.Name), slog.String("target", targetKey))
 		} else {
 			src := s.sc.Bucket(s.bucket).Object(attrs.Name)
 			dst := s.sc.Bucket(s.bucket).Object(targetKey).If(storage.Conditions{DoesNotExist: true})
@@ -182,7 +183,7 @@ func (s *GCSStorage) MigrateProviders(ctx context.Context, logger log.Logger, dr
 				return fmt.Errorf("migration failed: %w", err)
 			}
 
-			_ = logger.Log("message", "copied module", "source", attrs.Name, "target", targetKey)
+			slog.Info("copied module", slog.String("source", attrs.Name), slog.String("target", targetKey))
 		}
 	}
 

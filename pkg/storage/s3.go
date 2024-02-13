@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path"
@@ -22,7 +23,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/go-kit/log"
 )
 
 // s3ClientAPI is used to mock the AWS APIs
@@ -164,7 +164,7 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 }
 
 // MigrateModules is only a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
-func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
+func (s *S3Storage) MigrateModules(ctx context.Context, dryRun bool) error {
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
 		Prefix: aws.String(path.Join(s.bucketPrefix, string(internalModuleType))),
@@ -179,13 +179,13 @@ func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRu
 
 		for _, obj := range resp.Contents {
 			if !isUnmigratedModule(s.bucketPrefix, *obj.Key) {
-				_ = logger.Log("message", "skipping...", "key", *obj.Key)
+				slog.Info("skipping...", slog.String("key", *obj.Key))
 				continue
 			}
 
 			targetKey := aws.String(migrationTargetPath(s.bucketPrefix, s.moduleArchiveFormat, *obj.Key))
 			if dryRun {
-				_ = logger.Log("message", "skipping due to dry-run", "source", obj.Key, "target", *targetKey)
+				slog.Info("skipping due to dry-run", slog.String("source", *obj.Key), slog.String("target", *targetKey))
 			} else {
 				_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
 					Bucket:     aws.String(s.bucket),
@@ -196,7 +196,7 @@ func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRu
 					return err
 				}
 
-				_ = logger.Log("message", "copied module", "source", *obj.Key, "target", targetKey)
+				slog.Info("copied module", slog.String("source", *obj.Key), slog.String("target", *targetKey))
 			}
 		}
 	}
@@ -205,7 +205,7 @@ func (s *S3Storage) MigrateModules(ctx context.Context, logger log.Logger, dryRu
 }
 
 // MigrateProviders is a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
-func (s *S3Storage) MigrateProviders(ctx context.Context, logger log.Logger, dryRun bool) error {
+func (s *S3Storage) MigrateProviders(ctx context.Context, dryRun bool) error {
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
 		Prefix: aws.String(path.Join(s.bucketPrefix, string(internalProviderType))),
@@ -227,7 +227,7 @@ func (s *S3Storage) MigrateProviders(ctx context.Context, logger log.Logger, dry
 			targetKey := path.Join(directory, path.Base(*obj.Key))
 
 			if dryRun {
-				_ = logger.Log("message", "skipping due to dry-run", "source", obj.Key, "target", targetKey)
+				slog.Info("skipping due to dry-run", slog.String("source", *obj.Key), slog.String("target", targetKey))
 			} else {
 				_, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
 					Bucket:     aws.String(s.bucket),
@@ -238,7 +238,7 @@ func (s *S3Storage) MigrateProviders(ctx context.Context, logger log.Logger, dry
 					return err
 				}
 
-				_ = logger.Log("message", "copied module", "source", *obj.Key, "target", targetKey)
+				slog.Info("copied module", slog.String("source", *obj.Key), slog.String("target", targetKey))
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,8 +13,6 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/provider"
-
-	"github.com/go-kit/log/level"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
@@ -183,10 +182,7 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, providerName); err != nil {
 				return err
 			}
-			_ = level.Info(logger).Log(
-				"msg", "successfully published provider binary",
-				"name", filepath.Base(archivePath),
-			)
+			slog.Info("successfully published provider binary", slog.String("name", filepath.Base(archivePath)))
 		}
 	} else {
 		baseDir := filepath.Dir(flagFileSha256Sums)
@@ -195,10 +191,7 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 			if err := uploadProviderReleaseFile(ctx, storageBackend, archivePath, flagProviderNamespace, providerName); err != nil {
 				return err
 			}
-			_ = level.Info(logger).Log(
-				"msg", "successfully published provider binary",
-				"name", fileName,
-			)
+			slog.Info("successfully published provider binary", slog.String("name", fileName))
 		}
 	}
 
@@ -206,20 +199,14 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 	if err = uploadProviderReleaseFile(ctx, storageBackend, flagFileSha256Sums, flagProviderNamespace, providerName); err != nil {
 		return err
 	}
-	_ = level.Info(logger).Log(
-		"msg", "successfully published provider SHA256SUMS file",
-		"name", filepath.Base(flagFileSha256Sums),
-	)
+	slog.Info("successfully published provider SHA256SUMS file", slog.String("name", filepath.Base(flagFileSha256Sums)))
 
 	// Upload *_SHA256SUMS.sig file
 	signaturePath := fmt.Sprintf("%s.sig", flagFileSha256Sums)
 	if err = uploadProviderReleaseFile(ctx, storageBackend, signaturePath, flagProviderNamespace, providerName); err != nil {
 		return err
 	}
-	_ = level.Info(logger).Log(
-		"msg", "successfully published provider SHA256SUMS.sig file",
-		"name", filepath.Base(signaturePath),
-	)
+	slog.Info("successfully published provider SHA256SUMS.sig file", slog.String("name", filepath.Base(signaturePath)))
 
 	return nil
 }
