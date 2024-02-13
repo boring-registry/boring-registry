@@ -323,9 +323,6 @@ func registerModule(mux *http.ServeMux, s storage.Storage) error {
 	}
 
 	opts := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(
-			&errorHandler{},
-		),
 		httptransport.ServerErrorEncoder(module.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
@@ -368,9 +365,6 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 	}
 
 	opts := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(
-			&errorHandler{},
-		),
 		httptransport.ServerErrorEncoder(provider.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
@@ -396,9 +390,6 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) e
 	service := mirror.LoggingMiddleware()(svc)
 
 	opts := []httptransport.ServerOption{
-		httptransport.ServerErrorHandler(
-			&errorHandler{},
-		),
 		httptransport.ServerErrorEncoder(mirror.ErrorEncoder),
 		httptransport.ServerBefore(
 			httptransport.PopulateRequestContext,
@@ -418,10 +409,4 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) e
 	)
 
 	return nil
-}
-
-type errorHandler struct{}
-
-func (e *errorHandler) Handle(ctx context.Context, err error) {
-	slog.Error("non-terminal error occured", slog.String("err", err.Error()))
 }

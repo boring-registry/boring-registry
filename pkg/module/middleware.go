@@ -47,6 +47,10 @@ func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, n
 
 func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, provider, version string) (module core.Module, err error) {
 	defer func(begin time.Time) {
+		type contextKey string
+
+		const namespaceKey contextKey = "namespace"
+		ctx = context.WithValue(ctx, namespaceKey, namespace)
 		logger := slog.Default().With(
 			slog.String("op", "GetModule"),
 			slog.Group("module",
