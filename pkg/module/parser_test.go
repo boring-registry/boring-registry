@@ -21,17 +21,17 @@ func TestParser(t *testing.T) {
 		{
 			name: "valid spec",
 			input: strings.NewReader(`
-             metadata {
-               name      = "s3"
-               namespace = "tier"
-               version   = "1.0.0"
-               provider  = "aws"
-             }
+            metadata {
+              name      = "s3"
+              namespace = "example"
+              version   = "1.0.0"
+              provider  = "aws"
+            }
 			`),
 			expected: &Spec{
 				Metadata{
 					Name:      "s3",
-					Namespace: "tier",
+					Namespace: "example",
 					Version:   "1.0.0",
 					Provider:  "aws",
 				},
@@ -51,6 +51,19 @@ func TestParser(t *testing.T) {
 			name: "missing fields",
 			input: strings.NewReader(`
 			metadata { name = "s3" }
+			`),
+			expected:      nil,
+			expectedError: true,
+		},
+		{
+			name: "empty fields",
+			input: strings.NewReader(`
+            metadata {
+              name      = ""
+              namespace = ""
+              version   = ""
+              provider  = ""
+            }
 			`),
 			expected:      nil,
 			expectedError: true,

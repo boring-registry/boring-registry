@@ -23,18 +23,27 @@ const (
 )
 
 func archiveModules(root string, storage module.Storage) error {
-	var err error
 	if flagRecursive {
-		err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+		err := filepath.Walk(root, func(path string, fi os.FileInfo, _ error) error {
+			// FYI we conciously ignore all walk-related errors
+
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			return processModule(path, storage)
+			if processErr := processModule(path, storage); processErr != nil {
+				return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
+			}
+
+			return nil
 		})
-	} else {
-		err = processModule(filepath.Join(root, moduleSpecFileName), storage)
+		return err
 	}
-	return err
+
+	path := filepath.Join(root, moduleSpecFileName)
+	if processErr := processModule(path, storage); processErr != nil {
+		return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
+	}
+	return nil
 }
 
 func processModule(path string, storage module.Storage) error {
