@@ -49,7 +49,7 @@ func TestService_GetModule(t *testing.T) {
 		{
 			name: "valid get",
 			module: core.Module{
-				Namespace: "tier",
+				Namespace: "example",
 				Name:      "s3",
 				Provider:  "aws",
 				Version:   "1.0.0",
@@ -61,7 +61,7 @@ func TestService_GetModule(t *testing.T) {
 		{
 			name: "invalid get",
 			module: core.Module{
-				Namespace: "tier",
+				Namespace: "example",
 				Name:      "s3",
 				Provider:  "aws",
 			},
@@ -116,7 +116,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 		{
 			name: "valid list default format",
 			module: core.Module{
-				Namespace: "tier",
+				Namespace: "example",
 				Name:      "s3",
 				Provider:  "aws",
 			},
@@ -129,7 +129,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 			name:   "valid list custom format",
 			format: "zip",
 			module: core.Module{
-				Namespace: "tier",
+				Namespace: "example",
 				Name:      "s3",
 				Provider:  "aws",
 			},
@@ -141,7 +141,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 		{
 			name: "invalid list",
 			module: core.Module{
-				Namespace: "tier",
+				Namespace: "example",
 				Name:      "s3",
 			},
 			versions: []string{"1.0.0"},

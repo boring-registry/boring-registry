@@ -6,14 +6,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/go-version"
-	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/v2/hclsimple"
 )
 
 // Spec represents a module spec with metadata.
 type Spec struct {
-	Metadata Metadata `hcl:"metadata" json:"metadata"`
+	Metadata Metadata `hcl:"metadata,block" json:"metadata"`
 }
 
 // Metadata provides information about a given module version.
@@ -26,29 +25,29 @@ type Metadata struct {
 
 // Validate ensures that a spec is valid.
 func (s *Spec) Validate() error {
-	var result *multierror.Error
+	var errs []error
 
 	if s.Metadata.Namespace == "" {
-		result = multierror.Append(result, errors.New("metadata.namespace cannot be empty"))
+		errs = append(errs, errors.New("metadata.namespace cannot be empty"))
 	}
 
 	if s.Metadata.Name == "" {
-		result = multierror.Append(result, errors.New("metadata.name cannot be empty"))
+		errs = append(errs, errors.New("metadata.name cannot be empty"))
 	}
 
 	if s.Metadata.Provider == "" {
-		result = multierror.Append(result, errors.New("metadata.provider cannot be empty"))
+		errs = append(errs, errors.New("metadata.provider cannot be empty"))
 	}
 
 	if s.Metadata.Version == "" {
-		result = multierror.Append(result, errors.New("metadata.version cannot be empty"))
+		errs = append(errs, errors.New("metadata.version cannot be empty"))
 	}
 
 	if _, err := version.NewVersion(s.Metadata.Version); err != nil {
-		result = multierror.Append(result, err)
+		errs = append(errs, err)
 	}
 
-	return result.ErrorOrNil()
+	return errors.Join(errs...)
 }
 
 func (s *Spec) Name() string {
@@ -70,12 +69,12 @@ func ParseFile(path string) (*Spec, error) {
 func Parse(r io.Reader) (*Spec, error) {
 	spec := &Spec{}
 
-	buf, err := io.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := hcl.Unmarshal(buf, spec); err != nil {
+	if err := hclsimple.Decode("boring-registry.hcl", b, nil, spec); err != nil {
 		return nil, err
 	}
 
