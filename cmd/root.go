@@ -34,6 +34,11 @@ var (
 	flagGCSPrefix          string
 	flagGCSServiceAccount  string
 	flagGCSSignedURLExpiry time.Duration
+
+	// Azure Storage
+	flagAzureStorageAccount   string
+	flagAzureStorageContainer string
+	flagAzureStoragePrefix    string
 )
 
 var rootCmd = &cobra.Command{
@@ -76,6 +81,9 @@ func init() {
 GOOGLE_APPLICATION_CREDENTIALS environment variable might be used as alternative.
 For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().DurationVar(&flagGCSSignedURLExpiry, "storage-gcs-signedurl-expiry", 30*time.Second, "Generate GCS signed URL valid for X seconds. Only meaningful if used in combination with --gcs-signedurl")
+	rootCmd.PersistentFlags().StringVar(&flagAzureStorageAccount, "storage-azure-account", "", "Azure Storage Account to use for the registry")
+	rootCmd.PersistentFlags().StringVar(&flagAzureStorageContainer, "storage-azure-container", "", "Azure Storage Container to use for the registry")
+	rootCmd.PersistentFlags().StringVar(&flagAzureStoragePrefix, "storage-azure-prefix", "", "Azure Storage prefix to use for the registry")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
