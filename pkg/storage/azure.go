@@ -7,13 +7,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/module"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/go-kit/log"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service"
 )
 
 // AzureStorage is a Storage implementation backed by Azure Blob Storage.
@@ -24,36 +30,149 @@ type AzureStorage struct {
 	container           string
 	prefix              string
 	moduleArchiveFormat string
+	signedURLExpiry     time.Duration
 }
 
 // GetModule retrieves information about a module from the Azure Storage.
 func (s *AzureStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
-	panic("Implement me!!!")
+	key := modulePath(s.prefix, namespace, name, provider, version, s.moduleArchiveFormat)
+
+	exists, err := s.objectExists(ctx, key)
+	if err != nil {
+		return core.Module{}, err
+	} else if !exists {
+		return core.Module{}, module.ErrModuleNotFound
+	}
+
+	presigned, err := s.presignedURL(ctx, key)
+	if err != nil {
+		return core.Module{}, err
+	}
+
+	return core.Module{
+		Namespace:   namespace,
+		Name:        name,
+		Provider:    provider,
+		Version:     version,
+		DownloadURL: presigned,
+	}, nil
 }
 
 func (s *AzureStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
-	panic("Implement me!!!")
+	prefix := modulePathPrefix(s.prefix, namespace, name, provider)
+
+	var modules []core.Module
+	pager := s.client.NewListBlobsFlatPager(s.container, &azblob.ListBlobsFlatOptions{
+		Prefix: &prefix,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("%v: %w", module.ErrModuleListFailed, err)
+		}
+
+		for _, obj := range page.Segment.BlobItems {
+			m, err := moduleFromObject(*obj.Name, s.moduleArchiveFormat)
+			if err != nil {
+				continue
+			}
+
+			m.DownloadURL, err = s.presignedURL(ctx, modulePath(prefix, m.Namespace, m.Name, m.Provider, m.Version, s.moduleArchiveFormat))
+			if err != nil {
+				return []core.Module{}, err
+			}
+
+			modules = append(modules, *m)
+		}
+	}
+
+	return modules, nil
 }
 
 // UploadModule uploads a module to the Azure Storage.
+
 func (s *AzureStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
-	panic("Implement me!!!")
-}
+	if namespace == "" {
+		return core.Module{}, errors.New("namespace not defined")
+	}
 
-// MigrateModules is only a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
-func (s *AzureStorage) MigrateModules(ctx context.Context, logger log.Logger, dryRun bool) error {
-	panic("Implement me!!!")
-}
+	if name == "" {
+		return core.Module{}, errors.New("name not defined")
+	}
 
-// MigrateProviders is a temporary method needed for the migration from 0.7.0 to 0.8.0 and above
-func (s *AzureStorage) MigrateProviders(ctx context.Context, logger log.Logger, dryRun bool) error {
-	panic("Implement me!!!")
+	if provider == "" {
+		return core.Module{}, errors.New("provider not defined")
+	}
+
+	if version == "" {
+		return core.Module{}, errors.New("version not defined")
+	}
+
+	key := modulePath(s.prefix, namespace, name, provider, version, DefaultModuleArchiveFormat)
+
+	if _, err := s.GetModule(ctx, namespace, name, provider, version); err == nil {
+		return core.Module{}, fmt.Errorf("%w: %s", module.ErrModuleAlreadyExists, key)
+	}
+
+	if _, err := s.client.UploadStream(ctx, s.container, key, body, nil); err != nil {
+		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleUploadFailed, err)
+	}
+
+	return s.GetModule(ctx, namespace, name, provider, version)
 }
 
 // GetProvider retrieves information about a provider from the Azure Storage.
-// TODO:
 func (s *AzureStorage) getProvider(ctx context.Context, pt providerType, provider *core.Provider) (*core.Provider, error) {
-	panic("Implement me!!!")
+	var archivePath, shasumPath, shasumSigPath string
+	if pt == internalProviderType {
+		archivePath, shasumPath, shasumSigPath = internalProviderPath(s.prefix, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
+	} else if pt == mirrorProviderType {
+		archivePath, shasumPath, shasumSigPath = mirrorProviderPath(s.prefix, provider.Hostname, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
+	}
+
+	if exists, err := s.objectExists(ctx, archivePath); err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, noMatchingProviderFound(provider)
+	}
+
+	var err error
+	provider.DownloadURL, err = s.presignedURL(ctx, archivePath)
+	if err != nil {
+		return nil, err
+	}
+	provider.SHASumsURL, err = s.presignedURL(ctx, shasumPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate presigned url for %s: %w", shasumPath, err)
+	}
+	provider.SHASumsSignatureURL, err = s.presignedURL(ctx, shasumSigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	shasumBytes, err := s.download(ctx, shasumPath)
+	if err != nil {
+		return nil, err
+	}
+
+	provider.Shasum, err = readSHASums(bytes.NewReader(shasumBytes), path.Base(archivePath))
+	if err != nil {
+		return nil, err
+	}
+
+	var signingKeys *core.SigningKeys
+	if pt == internalProviderType {
+		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
+	} else if pt == mirrorProviderType {
+		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	provider.Filename = path.Base(archivePath)
+	provider.SigningKeys = *signingKeys
+	return provider, nil
 }
 
 func (s *AzureStorage) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error) {
@@ -71,9 +190,42 @@ func (s *AzureStorage) GetMirroredProvider(ctx context.Context, provider *core.P
 	return s.getProvider(ctx, mirrorProviderType, provider)
 }
 
-// TODO:
 func (s *AzureStorage) listProviderVersions(ctx context.Context, pt providerType, provider *core.Provider) ([]*core.Provider, error) {
-	panic("Implement me!!!")
+	prefix := providerStoragePrefix(s.prefix, pt, provider.Hostname, provider.Namespace, provider.Name)
+
+	var providers []*core.Provider
+	pager := s.client.NewListBlobsFlatPager(s.container, &azblob.ListBlobsFlatOptions{
+		Prefix: &prefix,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to page next page: %w", err)
+		}
+
+		for _, obj := range page.Segment.BlobItems {
+			p, err := core.NewProviderFromArchive(filepath.Base(*obj.Name))
+			if err != nil {
+				continue
+			}
+
+			if provider.Version != "" && provider.Version != p.Version {
+				continue
+			}
+
+			p.Hostname = provider.Hostname
+			p.Namespace = provider.Namespace
+			archiveUrl, err := s.presignedURL(ctx, *obj.Name)
+			if err != nil {
+				return nil, err
+			}
+			p.DownloadURL = archiveUrl
+
+			providers = append(providers, &p)
+		}
+	}
+
+	return providers, nil
 }
 
 func (s *AzureStorage) ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error) {
@@ -170,15 +322,38 @@ func (s *AzureStorage) UploadMirroredFile(ctx context.Context, provider *core.Pr
 	return s.upload(ctx, key, reader, true)
 }
 
-// func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, error) {
-// 	panic("Implement me!!!")
-// }
+func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, error) {
+	info := service.KeyInfo{
+		Start:  to.Ptr(time.Now().UTC().Format(sas.TimeFormat)),
+		Expiry: to.Ptr(time.Now().UTC().Add(4 * time.Hour).Format(sas.TimeFormat)),
+	}
 
-// TODO:
+	udc, err := s.client.ServiceClient().GetUserDelegationCredential(ctx, info, nil)
+	if err != nil {
+		return "", err
+	}
+
+	params, err := sas.BlobSignatureValues{
+		Protocol:      sas.ProtocolHTTPS,
+		ExpiryTime:    time.Now().Add(s.signedURLExpiry),
+		Permissions:   to.Ptr(sas.BlobPermissions{Read: true, Write: true}).String(),
+		ContainerName: s.container,
+		BlobName:      key,
+	}.SignWithUserDelegation(udc)
+	if err != nil {
+		return "", err
+	}
+
+	url := fmt.Sprintf("%s?%s", s.client.ServiceClient().NewContainerClient(s.container).NewBlobClient(key).URL(), params.Encode())
+
+	return url, nil
+}
+
 func (s *AzureStorage) objectExists(ctx context.Context, key string) (bool, error) {
 	o := s.client.ServiceClient().NewContainerClient(s.container).NewBlobClient(key)
 	_, err := o.GetProperties(ctx, nil)
-	if errors.Is(err, err) {
+
+	if bloberror.HasCode(err, bloberror.BlobNotFound) {
 		return false, nil
 	} else if err != nil {
 		return false, err
@@ -232,6 +407,13 @@ func WithAzureStoragePrefix(prefix string) AzureStorageOption {
 func WithAzureStorageArchiveFormat(archiveFormat string) AzureStorageOption {
 	return func(s *AzureStorage) {
 		s.moduleArchiveFormat = archiveFormat
+	}
+}
+
+// WithAzureStorageSignedUrlExpiry configures the duration until the signed url expires
+func WithAzureStorageSignedUrlExpiry(t time.Duration) AzureStorageOption {
+	return func(s *AzureStorage) {
+		s.signedURLExpiry = t
 	}
 }
 
