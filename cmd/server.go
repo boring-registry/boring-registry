@@ -224,6 +224,7 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			flagAzureStorageContainer,
 			storage.WithAzureStoragePrefix(flagAzureStoragePrefix),
 			storage.WithAzureStorageArchiveFormat(flagModuleArchiveFormat),
+			storage.WithAzureStorageSignedUrlExpiry(flagAzureStorageSignedURLExpiry),
 		)
 	default:
 		return nil, errors.New("storage provider is not specified")
