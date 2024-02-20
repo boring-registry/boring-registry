@@ -336,7 +336,7 @@ func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, er
 	params, err := sas.BlobSignatureValues{
 		Protocol:      sas.ProtocolHTTPS,
 		ExpiryTime:    time.Now().Add(s.signedURLExpiry),
-		Permissions:   to.Ptr(sas.BlobPermissions{Read: true, Write: true}).String(),
+		Permissions:   to.Ptr(sas.BlobPermissions{Read: true}).String(),
 		ContainerName: s.container,
 		BlobName:      key,
 	}.SignWithUserDelegation(udc)
