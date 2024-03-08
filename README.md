@@ -30,7 +30,7 @@ Support for the [Module Registry Protocol](https://www.terraform.io/internals/mo
 * Pull-through mirror for providers
 * Support for S3, GCS, and MinIO object storage
 
-## Installation 
+## Installation
 
 ### Helm
 
@@ -89,6 +89,25 @@ $ boring-registry server \
   --storage-s3-pathstyle=true \
   --storage-s3-endpoint=https://minio.example.com
 ```
+
+**Minimal example using the Azure storage backend:**
+
+```bash
+$ boring-registry server \
+  --storage-azure-account=registry \
+  --storage-azure-container=terraform-registry-test
+```
+
+Make sure the server has Azure credentials set. The Azure backend supports the following authentication methods:
+
+- Environment Variables
+  - Service principal with client secret (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`)
+  - Service principal with certificate (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_CERTIFICATE_PATH`, `AZURE_CLIENT_CERTIFICATE_PASSWORD`)
+  - User with username and password (`AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_USERNAME`, `AZURE_PASSWORD`)
+- Managed Identity
+- Azure CLI
+
+Make sure used identity has the role `Storage Blob Data Contributor` on the Storage Account.
 
 The storage backend has to be specified for the `upload` command as well. Check the [module upload](README.md#modules) section below.
 
@@ -322,6 +341,6 @@ The [`terraform providers mirror`](https://developer.hashicorp.com/terraform/cli
 As part of the Provider Network Mirror, a pull-through mirror can optionally be activated with `--network-mirror-pull-through=true`.
 
 The pull-through functionality makes it possible that the providers do not have to be uploaded upfront to the storage backend.
-Instead, boring-registry serves the providers of the origin registry and mirrors them automatically to the storage backend on the first download. 
+Instead, boring-registry serves the providers of the origin registry and mirrors them automatically to the storage backend on the first download.
 On the subsequent download request, boring-registry serves the providers directly from the storage backend.
 This can significantly speed up the `terraform init` phase and in some cases save additional traffic costs.
