@@ -107,7 +107,7 @@ Make sure the server has Azure credentials set. The Azure backend supports the f
 - Managed Identity
 - Azure CLI
 
-Make sure used identity has the role `Storage Blob Data Contributor` on the Storage Account.
+Make sure the used identity has the role `Storage Blob Data Contributor` on the Storage Account.
 
 The storage backend has to be specified for the `upload` command as well. Check the [module upload](README.md#modules) section below.
 
