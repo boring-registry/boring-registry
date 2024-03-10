@@ -255,7 +255,7 @@ func (s *AzureStorage) UploadProviderReleaseFiles(ctx context.Context, namespace
 	}
 
 	if filename == "" {
-		return fmt.Errorf("name argument is empty")
+		return fmt.Errorf("filename argument is empty")
 	}
 
 	prefix := providerStoragePrefix(s.prefix, internalProviderType, "", namespace, name)

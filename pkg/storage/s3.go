@@ -304,7 +304,7 @@ func (s *S3Storage) UploadProviderReleaseFiles(ctx context.Context, namespace, n
 	}
 
 	if filename == "" {
-		return fmt.Errorf("name argument is empty")
+		return fmt.Errorf("filename argument is empty")
 	}
 
 	prefix := providerStoragePrefix(s.bucketPrefix, internalProviderType, "", namespace, name)
