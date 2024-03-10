@@ -22,7 +22,7 @@ import (
 )
 
 // GCSStorage is a Storage implementation backed by GCS.
-// GCSStorage implements module.Storage and provider.Storage
+// GCSStorage implements module.Storage, provider.Storage, and mirror.Storage
 type GCSStorage struct {
 	sc                  *storage.Client
 	bucket              string

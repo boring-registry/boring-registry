@@ -50,7 +50,7 @@ type s3PresignClientAPI interface {
 }
 
 // S3Storage is a Storage implementation backed by S3.
-// S3Storage implements module.Storage and provider.Storage
+// S3Storage implements module.Storage, provider.Storage, and mirror.Storage
 type S3Storage struct {
 	client              s3ClientAPI
 	presignClient       s3PresignClientAPI

@@ -23,7 +23,7 @@ import (
 )
 
 // AzureStorage is a Storage implementation backed by Azure Blob Storage.
-// AzureStorage implements module.Storage and provider.Storage
+// AzureStorage implements module.Storage, provider.Storage, and mirror.Storage
 type AzureStorage struct {
 	client              *azblob.Client
 	account             string
