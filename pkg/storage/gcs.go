@@ -22,7 +22,7 @@ import (
 )
 
 // GCSStorage is a Storage implementation backed by GCS.
-// GCSStorage implements module.Storage and provider.Storage
+// GCSStorage implements module.Storage, provider.Storage, and mirror.Storage
 type GCSStorage struct {
 	sc                  *storage.Client
 	bucket              string
@@ -262,7 +262,7 @@ func (s *GCSStorage) UploadProviderReleaseFiles(ctx context.Context, namespace, 
 	}
 
 	if filename == "" {
-		return fmt.Errorf("name argument is empty")
+		return fmt.Errorf("filename argument is empty")
 	}
 
 	prefix := providerStoragePrefix(s.bucketPrefix, internalProviderType, "", namespace, name)
