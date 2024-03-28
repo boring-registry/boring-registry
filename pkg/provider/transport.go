@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -25,32 +26,36 @@ const (
 )
 
 // MakeHandler returns a fully initialized http.Handler.
-func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport.ServerOption) http.Handler {
+func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ProvidersMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
 	r.Methods("GET").Path(`/{namespace}/{name}/versions`).Handler(
-		httptransport.NewServer(
-			auth(listEndpoint(svc)),
-			decodeListRequest,
-			httptransport.EncodeJSONResponse,
-			append(
-				options,
-				httptransport.ServerBefore(extractMuxVars(varNamespace, varName)),
-				httptransport.ServerBefore(jwt.HTTPToContext()),
-			)...,
+		instrumentation.WrapHandler(
+			httptransport.NewServer(
+				auth(listEndpoint(svc, metrics)),
+				decodeListRequest,
+				httptransport.EncodeJSONResponse,
+				append(
+					options,
+					httptransport.ServerBefore(extractMuxVars(varNamespace, varName)),
+					httptransport.ServerBefore(jwt.HTTPToContext()),
+				)...,
+			),
 		),
 	)
 
 	r.Methods("GET").Path(`/{namespace}/{name}/{version}/download/{os}/{arch}`).Handler(
-		httptransport.NewServer(
-			auth(downloadEndpoint(svc)),
-			decodeDownloadRequest,
-			httptransport.EncodeJSONResponse,
-			append(
-				options,
-				httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varOS, varArch, varVersion)),
-				httptransport.ServerBefore(jwt.HTTPToContext()),
-			)...,
+		instrumentation.WrapHandler(
+			httptransport.NewServer(
+				auth(downloadEndpoint(svc, metrics)),
+				decodeDownloadRequest,
+				httptransport.EncodeJSONResponse,
+				append(
+					options,
+					httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varOS, varArch, varVersion)),
+					httptransport.ServerBefore(jwt.HTTPToContext()),
+				)...,
+			),
 		),
 	)
 

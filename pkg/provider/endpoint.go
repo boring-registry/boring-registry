@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/go-kit/kit/endpoint"
 )
@@ -13,9 +15,14 @@ type listRequest struct {
 	name      string
 }
 
-func listEndpoint(svc Service) endpoint.Endpoint {
+func listEndpoint(svc Service, metrics *o11y.ProvidersMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listRequest)
+
+		metrics.ListVersions.With(prometheus.Labels{
+			"namespace": req.namespace,
+			"name":      req.name,
+		}).Inc()
 
 		return svc.ListProviderVersions(ctx, req.namespace, req.name)
 	}
@@ -40,9 +47,17 @@ type downloadResponse struct {
 	SigningKeys         core.SigningKeys `json:"signing_keys"`
 }
 
-func downloadEndpoint(svc Service) endpoint.Endpoint {
+func downloadEndpoint(svc Service, metrics *o11y.ProvidersMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(downloadRequest)
+
+		metrics.Download.With(prometheus.Labels{
+			"namespace": req.namespace,
+			"name":      req.name,
+			"version":   req.version,
+			"os":        req.os,
+			"arch":      req.arch,
+		}).Inc()
 
 		res, err := svc.GetProvider(ctx, req.namespace, req.name, req.version, req.os, req.arch)
 		if err != nil {
