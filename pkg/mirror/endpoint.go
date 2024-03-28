@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/go-kit/kit/endpoint"
 )
@@ -27,12 +29,18 @@ type ListProviderVersionsResponse struct {
 	mirrorSource
 }
 
-func listProviderVersionsEndpoint(svc Service) endpoint.Endpoint {
+func listProviderVersionsEndpoint(svc Service, metrics *o11y.MirrorMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, ok := request.(listProviderVersionsRequest)
 		if !ok {
 			return nil, fmt.Errorf("type assertion failed for listProviderVersionsRequest")
 		}
+
+		metrics.ListProviderVersions.With(prometheus.Labels{
+			"hostname":  req.Hostname,
+			"namespace": req.Namespace,
+			"name":      req.Name,
+		}).Inc()
 
 		provider := &core.Provider{
 			Hostname:  req.Hostname,
@@ -67,12 +75,19 @@ type Archive struct {
 	Hashes []string `json:"hashes,omitempty"`
 }
 
-func listProviderInstallationEndpoint(svc Service) endpoint.Endpoint {
+func listProviderInstallationEndpoint(svc Service, metrics *o11y.MirrorMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, ok := request.(listProviderInstallationRequest)
 		if !ok {
 			return nil, fmt.Errorf("type assertion failed for listProviderInstallationRequest")
 		}
+
+		metrics.ListProviderInstallation.With(prometheus.Labels{
+			"hostname":  req.Hostname,
+			"namespace": req.Namespace,
+			"name":      req.Name,
+			"version":   req.Version,
+		}).Inc()
 
 		provider := &core.Provider{
 			Hostname:  req.Hostname,
@@ -105,12 +120,21 @@ type retrieveProviderArchiveResponse struct {
 	mirrorSource
 }
 
-func retrieveProviderArchiveEndpoint(svc Service) endpoint.Endpoint {
+func retrieveProviderArchiveEndpoint(svc Service, metrics *o11y.MirrorMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, ok := request.(retrieveProviderArchiveRequest)
 		if !ok {
 			return nil, fmt.Errorf("type assertion failed for retrieveProviderArchiveRequest")
 		}
+
+		metrics.RetrieveProviderArchive.With(prometheus.Labels{
+			"hostname":  req.Hostname,
+			"namespace": req.Namespace,
+			"name":      req.Name,
+			"version":   req.Version,
+			"os":        req.OS,
+			"arch":      req.Architecture,
+		}).Inc()
 
 		provider := &core.Provider{
 			Hostname:  req.Hostname,

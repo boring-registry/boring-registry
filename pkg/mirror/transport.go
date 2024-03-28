@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -28,46 +29,52 @@ const (
 )
 
 // MakeHandler returns a fully initialized http.Handler.
-func MakeHandler(svc Service, auth endpoint.Middleware, options ...httptransport.ServerOption) http.Handler {
+func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
 	r.Methods("GET").Path(`/{hostname}/{namespace}/{name}/index.json`).Handler(
-		httptransport.NewServer(
-			auth(listProviderVersionsEndpoint(svc)),
-			decodeListVersionsRequest,
-			httptransport.EncodeJSONResponse,
-			append(
-				options,
-				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName)),
-				httptransport.ServerBefore(jwt.HTTPToContext()),
-			)...,
+		instrumentation.WrapHandler(
+			httptransport.NewServer(
+				auth(listProviderVersionsEndpoint(svc, metrics)),
+				decodeListVersionsRequest,
+				httptransport.EncodeJSONResponse,
+				append(
+					options,
+					httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName)),
+					httptransport.ServerBefore(jwt.HTTPToContext()),
+				)...,
+			),
 		),
 	)
 
 	r.Methods("GET").Path(`/{hostname}/{namespace}/{name}/{version}.json`).Handler(
-		httptransport.NewServer(
-			auth(listProviderInstallationEndpoint(svc)),
-			decodeListInstallationRequest,
-			addAuthToken,
-			append(
-				options,
-				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion)),
-				httptransport.ServerBefore(jwt.HTTPToContext()),
-			)...,
+		instrumentation.WrapHandler(
+			httptransport.NewServer(
+				auth(listProviderInstallationEndpoint(svc, metrics)),
+				decodeListInstallationRequest,
+				addAuthToken,
+				append(
+					options,
+					httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion)),
+					httptransport.ServerBefore(jwt.HTTPToContext()),
+				)...,
+			),
 		),
 	)
 
 	// If static auth is
 	r.Methods("GET").Path(`/{hostname}/{namespace}/{name}/terraform-provider-{nameplaceholder}_{version}_{os}_{architecture}.zip`).Handler(
-		httptransport.NewServer(
-			auth(retrieveProviderArchiveEndpoint(svc)),
-			decodeRetrieveProviderArchiveRequest,
-			encodeMirroredResponse,
-			append(
-				options,
-				httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion, varOS, varArchitecture)),
-				httptransport.ServerBefore(tokenQueryParamToContext()),
-			)...,
+		instrumentation.WrapHandler(
+			httptransport.NewServer(
+				auth(retrieveProviderArchiveEndpoint(svc, metrics)),
+				decodeRetrieveProviderArchiveRequest,
+				encodeMirroredResponse,
+				append(
+					options,
+					httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion, varOS, varArchitecture)),
+					httptransport.ServerBefore(tokenQueryParamToContext()),
+				)...,
+			),
 		),
 	)
 	return r
