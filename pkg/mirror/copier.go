@@ -45,38 +45,38 @@ func (c *copier) copy(provider *core.Provider) {
 
 	// We download the files from upstream and mirror them to our storage
 	if err := c.signingKeys(ctx, provider); err != nil {
-		c.logger.Error("failed to copy signing keys", logKeyValues(provider, err))
+		c.logger.Error("failed to copy signing keys", logKeyValues(provider), slog.String("err", err.Error()))
 		return
 	}
 
 	if err := c.sha256Sums(ctx, provider); err != nil {
-		c.logger.Error("failed to copy SHA256SUMS", logKeyValues(provider, err))
+		c.logger.Error("failed to copy SHA256SUMS", logKeyValues(provider), slog.String("err", err.Error()))
 		return
 	}
 
 	if err := c.sha256SumsSignature(ctx, provider); err != nil {
-		c.logger.Error("failed to copy SHA256SUMS.sig", logKeyValues(provider, err))
+		c.logger.Error("failed to copy SHA256SUMS.sig", logKeyValues(provider), slog.String("err", err.Error()))
 		return
 	}
 
 	// Request the provider archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.DownloadURL, nil)
 	if err != nil {
-		c.logger.Error("failed to create provider download request", logKeyValues(provider, err))
+		c.logger.Error("failed to create provider download request", logKeyValues(provider), slog.String("err", err.Error()))
 		return
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		c.logger.Error("failed to download provider", logKeyValues(provider, err))
+		c.logger.Error("failed to download provider", logKeyValues(provider), slog.String("err", err.Error()))
 		return
 	}
 	defer resp.Body.Close()
 
 	fileName := provider.ArchiveFileName()
 	if err = c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
-		c.logger.Error("failed to upload provider to mirror", logKeyValues(provider, err))
+		c.logger.Error("failed to upload provider to mirror", logKeyValues(provider), slog.String("err", err.Error()))
 	}
-	c.logger.Info("successfully copied provider", logKeyValues(provider, nil), slog.String("took", time.Since(begin).String()))
+	c.logger.Info("successfully copied provider", logKeyValues(provider), slog.String("took", time.Since(begin).String()))
 }
 
 // check if the signing keys exist, if not add it
@@ -157,7 +157,7 @@ func NewCopier(ctx context.Context, storage Storage) Copier {
 	return m
 }
 
-func logKeyValues(provider *core.Provider, err error) slog.Attr {
+func logKeyValues(provider *core.Provider) slog.Attr {
 	return slog.Group("provider",
 		slog.String("hostname", provider.Hostname),
 		slog.String("namespace", provider.Namespace),
@@ -165,7 +165,6 @@ func logKeyValues(provider *core.Provider, err error) slog.Attr {
 		slog.String("version", provider.Version),
 		slog.String("os", provider.OS),
 		slog.String("arch", provider.Arch),
-		slog.String("err", err.Error()),
 	)
 }
 
