@@ -281,11 +281,11 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	if err := registerModule(mux, s, metrics.Modules, instrumentation); err != nil {
+	if err := registerModule(mux, s, metrics.Module, instrumentation); err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux, s, metrics.Providers, instrumentation); err != nil {
+	if err := registerProvider(mux, s, metrics.Provider, instrumentation); err != nil {
 		return nil, err
 	}
 
@@ -298,7 +298,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 			svc = mirror.NewMirror(s)
 		}
 
-		if err := registerMirror(mux, s, svc, metrics.Mirrors, instrumentation); err != nil {
+		if err := registerMirror(mux, s, svc, metrics.Mirror, instrumentation); err != nil {
 			return nil, err
 		}
 	}
@@ -320,7 +320,7 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModulesMetrics, instrumentation o11y.Middleware) error {
+func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware) error {
 	service := module.NewService(s)
 	{
 		service = module.LoggingMiddleware()(service)
@@ -364,7 +364,7 @@ func authMiddleware() endpoint.Middleware {
 	return auth.Middleware(providers...)
 }
 
-func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProvidersMetrics, instrumentation o11y.Middleware) error {
+func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware) error {
 	service := provider.NewService(s)
 	{
 		service = provider.LoggingMiddleware()(service)

@@ -5,22 +5,32 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+const (
+	HostnameLabel  = "hostname"
+	NamespaceLabel = "namespace"
+	NameLabel      = "name"
+	ProviderLabel  = "provider"
+	VersionLabel   = "version"
+	OsLabel        = "os"
+	ArchLabel      = "arch"
+)
+
 type ServerMetrics struct {
-	Mirrors   *MirrorMetrics
-	Modules   *ModulesMetrics
-	Providers *ProvidersMetrics
-	Http      *HttpMetrics
+	Mirror   *MirrorMetrics
+	Module   *ModuleMetrics
+	Provider *ProviderMetrics
+	Http     *HttpMetrics
 }
 type MirrorMetrics struct {
 	ListProviderVersions     *prometheus.CounterVec
 	ListProviderInstallation *prometheus.CounterVec
 	RetrieveProviderArchive  *prometheus.CounterVec
 }
-type ModulesMetrics struct {
+type ModuleMetrics struct {
 	ListVersions *prometheus.CounterVec
 	Download     *prometheus.CounterVec
 }
-type ProvidersMetrics struct {
+type ProviderMetrics struct {
 	ListVersions *prometheus.CounterVec
 	Download     *prometheus.CounterVec
 }
@@ -32,123 +42,123 @@ type HttpMetrics struct {
 }
 
 func NewMetrics(buckets []float64) *ServerMetrics {
-	boring_namespace := "boring_registry"
-	http_namespace := "http"
+	boringNamespace := "boring_registry"
+	httpNamespace := "http"
 
-	mirrors_subsystem := "mirrors"
-	providers_subsystem := "providers"
-	modules_subsystem := "modules"
-	request_subsystem := "request"
-	response_subsystem := "response"
+	mirrorsSubsystem := "mirrors"
+	providersSubsystem := "providers"
+	modulesSubsystem := "modules"
+	requestSubsystem := "request"
+	responseSubsystem := "response"
 
 	if buckets == nil {
-		buckets = prometheus.ExponentialBuckets(0.1, 1.5, 5)
+		buckets = prometheus.ExponentialBuckets(0.05, 1.6, 10)
 	}
 
 	metrics := &ServerMetrics{
-		Mirrors: &MirrorMetrics{
+		Mirror: &MirrorMetrics{
 			ListProviderVersions: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: mirrors_subsystem,
-					Name:      "list_provider_versions",
-					Help:      "Number providers versions listing on the mirror.",
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "list_provider_versions_total",
+					Help:      "The total number of provider versions requests by mirror",
 				},
-				[]string{"hostname", "namespace", "name"},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel},
 			),
 			ListProviderInstallation: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: mirrors_subsystem,
-					Name:      "list_provider_installations",
-					Help:      "Number providers installations listing on the mirror.",
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "list_provider_installations_total",
+					Help:      "The total number of provider installations requests by mirror",
 				},
-				[]string{"hostname", "namespace", "name", "version"},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel, VersionLabel},
 			),
 			RetrieveProviderArchive: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: mirrors_subsystem,
-					Name:      "download_version",
-					Help:      "Number providers retreive and archive on the mirror.",
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "download_version_total",
+					Help:      "The total number of provider retreive requests by mirror",
 				},
-				[]string{"hostname", "namespace", "name", "version", "os", "arch"},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel, VersionLabel, OsLabel, ArchLabel},
 			),
 		},
-		Providers: &ProvidersMetrics{
+		Provider: &ProviderMetrics{
 			ListVersions: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: providers_subsystem,
-					Name:      "list_versions",
-					Help:      "Number of boring's providers versions listing.",
+					Namespace: boringNamespace,
+					Subsystem: providersSubsystem,
+					Name:      "list_versions_total",
+					Help:      "The total number of provider versions requests",
 				},
-				[]string{"namespace", "name"},
+				[]string{NamespaceLabel, NameLabel},
 			),
 			Download: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: providers_subsystem,
-					Name:      "download_version",
-					Help:      "Number of boring's providers download.",
+					Namespace: boringNamespace,
+					Subsystem: providersSubsystem,
+					Name:      "download_version_total",
+					Help:      "The total number of provider download requests",
 				},
-				[]string{"namespace", "name", "version", "os", "arch"},
+				[]string{NamespaceLabel, NameLabel, VersionLabel, OsLabel, ArchLabel},
 			),
 		},
-		Modules: &ModulesMetrics{
+		Module: &ModuleMetrics{
 			ListVersions: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: modules_subsystem,
-					Name:      "list_versions",
-					Help:      "Number of boring's modules versions listing.",
+					Namespace: boringNamespace,
+					Subsystem: modulesSubsystem,
+					Name:      "list_versions_total",
+					Help:      "The total number of module versions requests",
 				},
-				[]string{"namespace", "name", "provider"},
+				[]string{NamespaceLabel, NameLabel, ProviderLabel},
 			),
 			Download: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: boring_namespace,
-					Subsystem: modules_subsystem,
-					Name:      "download_version",
-					Help:      "Number of boring's modules download.",
+					Namespace: boringNamespace,
+					Subsystem: modulesSubsystem,
+					Name:      "download_version_total",
+					Help:      "The total number of module download requests",
 				},
-				[]string{"namespace", "name", "provider", "version"},
+				[]string{NamespaceLabel, NameLabel, ProviderLabel, VersionLabel},
 			),
 		},
 		Http: &HttpMetrics{
 			RequestsTotal: promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Namespace: http_namespace,
-					Subsystem: request_subsystem,
+					Namespace: httpNamespace,
+					Subsystem: requestSubsystem,
 					Name:      "total",
-					Help:      "Tracks the number of HTTP requests.",
+					Help:      "The total number of HTTP requests",
 				}, []string{"method", "code"},
 			),
 			RequestDuration: promauto.NewHistogramVec(
 				prometheus.HistogramOpts{
-					Namespace: http_namespace,
-					Subsystem: request_subsystem,
+					Namespace: httpNamespace,
+					Subsystem: requestSubsystem,
 					Name:      "duration_seconds",
-					Help:      "Tracks the latencies for HTTP requests.",
+					Help:      "The HTTP request latencies in seconds",
 					Buckets:   buckets,
 				},
 				[]string{"method", "code"},
 			),
 			RequestSize: promauto.NewSummaryVec(
 				prometheus.SummaryOpts{
-					Namespace: http_namespace,
-					Subsystem: request_subsystem,
+					Namespace: httpNamespace,
+					Subsystem: requestSubsystem,
 					Name:      "size_bytes",
-					Help:      "Tracks the size of HTTP requests.",
+					Help:      "The HTTP request sizes in bytes",
 				},
 				[]string{"method", "code"},
 			),
 			ResponseSize: promauto.NewSummaryVec(
 				prometheus.SummaryOpts{
-					Namespace: http_namespace,
-					Subsystem: response_subsystem,
+					Namespace: httpNamespace,
+					Subsystem: responseSubsystem,
 					Name:      "size_bytes",
-					Help:      "Tracks the size of HTTP responses.",
+					Help:      "The HTTP reponse sizes in bytes",
 				},
 				[]string{"method", "code"},
 			),

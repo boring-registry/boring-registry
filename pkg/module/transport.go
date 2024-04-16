@@ -25,7 +25,7 @@ const (
 )
 
 // MakeHandler returns a fully initialized http.Handler.
-func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ModulesMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
+func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
 	r.Methods("GET").Path(`/{namespace}/{name}/{provider}/versions`).Handler(

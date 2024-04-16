@@ -4,6 +4,7 @@ import (
 	"context"
 
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
+
 	"github.com/go-kit/kit/endpoint"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -26,14 +27,14 @@ type listResponse struct {
 	Modules []listResponseModule `json:"modules,omitempty"`
 }
 
-func listEndpoint(svc Service, metrics *o11y.ModulesMetrics) endpoint.Endpoint {
+func listEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(listRequest)
 
 		metrics.ListVersions.With(prometheus.Labels{
-			"namespace": req.namespace,
-			"name":      req.name,
-			"provider":  req.provider,
+			o11y.NamespaceLabel: req.namespace,
+			o11y.NameLabel:      req.name,
+			o11y.ProviderLabel:  req.provider,
 		}).Inc()
 
 		res, err := svc.ListModuleVersions(ctx, req.namespace, req.name, req.provider)
@@ -68,15 +69,15 @@ type downloadRequest struct {
 
 type downloadResponse struct{ url string }
 
-func downloadEndpoint(svc Service, metrics *o11y.ModulesMetrics) endpoint.Endpoint {
+func downloadEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(downloadRequest)
 
 		metrics.Download.With(prometheus.Labels{
-			"namespace": req.namespace,
-			"name":      req.name,
-			"provider":  req.provider,
-			"version":   req.version,
+			o11y.NamespaceLabel: req.namespace,
+			o11y.NameLabel:      req.name,
+			o11y.ProviderLabel:  req.provider,
+			o11y.VersionLabel:   req.version,
 		}).Inc()
 
 		res, err := svc.GetModule(ctx, req.namespace, req.name, req.provider, req.version)

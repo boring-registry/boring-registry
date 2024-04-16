@@ -7,9 +7,9 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/go-kit/kit/endpoint"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type listProviderVersionsRequest struct {
@@ -37,9 +37,9 @@ func listProviderVersionsEndpoint(svc Service, metrics *o11y.MirrorMetrics) endp
 		}
 
 		metrics.ListProviderVersions.With(prometheus.Labels{
-			"hostname":  req.Hostname,
-			"namespace": req.Namespace,
-			"name":      req.Name,
+			o11y.HostnameLabel:  req.Hostname,
+			o11y.NamespaceLabel: req.Namespace,
+			o11y.NameLabel:      req.Name,
 		}).Inc()
 
 		provider := &core.Provider{
@@ -83,10 +83,10 @@ func listProviderInstallationEndpoint(svc Service, metrics *o11y.MirrorMetrics) 
 		}
 
 		metrics.ListProviderInstallation.With(prometheus.Labels{
-			"hostname":  req.Hostname,
-			"namespace": req.Namespace,
-			"name":      req.Name,
-			"version":   req.Version,
+			o11y.HostnameLabel:  req.Hostname,
+			o11y.NamespaceLabel: req.Namespace,
+			o11y.NameLabel:      req.Name,
+			o11y.VersionLabel:   req.Version,
 		}).Inc()
 
 		provider := &core.Provider{
@@ -128,12 +128,12 @@ func retrieveProviderArchiveEndpoint(svc Service, metrics *o11y.MirrorMetrics) e
 		}
 
 		metrics.RetrieveProviderArchive.With(prometheus.Labels{
-			"hostname":  req.Hostname,
-			"namespace": req.Namespace,
-			"name":      req.Name,
-			"version":   req.Version,
-			"os":        req.OS,
-			"arch":      req.Architecture,
+			o11y.HostnameLabel:  req.Hostname,
+			o11y.NamespaceLabel: req.Namespace,
+			o11y.NameLabel:      req.Name,
+			o11y.VersionLabel:   req.Version,
+			o11y.OsLabel:        req.OS,
+			o11y.ArchLabel:      req.Architecture,
 		}).Inc()
 
 		provider := &core.Provider{
