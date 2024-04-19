@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.4 (February 26th, 2024)
+
+### Updates:
+
+Update staticcheck [#110](https://github.com/okta/okta-jwt-verifier-golang/pull/110)
+
 ## v2.0.3 (July 28th, 2023)
 
 ### Updates:
