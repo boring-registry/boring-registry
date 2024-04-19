@@ -32,11 +32,11 @@ test:
 
 tools:
 	@which $(GOFMT) || go install mvdan.cc/gofumpt@v0.2.1
-	@which $(STATICCHECK) || go install honnef.co/go/tools/cmd/staticcheck@2021.1.2
+	@which $(STATICCHECK) || go install honnef.co/go/tools/cmd/staticcheck@2023.1.7
 
 tools-update:
 	@go install mvdan.cc/gofumpt@v0.2.1
-	@go install honnef.co/go/tools/cmd/staticcheck@2021.1.2
+	@go install honnef.co/go/tools/cmd/staticcheck@2023.1.7
 
 vet:
 	@go vet ./...

@@ -1853,6 +1853,9 @@ type Folder struct {
 	// Bucket: The name of the bucket containing this folder.
 	Bucket string `json:"bucket,omitempty"`
 
+	// CreateTime: The creation time of the folder in RFC 3339 format.
+	CreateTime string `json:"createTime,omitempty"`
+
 	// Id: The ID of the folder, including the bucket name, folder name.
 	Id string `json:"id,omitempty"`
 
@@ -1876,12 +1879,9 @@ type Folder struct {
 	// SelfLink: The link to this folder.
 	SelfLink string `json:"selfLink,omitempty"`
 
-	// TimeCreated: The creation time of the folder in RFC 3339 format.
-	TimeCreated string `json:"timeCreated,omitempty"`
-
-	// Updated: The modification time of the folder metadata in RFC 3339
+	// UpdateTime: The modification time of the folder metadata in RFC 3339
 	// format.
-	Updated string `json:"updated,omitempty"`
+	UpdateTime string `json:"updateTime,omitempty"`
 
 	// ServerResponse contains the HTTP response code and headers from the
 	// server.
@@ -15067,7 +15067,6 @@ type ObjectsRestoreCall struct {
 	s          *Service
 	bucket     string
 	object     string
-	object2    *Object
 	urlParams_ gensupport.URLParams
 	ctx_       context.Context
 	header_    http.Header
@@ -15079,11 +15078,11 @@ type ObjectsRestoreCall struct {
 //   - generation: Selects a specific revision of this object.
 //   - object: Name of the object. For information about how to URL encode
 //     object names to be path safe, see Encoding URI Path Parts.
-func (r *ObjectsService) Restore(bucket string, object string, object2 *Object) *ObjectsRestoreCall {
+func (r *ObjectsService) Restore(bucket string, object string, generation int64) *ObjectsRestoreCall {
 	c := &ObjectsRestoreCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.bucket = bucket
 	c.object = object
-	c.object2 = object2
+	c.urlParams_.Set("generation", fmt.Sprint(generation))
 	return c
 }
 
@@ -15183,11 +15182,6 @@ func (c *ObjectsRestoreCall) doRequest(alt string) (*http.Response, error) {
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
 	var body io.Reader = nil
-	body, err := googleapi.WithoutDataWrapper.JSONReader(c.object2)
-	if err != nil {
-		return nil, err
-	}
-	reqHeaders.Set("Content-Type", "application/json")
 	c.urlParams_.Set("alt", alt)
 	c.urlParams_.Set("prettyPrint", "false")
 	urls := googleapi.ResolveRelative(c.s.BasePath, "b/{bucket}/o/{object}/restore")
@@ -15247,7 +15241,8 @@ func (c *ObjectsRestoreCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//   "id": "storage.objects.restore",
 	//   "parameterOrder": [
 	//     "bucket",
-	//     "object"
+	//     "object",
+	//     "generation"
 	//   ],
 	//   "parameters": {
 	//     "bucket": {
@@ -15318,9 +15313,6 @@ func (c *ObjectsRestoreCall) Do(opts ...googleapi.CallOption) (*Object, error) {
 	//     }
 	//   },
 	//   "path": "b/{bucket}/o/{object}/restore",
-	//   "request": {
-	//     "$ref": "Object"
-	//   },
 	//   "response": {
 	//     "$ref": "Object"
 	//   },
