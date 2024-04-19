@@ -17,6 +17,7 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/discovery"
 	"github.com/boring-registry/boring-registry/pkg/mirror"
 	"github.com/boring-registry/boring-registry/pkg/module"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 	"github.com/boring-registry/boring-registry/pkg/provider"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
@@ -277,6 +278,9 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		w.Write(terraformJSON)
 	})
 
+	metrics := o11y.NewMetrics(nil)
+	instrumentation := o11y.NewMiddleware(metrics.Http)
+
 	registerMetrics(mux)
 
 	s, err := setupStorage(ctx)
@@ -284,11 +288,11 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	if err := registerModule(mux, s); err != nil {
+	if err := registerModule(mux, s, metrics.Module, instrumentation); err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux, s); err != nil {
+	if err := registerProvider(mux, s, metrics.Provider, instrumentation); err != nil {
 		return nil, err
 	}
 
@@ -301,7 +305,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 			svc = mirror.NewMirror(s)
 		}
 
-		if err := registerMirror(mux, s, svc); err != nil {
+		if err := registerMirror(mux, s, svc, metrics.Mirror, instrumentation); err != nil {
 			return nil, err
 		}
 	}
@@ -323,7 +327,7 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage) error {
+func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware) error {
 	service := module.NewService(s)
 	{
 		service = module.LoggingMiddleware()(service)
@@ -343,6 +347,8 @@ func registerModule(mux *http.ServeMux, s storage.Storage) error {
 			module.MakeHandler(
 				service,
 				authMiddleware(),
+				metrics,
+				instrumentation,
 				opts...,
 			),
 		),
@@ -365,7 +371,7 @@ func authMiddleware() endpoint.Middleware {
 	return auth.Middleware(providers...)
 }
 
-func registerProvider(mux *http.ServeMux, s storage.Storage) error {
+func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware) error {
 	service := provider.NewService(s)
 	{
 		service = provider.LoggingMiddleware()(service)
@@ -385,6 +391,8 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 			provider.MakeHandler(
 				service,
 				authMiddleware(),
+				metrics,
+				instrumentation,
 				opts...,
 			),
 		),
@@ -393,7 +401,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage) error {
 	return nil
 }
 
-func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) error {
+func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware) error {
 	service := mirror.LoggingMiddleware()(svc)
 
 	opts := []httptransport.ServerOption{
@@ -410,6 +418,8 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service) e
 			mirror.MakeHandler(
 				service,
 				authMiddleware(),
+				metrics,
+				instrumentation,
 				opts...,
 			),
 		),
