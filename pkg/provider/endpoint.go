@@ -34,6 +34,7 @@ type downloadRequest struct {
 	version   string
 	os        string
 	arch      string
+	proxyUrl  string
 }
 
 type downloadResponse struct {
@@ -59,7 +60,7 @@ func downloadEndpoint(svc Service, metrics *o11y.ProviderMetrics) endpoint.Endpo
 			o11y.ArchLabel:      req.arch,
 		}).Inc()
 
-		res, err := svc.GetProvider(ctx, req.namespace, req.name, req.version, req.os, req.arch)
+		res, err := svc.GetProvider(ctx, req.namespace, req.name, req.version, req.os, req.arch, req.proxyUrl)
 		if err != nil {
 			return nil, err
 		}

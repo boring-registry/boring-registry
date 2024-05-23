@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
@@ -105,12 +106,15 @@ func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, e
 		return nil, fmt.Errorf("%w: arch", core.ErrVarMissing)
 	}
 
+	proxyUrl := strings.Replace(r.URL.String(), "/download", "/proxy", 1)
+
 	return downloadRequest{
 		namespace: namespace,
 		name:      name,
 		version:   version,
 		os:        os,
 		arch:      arch,
+		proxyUrl:  proxyUrl,
 	}, nil
 }
 

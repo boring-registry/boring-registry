@@ -79,7 +79,7 @@ func TestService_GetModule(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage()
-				svc     = NewService(storage)
+				svc     = NewService(storage, false)
 			)
 
 			_, err := storage.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, tc.data)
@@ -90,7 +90,7 @@ func TestService_GetModule(t *testing.T) {
 				assert.NoError(err)
 			}
 
-			module, err := svc.GetModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version)
+			module, err := svc.GetModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, "")
 			switch tc.expectError {
 			case true:
 				assert.Error(err)
@@ -159,7 +159,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage(WithInmemArchiveFormat(tc.format))
-				svc     = NewService(storage)
+				svc     = NewService(storage, false)
 			)
 
 			// Make sure this test case is actually doing something

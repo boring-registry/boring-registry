@@ -45,7 +45,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace,
 	return mw.next.ListProviderVersions(ctx, namespace, name)
 }
 
-func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (provider *core.Provider, err error) {
+func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, version, os, arch, proxyUrl string) (provider *core.Provider, err error) {
 	defer func(begin time.Time) {
 		logger := slog.Default().With(
 			slog.String("op", "GetProvider"),
@@ -66,5 +66,5 @@ func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, ve
 		logger.Info("get provider", slog.String("took", time.Since(begin).String()))
 	}(time.Now())
 
-	return mw.next.GetProvider(ctx, namespace, name, version, os, arch)
+	return mw.next.GetProvider(ctx, namespace, name, version, os, arch, proxyUrl)
 }

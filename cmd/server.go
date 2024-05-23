@@ -328,7 +328,7 @@ func registerMetrics(mux *http.ServeMux) {
 }
 
 func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware) error {
-	service := module.NewService(s)
+	service := module.NewService(s, flagProxy)
 	{
 		service = module.LoggingMiddleware()(service)
 	}
@@ -372,7 +372,7 @@ func authMiddleware() endpoint.Middleware {
 }
 
 func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware) error {
-	service := provider.NewService(s)
+	service := provider.NewService(s, flagProxy)
 	{
 		service = provider.LoggingMiddleware()(service)
 	}
