@@ -19,6 +19,7 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/module"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 	"github.com/boring-registry/boring-registry/pkg/provider"
+	"github.com/boring-registry/boring-registry/pkg/proxy"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/go-kit/kit/endpoint"
@@ -38,6 +39,7 @@ var (
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
 	prefixMirror    = fmt.Sprintf("%s/mirror", prefix)
+	prefixProxy     = fmt.Sprintf("%s/proxy", prefix)
 )
 
 var (
@@ -232,6 +234,31 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 	}
 }
 
+func setupProxyUrlService() (proxy.ProxyUrlService, error) {
+	if !flagProxy {
+		return proxy.NewProxyUrlService(flagProxy, prefixProxy, "", 0), nil
+	}
+
+	if len(flagProxySignatureKey) <= 0 {
+		return nil, errors.New("proxy signature key is not specified")
+	}
+
+	var expiry time.Duration
+
+	switch {
+	case flagS3Bucket != "":
+		expiry = flagS3SignedURLExpiry
+	case flagGCSBucket != "":
+		expiry = flagGCSSignedURLExpiry
+	case flagAzureStorageContainer != "":
+		expiry = flagAzureStorageSignedURLExpiry
+	default:
+		return nil, nil
+	}
+
+	return proxy.NewProxyUrlService(flagProxy, prefixProxy, flagProxySignatureKey, expiry), nil
+}
+
 func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
@@ -288,12 +315,23 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	if err := registerModule(mux, s, metrics.Module, instrumentation); err != nil {
+	proxyUrlService, err := setupProxyUrlService()
+	if err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux, s, metrics.Provider, instrumentation); err != nil {
+	if err := registerModule(mux, s, metrics.Module, instrumentation, proxyUrlService); err != nil {
 		return nil, err
+	}
+
+	if err := registerProvider(mux, s, metrics.Provider, instrumentation, proxyUrlService); err != nil {
+		return nil, err
+	}
+
+	if flagProxy {
+		if err := registerProxy(mux, metrics.Proxy, instrumentation, proxyUrlService); err != nil {
+			return nil, err
+		}
 	}
 
 	if flagProviderNetworkMirrorEnabled {
@@ -327,8 +365,8 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware) error {
-	service := module.NewService(s, flagProxy)
+func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService proxy.ProxyUrlService) error {
+	service := module.NewService(s, proxyUrlService)
 	{
 		service = module.LoggingMiddleware()(service)
 	}
@@ -371,8 +409,8 @@ func authMiddleware() endpoint.Middleware {
 	return auth.Middleware(providers...)
 }
 
-func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware) error {
-	service := provider.NewService(s, flagProxy)
+func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService proxy.ProxyUrlService) error {
+	service := provider.NewService(s, proxyUrlService)
 	{
 		service = provider.LoggingMiddleware()(service)
 	}
@@ -418,6 +456,30 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, m
 			mirror.MakeHandler(
 				service,
 				authMiddleware(),
+				metrics,
+				instrumentation,
+				opts...,
+			),
+		),
+	)
+
+	return nil
+}
+
+func registerProxy(mux *http.ServeMux, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware, proxyUrlService proxy.ProxyUrlService) error {
+	opts := []httptransport.ServerOption{
+		httptransport.ServerErrorEncoder(proxy.ErrorEncoder),
+		httptransport.ServerBefore(
+			httptransport.PopulateRequestContext,
+		),
+	}
+
+	mux.Handle(
+		fmt.Sprintf(`%s/`, prefixProxy),
+		http.StripPrefix(
+			prefixProxy,
+			proxy.MakeHandler(
+				proxyUrlService,
 				metrics,
 				instrumentation,
 				opts...,

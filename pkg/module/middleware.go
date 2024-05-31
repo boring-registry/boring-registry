@@ -45,7 +45,7 @@ func (mw loggingMiddleware) ListModuleVersions(ctx context.Context, namespace, n
 	return mw.next.ListModuleVersions(ctx, namespace, name, provider)
 }
 
-func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, provider, version, proxyUrl string) (module core.Module, err error) {
+func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, provider, version string) (module core.Module, err error) {
 	defer func(begin time.Time) {
 		type contextKey string
 
@@ -68,5 +68,5 @@ func (mw loggingMiddleware) GetModule(ctx context.Context, namespace, name, prov
 		logger.Info("get module", slog.String("took", time.Since(begin).String()), slog.String("module", module.ID(true)))
 	}(time.Now())
 
-	return mw.next.GetModule(ctx, namespace, name, provider, version, proxyUrl)
+	return mw.next.GetModule(ctx, namespace, name, provider, version)
 }

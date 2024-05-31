@@ -65,7 +65,6 @@ type downloadRequest struct {
 	name      string
 	provider  string
 	version   string
-	proxyUrl  string
 }
 
 type downloadResponse struct{ url string }
@@ -81,7 +80,7 @@ func downloadEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoin
 			o11y.VersionLabel:   req.version,
 		}).Inc()
 
-		res, err := svc.GetModule(ctx, req.namespace, req.name, req.provider, req.version, req.proxyUrl)
+		res, err := svc.GetModule(ctx, req.namespace, req.name, req.provider, req.version)
 		if err != nil {
 			return nil, err
 		}

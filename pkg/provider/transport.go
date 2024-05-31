@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
+	"github.com/boring-registry/boring-registry/pkg/proxy"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -54,6 +54,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ProviderMe
 				append(
 					options,
 					httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varOS, varArch, varVersion)),
+					httptransport.ServerBefore(proxy.ExtractRootUrl()),
 					httptransport.ServerBefore(jwt.HTTPToContext()),
 				)...,
 			),
@@ -106,7 +107,10 @@ func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, e
 		return nil, fmt.Errorf("%w: arch", core.ErrVarMissing)
 	}
 
-	proxyUrl := strings.Replace(r.URL.String(), "/download", "/proxy", 1)
+	rootUrl := core.GetRootURLFromRequest(r)
+
+	// Add the rootUrl to the context
+	ctx = context.WithValue(r.Context(), "rootUrl", rootUrl)
 
 	return downloadRequest{
 		namespace: namespace,
@@ -114,7 +118,6 @@ func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, e
 		version:   version,
 		os:        os,
 		arch:      arch,
-		proxyUrl:  proxyUrl,
 	}, nil
 }
 

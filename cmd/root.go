@@ -20,7 +20,10 @@ const (
 var (
 	flagJSON  bool
 	flagDebug bool
-	flagProxy bool
+
+	// Proxy options.
+	flagProxy             bool
+	flagProxySignatureKey string
 
 	// S3 options.
 	flagS3Bucket          string
@@ -72,6 +75,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagJSON, "json", false, "Enable json logging")
 	rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "Enable debug logging")
 	rootCmd.PersistentFlags().BoolVar(&flagProxy, "proxy", false, "Enable proxying download request to remote storage")
+	rootCmd.PersistentFlags().StringVar(&flagProxySignatureKey, "proxy-signature-key", "", "Key to use in order to sign proxy URLs")
 	rootCmd.PersistentFlags().StringVar(&flagS3Bucket, "storage-s3-bucket", "", "S3 bucket to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Prefix, "storage-s3-prefix", "", "S3 bucket prefix to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagS3Region, "storage-s3-region", "", "S3 bucket region to use for the registry")

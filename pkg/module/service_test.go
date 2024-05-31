@@ -10,8 +10,14 @@ import (
 	"testing"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/proxy"
 
 	"github.com/stretchr/testify/assert"
+)
+
+const (
+	TEST_HMAC_KEY        = "LBQ968Y3DAD7KUWT5TJM7MN6TY59NKFJ"
+	TEST_HMAC_EXPIRATION = 300
 )
 
 func testModuleData(files map[string]string) *bytes.Buffer {
@@ -79,7 +85,8 @@ func TestService_GetModule(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage()
-				svc     = NewService(storage, false)
+				proxy   = proxy.NewProxyUrlService(false, "/proxy", TEST_HMAC_KEY, TEST_HMAC_EXPIRATION)
+				svc     = NewService(storage, proxy)
 			)
 
 			_, err := storage.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, tc.data)
@@ -90,7 +97,7 @@ func TestService_GetModule(t *testing.T) {
 				assert.NoError(err)
 			}
 
-			module, err := svc.GetModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, "")
+			module, err := svc.GetModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version)
 			switch tc.expectError {
 			case true:
 				assert.Error(err)
@@ -159,7 +166,8 @@ func TestService_ListModuleVersions(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage(WithInmemArchiveFormat(tc.format))
-				svc     = NewService(storage, false)
+				proxy   = proxy.NewProxyUrlService(false, "/proxy", TEST_HMAC_KEY, TEST_HMAC_EXPIRATION)
+				svc     = NewService(storage, proxy)
 			)
 
 			// Make sure this test case is actually doing something

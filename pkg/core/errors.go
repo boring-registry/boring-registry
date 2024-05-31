@@ -11,6 +11,7 @@ import (
 var (
 	// Transport errors
 	ErrVarMissing = errors.New("variable missing")
+	ErrVarType    = errors.New("invalid variable type")
 
 	// Auth errors
 	ErrUnauthorized = errors.New("unauthorized")           // Middleware error
