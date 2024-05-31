@@ -107,11 +107,6 @@ func decodeDownloadRequest(ctx context.Context, r *http.Request) (interface{}, e
 		return nil, fmt.Errorf("%w: arch", core.ErrVarMissing)
 	}
 
-	rootUrl := core.GetRootURLFromRequest(r)
-
-	// Add the rootUrl to the context
-	ctx = context.WithValue(r.Context(), "rootUrl", rootUrl)
-
 	return downloadRequest{
 		namespace: namespace,
 		name:      name,

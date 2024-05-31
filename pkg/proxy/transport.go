@@ -137,11 +137,26 @@ func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
 // ExtractRootUrl return an URl composed of the scheme (http or https) and the host of the incoming request
 func ExtractRootUrl() httptransport.RequestFunc {
 	return func(ctx context.Context, r *http.Request) context.Context {
-		rootUrl := core.GetRootURLFromRequest(r)
+		rootUrl := getRootURLFromRequest(r)
 
 		// Add the rootUrl to the context
 		ctx = context.WithValue(ctx, RootUrlContextKey, rootUrl)
 
 		return ctx
 	}
+}
+
+// Get the root part of the URL of the request
+func getRootURLFromRequest(r *http.Request) string {
+	// Find the protocol (http ou https)
+	var protocol string
+	if r.TLS != nil {
+		protocol = "https://"
+	} else {
+		protocol = "http://"
+	}
+
+	// Build root URL
+	rootUrl := protocol + r.Host
+	return rootUrl
 }
