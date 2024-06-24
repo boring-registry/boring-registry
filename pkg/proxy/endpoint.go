@@ -2,8 +2,12 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 
@@ -12,9 +16,7 @@ import (
 )
 
 type proxyRequest struct {
-	signature string
-	expiry    int64
-	url       string
+	url string
 }
 
 type proxyResponse struct {
@@ -23,30 +25,24 @@ type proxyResponse struct {
 	Header     http.Header
 }
 
-func proxyEndpoint(proxy ProxyUrlService, metrics *o11y.ProxyMetrics) endpoint.Endpoint {
+func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		input := request.(proxyRequest)
 
 		metrics.Download.With(prometheus.Labels{}).Inc()
 
-		isExpired := proxy.IsExpired(ctx, input.expiry)
-		if isExpired {
-			metrics.Failure.With(prometheus.Labels{
-				o11y.ProxyFailureLabel: o11y.ProxyFailureExpired,
-			}).Inc()
-			return nil, ErrExpiredUrl
-		}
+		slog.Info("Common baby!", slog.String("URL", input.url))
 
-		ok := proxy.CheckSignedUrl(ctx, input.signature, input.expiry, input.url)
-		if !ok {
+		downloadUrl, err := storage.GetDownloadUrl(ctx, input.url)
+		if err != nil {
 			metrics.Failure.With(prometheus.Labels{
-				o11y.ProxyFailureLabel: o11y.ProxyFailureSignature,
+				o11y.ProxyFailureLabel: o11y.ProxyFailureUrl,
 			}).Inc()
-			return nil, ErrInvalidSignature
+			return nil, ErrInvalidRequestUrl
 		}
 
 		// Creating a new HTTP request to the target destination
-		req, err := http.NewRequest("GET", input.url, nil)
+		req, err := http.NewRequest("GET", downloadUrl, nil)
 		if err != nil {
 			metrics.Failure.With(prometheus.Labels{
 				o11y.ProxyFailureLabel: o11y.ProxyFailureRequest,
@@ -64,12 +60,35 @@ func proxyEndpoint(proxy ProxyUrlService, metrics *o11y.ProxyMetrics) endpoint.E
 			return nil, ErrCantDownloadFile
 		}
 
+		headers := resp.Header.Clone()
+
+		// Add Content-Disposition header if not there
+		_, ok := headers["Content-Disposition"]
+		if !ok {
+			fileName, err := getFileNameFromURL(downloadUrl)
+			if err == nil {
+				headers.Add("Content-Disposition", `attachment;filename="`+fileName+`"`)
+			}
+		}
+
+		slog.Info("respone!", slog.Any("headers", resp.Header))
 		pResp := proxyResponse{
 			StatusCode: resp.StatusCode,
-			Header:     resp.Header,
+			Header:     headers,
 			Body:       resp.Body,
 		}
 
 		return pResp, nil
 	}
+}
+
+// Extract zip filename from the path part of the URL, which should be located at the end of the path
+func getFileNameFromURL(downloadUrl string) (string, error) {
+	parsedUrl, err := url.Parse(downloadUrl)
+	if err != nil {
+		return "", fmt.Errorf("downloadUrl cannot be parsed: %s", downloadUrl)
+	}
+
+	lastIndex := strings.LastIndex(parsedUrl.Path, "/")
+	return parsedUrl.Path[lastIndex+1:], nil
 }

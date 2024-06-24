@@ -8,7 +8,6 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
-	"github.com/boring-registry/boring-registry/pkg/proxy"
 
 	"github.com/go-kit/kit/auth/jwt"
 	"github.com/go-kit/kit/endpoint"
@@ -38,7 +37,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ModuleMetr
 				append(
 					options,
 					httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varProvider)),
-					httptransport.ServerBefore(proxy.ExtractRootUrl()),
+					httptransport.ServerBefore(core.ExtractRootUrl()),
 					httptransport.ServerBefore(jwt.HTTPToContext()),
 				)...,
 			),
@@ -54,7 +53,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ModuleMetr
 				append(
 					options,
 					httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varProvider, varVersion)),
-					httptransport.ServerBefore(proxy.ExtractRootUrl()),
+					httptransport.ServerBefore(core.ExtractRootUrl()),
 					httptransport.ServerBefore(jwt.HTTPToContext()),
 				)...,
 			),

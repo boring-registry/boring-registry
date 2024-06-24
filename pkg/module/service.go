@@ -2,10 +2,8 @@ package module
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-	"github.com/boring-registry/boring-registry/pkg/proxy"
 )
 
 // Service implements the Module Registry Protocol.
@@ -17,11 +15,11 @@ type Service interface {
 
 type service struct {
 	storage Storage
-	proxy   proxy.ProxyUrlService
+	proxy   core.ProxyUrlService
 }
 
 // NewService returns a fully initialized Service.
-func NewService(storage Storage, proxy proxy.ProxyUrlService) Service {
+func NewService(storage Storage, proxy core.ProxyUrlService) Service {
 	return &service{
 		storage: storage,
 		proxy:   proxy,
@@ -35,12 +33,7 @@ func (s *service) GetModule(ctx context.Context, namespace, name, provider, vers
 	}
 
 	if s.proxy.IsProxyEnabled(ctx) {
-		rootUrl, ok := ctx.Value(proxy.RootUrlContextKey).(string)
-		if !ok {
-			return core.Module{}, fmt.Errorf("%w: rootUrl is not in context", core.ErrVarMissing)
-		}
-
-		signedUrl, err := s.proxy.GetSignedUrl(ctx, res.DownloadURL, rootUrl)
+		signedUrl, err := s.proxy.GetProxyUrl(ctx, res.DownloadURL)
 		if err != nil {
 			return core.Module{}, err
 		}

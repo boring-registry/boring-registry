@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/auth"
+	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
 	"github.com/boring-registry/boring-registry/pkg/mirror"
 	"github.com/boring-registry/boring-registry/pkg/module"
@@ -234,31 +235,6 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 	}
 }
 
-func setupProxyUrlService() (proxy.ProxyUrlService, error) {
-	if !flagProxy {
-		return proxy.NewProxyUrlService(flagProxy, prefixProxy, "", 0), nil
-	}
-
-	if len(flagProxySignatureKey) <= 0 {
-		return nil, errors.New("proxy signature key is not specified")
-	}
-
-	var expiry time.Duration
-
-	switch {
-	case flagS3Bucket != "":
-		expiry = flagS3SignedURLExpiry
-	case flagGCSBucket != "":
-		expiry = flagGCSSignedURLExpiry
-	case flagAzureStorageContainer != "":
-		expiry = flagAzureStorageSignedURLExpiry
-	default:
-		return nil, nil
-	}
-
-	return proxy.NewProxyUrlService(flagProxy, prefixProxy, flagProxySignatureKey, expiry), nil
-}
-
 func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
@@ -315,10 +291,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	proxyUrlService, err := setupProxyUrlService()
-	if err != nil {
-		return nil, err
-	}
+	proxyUrlService := core.NewProxyUrlService(flagProxy, prefixProxy)
 
 	if err := registerModule(mux, s, metrics.Module, instrumentation, proxyUrlService); err != nil {
 		return nil, err
@@ -329,7 +302,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	}
 
 	if flagProxy {
-		if err := registerProxy(mux, metrics.Proxy, instrumentation, proxyUrlService); err != nil {
+		if err := registerProxy(mux, s, metrics.Proxy, instrumentation); err != nil {
 			return nil, err
 		}
 	}
@@ -365,7 +338,7 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService proxy.ProxyUrlService) error {
+func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
 	service := module.NewService(s, proxyUrlService)
 	{
 		service = module.LoggingMiddleware()(service)
@@ -409,7 +382,7 @@ func authMiddleware() endpoint.Middleware {
 	return auth.Middleware(providers...)
 }
 
-func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService proxy.ProxyUrlService) error {
+func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
 	service := provider.NewService(s, proxyUrlService)
 	{
 		service = provider.LoggingMiddleware()(service)
@@ -466,7 +439,7 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, m
 	return nil
 }
 
-func registerProxy(mux *http.ServeMux, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware, proxyUrlService proxy.ProxyUrlService) error {
+func registerProxy(mux *http.ServeMux, storage storage.Storage, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware) error {
 	opts := []httptransport.ServerOption{
 		httptransport.ServerErrorEncoder(proxy.ErrorEncoder),
 		httptransport.ServerBefore(
@@ -479,7 +452,7 @@ func registerProxy(mux *http.ServeMux, metrics *o11y.ProxyMetrics, instrumentati
 		http.StripPrefix(
 			prefixProxy,
 			proxy.MakeHandler(
-				proxyUrlService,
+				storage,
 				metrics,
 				instrumentation,
 				opts...,

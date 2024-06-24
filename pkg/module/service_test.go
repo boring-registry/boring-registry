@@ -10,14 +10,8 @@ import (
 	"testing"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-	"github.com/boring-registry/boring-registry/pkg/proxy"
 
 	"github.com/stretchr/testify/assert"
-)
-
-const (
-	TEST_HMAC_KEY        = "LBQ968Y3DAD7KUWT5TJM7MN6TY59NKFJ"
-	TEST_HMAC_EXPIRATION = 300
 )
 
 func testModuleData(files map[string]string) *bytes.Buffer {
@@ -85,7 +79,7 @@ func TestService_GetModule(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage()
-				proxy   = proxy.NewProxyUrlService(false, "/proxy", TEST_HMAC_KEY, TEST_HMAC_EXPIRATION)
+				proxy   = core.NewProxyUrlService(false, "/proxy")
 				svc     = NewService(storage, proxy)
 			)
 
@@ -166,7 +160,7 @@ func TestService_ListModuleVersions(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage(WithInmemArchiveFormat(tc.format))
-				proxy   = proxy.NewProxyUrlService(false, "/proxy", TEST_HMAC_KEY, TEST_HMAC_EXPIRATION)
+				proxy   = core.NewProxyUrlService(false, "/proxy")
 				svc     = NewService(storage, proxy)
 			)
 

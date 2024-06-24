@@ -2,12 +2,11 @@ package proxy
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"net/url"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
@@ -20,26 +19,22 @@ import (
 type muxVar string
 
 const (
-	RootUrlContextKey muxVar = "rootUrl"
-
-	varSignature muxVar = "signature"
-	varExpiry    muxVar = "expiry"
-	varUrl       muxVar = "url"
+	varUrl muxVar = "url"
 )
 
 // MakeHandler returns a fully initialized http.Handler.
-func MakeHandler(proxy ProxyUrlService, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
+func MakeHandler(storage Storage, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
-	r.Methods("GET").Path(`/{signature}/{expiry}/{url}`).Handler(
+	r.Methods("GET").Path(`/{url}`).Handler(
 		instrumentation.WrapHandler(
 			httptransport.NewServer(
-				proxyEndpoint(proxy, metrics),
+				proxyEndpoint(storage, metrics),
 				decodeProxyRequest,
 				copyHeadersAndBody,
 				append(
 					options,
-					httptransport.ServerBefore(extractMuxVars(varSignature, varExpiry, varUrl)),
+					httptransport.ServerBefore(extractMuxVars(varUrl)),
 					httptransport.ServerBefore(jwt.HTTPToContext()),
 				)...,
 			),
@@ -51,35 +46,18 @@ func MakeHandler(proxy ProxyUrlService, metrics *o11y.ProxyMetrics, instrumentat
 
 // decodeProxyRequest translates request's paths into an object representing the request
 func decodeProxyRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	signature, ok := ctx.Value(varSignature).(string)
-	if !ok {
-		return nil, fmt.Errorf("%w: signature", core.ErrVarMissing)
-	}
-
-	expiryValue, ok := ctx.Value(varExpiry).(string)
-	if !ok {
-		return nil, fmt.Errorf("%w: expiry", core.ErrVarMissing)
-	}
-
-	expiry, err := strconv.ParseInt(expiryValue, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("%w: expiry", core.ErrVarType)
-	}
-
 	encodedUrl, ok := ctx.Value(varUrl).(string)
 	if !ok {
 		return nil, fmt.Errorf("%w: url", core.ErrVarMissing)
 	}
 
-	decodedUrl, err := base64.StdEncoding.DecodeString(encodedUrl)
+	decodedUrl, err := url.QueryUnescape(encodedUrl)
 	if err != nil {
 		return nil, err
 	}
 
 	return proxyRequest{
-		signature: signature,
-		expiry:    expiry,
-		url:       string(decodedUrl),
+		url: string(decodedUrl),
 	}, nil
 }
 
@@ -132,31 +110,4 @@ func extractMuxVars(keys ...muxVar) httptransport.RequestFunc {
 
 		return ctx
 	}
-}
-
-// ExtractRootUrl return an URl composed of the scheme (http or https) and the host of the incoming request
-func ExtractRootUrl() httptransport.RequestFunc {
-	return func(ctx context.Context, r *http.Request) context.Context {
-		rootUrl := getRootURLFromRequest(r)
-
-		// Add the rootUrl to the context
-		ctx = context.WithValue(ctx, RootUrlContextKey, rootUrl)
-
-		return ctx
-	}
-}
-
-// Get the root part of the URL of the request
-func getRootURLFromRequest(r *http.Request) string {
-	// Find the protocol (http ou https)
-	var protocol string
-	if r.TLS != nil {
-		protocol = "https://"
-	} else {
-		protocol = "http://"
-	}
-
-	// Build root URL
-	rootUrl := protocol + r.Host
-	return rootUrl
 }

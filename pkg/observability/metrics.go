@@ -15,10 +15,9 @@ const (
 	ArchLabel         = "arch"
 	ProxyFailureLabel = "failure"
 
-	ProxyFailureExpired   = "expired-url"
-	ProxyFailureSignature = "invalid-signature"
-	ProxyFailureRequest   = "invalid-url"
-	ProxyFailureDownload  = "download"
+	ProxyFailureUrl      = "bad-url"
+	ProxyFailureRequest  = "invalid-request"
+	ProxyFailureDownload = "download"
 )
 
 type ServerMetrics struct {
