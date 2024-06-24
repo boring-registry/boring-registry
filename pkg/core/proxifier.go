@@ -52,7 +52,7 @@ func (p *proxyUrlService) GetProxyUrl(ctx context.Context, downloadUrl string) (
 	baseUrl := fmt.Sprintf("%s://%s/", parsedUrl.Scheme, parsedUrl.Host)
 	pathUrl := downloadUrl[len(baseUrl):]
 	excapedUrl := url.QueryEscape(pathUrl)
-	finalUrl := fmt.Sprintf("%s/%s/%s", rootUrl, p.ProxyPath, excapedUrl)
+	finalUrl := fmt.Sprintf("%s%s/%s", rootUrl, p.ProxyPath, excapedUrl)
 	return finalUrl, nil
 }
 
