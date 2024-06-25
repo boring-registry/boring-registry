@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,8 +29,6 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 		input := request.(proxyRequest)
 
 		metrics.Download.With(prometheus.Labels{}).Inc()
-
-		slog.Info("Common baby!", slog.String("URL", input.url))
 
 		downloadUrl, err := storage.GetDownloadUrl(ctx, input.url)
 		if err != nil {
@@ -71,7 +68,6 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 			}
 		}
 
-		slog.Info("respone!", slog.Any("headers", resp.Header))
 		pResp := proxyResponse{
 			StatusCode: resp.StatusCode,
 			Header:     headers,

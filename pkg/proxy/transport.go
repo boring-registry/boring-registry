@@ -84,12 +84,7 @@ func copyHeadersAndBody(_ context.Context, w http.ResponseWriter, response inter
 
 // ErrorEncoder translates domain specific errors to HTTP status codes
 func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
-	// var proxyError *core.ProxyError
-	if errors.Is(err, ErrExpiredUrl) {
-		w.WriteHeader(http.StatusGone)
-	} else if errors.Is(err, ErrInvalidSignature) {
-		w.WriteHeader(http.StatusBadRequest)
-	} else if errors.Is(err, ErrInvalidRequestUrl) {
+	if errors.Is(err, ErrInvalidRequestUrl) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 	} else if errors.Is(err, ErrCantDownloadFile) {
 		w.WriteHeader(http.StatusBadGateway)

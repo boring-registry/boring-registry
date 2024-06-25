@@ -33,12 +33,12 @@ func (s *service) GetModule(ctx context.Context, namespace, name, provider, vers
 	}
 
 	if s.proxy.IsProxyEnabled(ctx) {
-		signedUrl, err := s.proxy.GetProxyUrl(ctx, res.DownloadURL)
+		downloadUrl, err := s.proxy.GetProxyUrl(ctx, res.DownloadURL)
 		if err != nil {
 			return core.Module{}, err
 		}
 
-		res.DownloadURL = signedUrl
+		res.DownloadURL = downloadUrl
 	}
 
 	return res, err

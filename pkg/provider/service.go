@@ -33,23 +33,23 @@ func (s *service) GetProvider(ctx context.Context, namespace, name, version, os,
 	}
 
 	if s.proxy.IsProxyEnabled(ctx) {
-		signedUrl, err := s.proxy.GetProxyUrl(ctx, p.DownloadURL)
+		downloadUrl, err := s.proxy.GetProxyUrl(ctx, p.DownloadURL)
 		if err != nil {
 			return p, err
 		}
-		p.DownloadURL = signedUrl
+		p.DownloadURL = downloadUrl
 
-		signedUrl, err = s.proxy.GetProxyUrl(ctx, p.SHASumsURL)
+		shaSumsURL, err := s.proxy.GetProxyUrl(ctx, p.SHASumsURL)
 		if err != nil {
 			return p, err
 		}
-		p.SHASumsURL = signedUrl
+		p.SHASumsURL = shaSumsURL
 
-		signedUrl, err = s.proxy.GetProxyUrl(ctx, p.SHASumsSignatureURL)
+		shaSumsSignatureURL, err := s.proxy.GetProxyUrl(ctx, p.SHASumsSignatureURL)
 		if err != nil {
 			return p, err
 		}
-		p.SHASumsSignatureURL = signedUrl
+		p.SHASumsSignatureURL = shaSumsSignatureURL
 	}
 
 	return p, err
