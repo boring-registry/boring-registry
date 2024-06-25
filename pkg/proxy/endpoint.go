@@ -84,7 +84,7 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 
 // Extract zip filename from the path part of the URL, which should be located at the end of the path
 func getFileNameFromURL(downloadUrl string) (string, error) {
-	parsedUrl, err := url.Parse(downloadUrl)
+	parsedUrl, err := url.ParseRequestURI(downloadUrl)
 	if err != nil {
 		return "", fmt.Errorf("downloadUrl cannot be parsed: %s", downloadUrl)
 	}

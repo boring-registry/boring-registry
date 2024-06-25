@@ -44,7 +44,7 @@ func (p *proxyUrlService) GetProxyUrl(ctx context.Context, downloadUrl string) (
 		return "", fmt.Errorf("%w: rootUrl is not in context", ErrVarMissing)
 	}
 
-	parsedUrl, err := url.Parse(downloadUrl)
+	parsedUrl, err := url.ParseRequestURI(downloadUrl)
 	if err != nil {
 		return "", fmt.Errorf("downloadUrl cannot be parsed: %s", downloadUrl)
 	}
