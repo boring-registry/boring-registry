@@ -28,7 +28,7 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		input := request.(proxyRequest)
 
-		metrics.Download.With(prometheus.Labels{}).Inc()
+		metrics.Download.With(nil).Inc()
 
 		downloadUrl, err := storage.GetDownloadUrl(ctx, input.url)
 		if err != nil {
