@@ -86,7 +86,7 @@ func copyHeadersAndBody(_ context.Context, w http.ResponseWriter, response inter
 func ErrorEncoder(_ context.Context, err error, w http.ResponseWriter) {
 	if errors.Is(err, ErrInvalidRequestUrl) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-	} else if errors.Is(err, ErrCantDownloadFile) {
+	} else if errors.Is(err, ErrCannotDownloadFile) {
 		w.WriteHeader(http.StatusBadGateway)
 	} else {
 		w.WriteHeader(core.GenericError(err))

@@ -13,7 +13,8 @@ type muxVar string
 
 const (
 	RootUrlContextKey muxVar = "rootUrl"
-)
+)49
+
 
 // ProxyUrlService represents Boring tool to manage proxyfied downloads.
 type ProxyUrlService interface {
@@ -46,13 +47,13 @@ func (p *proxyUrlService) GetProxyUrl(ctx context.Context, downloadUrl string) (
 
 	parsedUrl, err := url.ParseRequestURI(downloadUrl)
 	if err != nil {
-		return "", fmt.Errorf("downloadUrl cannot be parsed: %s", downloadUrl)
+		return "", fmt.Errorf("downloadUrl cannot be parsed '%s': %w", downloadUrl, err))
 	}
 
 	baseUrl := fmt.Sprintf("%s://%s/", parsedUrl.Scheme, parsedUrl.Host)
 	pathUrl := downloadUrl[len(baseUrl):]
-	excapedUrl := url.QueryEscape(pathUrl)
-	finalUrl := fmt.Sprintf("%s%s/%s", rootUrl, p.ProxyPath, excapedUrl)
+	escapedUrl := url.QueryEscape(pathUrl)
+	finalUrl := fmt.Sprintf("%s%s/%s", rootUrl, p.ProxyPath, escapedUrl)
 	return finalUrl, nil
 }
 

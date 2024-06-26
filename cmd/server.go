@@ -44,6 +44,9 @@ var (
 )
 
 var (
+	// Proxy options.
+	flagProxy bool
+
 	// General server options.
 	flagTLSCertFile         string
 	flagTLSKeyFile          string
@@ -182,6 +185,9 @@ func init() {
 	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules, specified without the leading dot")
+
+	// Proxy options.
+	serverCmd.PersistentFlags().BoolVar(&flagProxy, "download-proxy", false, "Enable proxying download request to remote storage")
 
 	// Static auth options.
 	serverCmd.Flags().StringSliceVar(&flagAuthStaticTokens, "auth-static-token", nil, "Static API token to protect the boring-registry")

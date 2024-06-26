@@ -54,7 +54,7 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 			metrics.Failure.With(prometheus.Labels{
 				o11y.ProxyFailureLabel: o11y.ProxyFailureDownload,
 			}).Inc()
-			return nil, ErrCantDownloadFile
+			return nil, ErrCannotDownloadFile
 		}
 
 		headers := resp.Header.Clone()
@@ -82,7 +82,7 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 func getFileNameFromURL(downloadUrl string) (string, error) {
 	parsedUrl, err := url.ParseRequestURI(downloadUrl)
 	if err != nil {
-		return "", fmt.Errorf("downloadUrl cannot be parsed: %s", downloadUrl)
+		return "", fmt.Errorf("downloadUrl cannot be parsed '%s': %w", downloadUrl, err)
 	}
 
 	lastIndex := strings.LastIndex(parsedUrl.Path, "/")
