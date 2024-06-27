@@ -70,7 +70,7 @@ func ExtractRootUrl() httptransport.RequestFunc {
 
 // Get the root part of the URL of the request
 func getRootURLFromRequest(r *http.Request) string {
-	// Find the protocol (http ou https)
+	// Find the protocol (http or https)
 	var protocol string
 	if r.TLS != nil {
 		protocol = "https://"
