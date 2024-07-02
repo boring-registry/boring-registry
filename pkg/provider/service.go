@@ -15,17 +15,44 @@ type Service interface {
 
 type service struct {
 	storage Storage
+	proxy   core.ProxyUrlService
 }
 
 // NewService returns a fully initialized Service.
-func NewService(storage Storage) Service {
+func NewService(storage Storage, proxy core.ProxyUrlService) Service {
 	return &service{
 		storage: storage,
+		proxy:   proxy,
 	}
 }
 
 func (s *service) GetProvider(ctx context.Context, namespace, name, version, os, arch string) (*core.Provider, error) {
-	return s.storage.GetProvider(ctx, namespace, name, version, os, arch)
+	p, err := s.storage.GetProvider(ctx, namespace, name, version, os, arch)
+	if err != nil {
+		return p, err
+	}
+
+	if s.proxy.IsProxyEnabled(ctx) {
+		downloadUrl, err := s.proxy.GetProxyUrl(ctx, p.DownloadURL)
+		if err != nil {
+			return p, err
+		}
+		p.DownloadURL = downloadUrl
+
+		shaSumsURL, err := s.proxy.GetProxyUrl(ctx, p.SHASumsURL)
+		if err != nil {
+			return p, err
+		}
+		p.SHASumsURL = shaSumsURL
+
+		shaSumsSignatureURL, err := s.proxy.GetProxyUrl(ctx, p.SHASumsSignatureURL)
+		if err != nil {
+			return p, err
+		}
+		p.SHASumsSignatureURL = shaSumsSignatureURL
+	}
+
+	return p, err
 }
 
 func (s *service) ListProviderVersions(ctx context.Context, namespace, name string) (*core.ProviderVersions, error) {

@@ -435,6 +435,10 @@ func (s *GCSStorage) objectExists(ctx context.Context, key string) (bool, error)
 	return true, nil
 }
 
+func (s *GCSStorage) GetDownloadUrl(ctx context.Context, url string) (string, error) {
+	return fmt.Sprintf("https://storage.googleapis.com/%s", url), nil
+}
+
 // GCSStorageOption provides additional options for the GCSStorage.
 type GCSStorageOption func(*GCSStorage)
 
