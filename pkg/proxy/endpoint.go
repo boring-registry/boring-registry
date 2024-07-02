@@ -59,12 +59,14 @@ func proxyEndpoint(storage Storage, metrics *o11y.ProxyMetrics) endpoint.Endpoin
 
 		headers := resp.Header.Clone()
 
-		// Add Content-Disposition header if not there
-		_, ok := headers["Content-Disposition"]
-		if !ok {
-			fileName, err := getFileNameFromURL(downloadUrl)
-			if err == nil {
-				headers.Add("Content-Disposition", `attachment;filename="`+fileName+`"`)
+		if resp.StatusCode == 200 {
+			// Add Content-Disposition header if not there
+			_, ok := headers["Content-Disposition"]
+			if !ok {
+				fileName, err := getFileNameFromURL(downloadUrl)
+				if err == nil {
+					headers.Add("Content-Disposition", `attachment;filename="`+fileName+`"`)
+				}
 			}
 		}
 

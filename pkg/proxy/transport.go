@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
@@ -26,7 +25,7 @@ const (
 func MakeHandler(storage Storage, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
-	r.Methods("GET").Path(`/{url}`).Handler(
+	r.Methods("GET").Path(`/{url:.*}`).Handler(
 		instrumentation.WrapHandler(
 			httptransport.NewServer(
 				proxyEndpoint(storage, metrics),
@@ -46,18 +45,15 @@ func MakeHandler(storage Storage, metrics *o11y.ProxyMetrics, instrumentation o1
 
 // decodeProxyRequest translates request's paths into an object representing the request
 func decodeProxyRequest(ctx context.Context, r *http.Request) (interface{}, error) {
-	encodedUrl, ok := ctx.Value(varUrl).(string)
+	downloadUrl, ok := ctx.Value(varUrl).(string)
 	if !ok {
 		return nil, fmt.Errorf("%w: url", core.ErrVarMissing)
 	}
 
-	decodedUrl, err := url.QueryUnescape(encodedUrl)
-	if err != nil {
-		return nil, err
-	}
+	completeUrl := downloadUrl + "?" + r.URL.RawQuery
 
 	return proxyRequest{
-		url: string(decodedUrl),
+		url: completeUrl,
 	}, nil
 }
 

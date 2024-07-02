@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"net/url"
 	"testing"
 
 	assertion "github.com/stretchr/testify/assert"
@@ -33,7 +32,7 @@ func TestProxifier_GetProxyUrl(t *testing.T) {
 			service:     NewProxyUrlService(true, prefixProxy),
 			downloadUrl: downloadUrl,
 			rootUrl:     rootDomain,
-			expectedUrl: rootDomain + prefixProxy + "/" + url.QueryEscape(downloadUrlPath),
+			expectedUrl: rootDomain + prefixProxy + "/" + downloadUrlPath,
 			expectError: false,
 		},
 		{
