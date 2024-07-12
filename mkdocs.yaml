@@ -1,0 +1,94 @@
+site_name: boring-registry
+site_author: boring-registry maintainers
+repo_name: boring-registry/boring-registry
+repo_url: https://github.com/boring-registry/boring-registry/
+
+docs_dir: docs
+
+nav:
+  - README.md
+  - Installation:
+    - Helm: installation/helm.md
+    - Docker: installation/docker.md
+    - Source: installation/source.md
+  - Configuration:
+    - Introduction: configuration/introduction.md
+    - Storage Layout: configuration/storage-layout.md
+    - Storage Backends:
+      - AWS S3: configuration/storage-backends/aws-s3.md
+      - Azure Blob Storage: configuration/storage-backends/azure-blob-storage.md
+      - Google Cloud Storage: configuration/storage-backends/google-cloud-storage.md
+      - MinIO: configuration/storage-backends/minio.md
+    - Authentication:
+      - API Token: configuration/authentication/api-token.md
+      - Okta: configuration/authentication/okta.md
+    - Download Proxy: configuration/download-proxy.md
+    - Provider Network Mirror: configuration/provider-network-mirror.md
+    - Tasks:
+      - Publish Modules: configuration/tasks/publish-modules.md
+      - Publish Providers: configuration/tasks/publish-providers.md
+
+theme:
+  name: material
+  features:
+    - content.code.annotate
+    - navigation.top
+    - navigation.tracking
+    - navigation.indexes
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+
+extra:
+  version:
+    provider: mike
+
+markdown_extensions:
+  - meta
+  - tables
+  - toc:
+      permalink: true
+  - abbr
+  - extra
+  - admonition
+  - smarty
+  - sane_lists
+  - nl2br
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      use_pygments: true
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tilde
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+plugins:
+  - search
+  - literate-nav
+  - git-revision-date-localized:
+      type: date
+      fallback_to_build_date: true
