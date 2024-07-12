@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/auth"
+	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
 	"github.com/boring-registry/boring-registry/pkg/mirror"
 	"github.com/boring-registry/boring-registry/pkg/module"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 	"github.com/boring-registry/boring-registry/pkg/provider"
+	"github.com/boring-registry/boring-registry/pkg/proxy"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/go-kit/kit/endpoint"
@@ -38,9 +40,13 @@ var (
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
 	prefixMirror    = fmt.Sprintf("%s/mirror", prefix)
+	prefixProxy     = fmt.Sprintf("%s/proxy", prefix)
 )
 
 var (
+	// Proxy options.
+	flagProxy bool
+
 	// General server options.
 	flagTLSCertFile         string
 	flagTLSKeyFile          string
@@ -180,6 +186,9 @@ func init() {
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules, specified without the leading dot")
 
+	// Proxy options.
+	serverCmd.PersistentFlags().BoolVar(&flagProxy, "download-proxy", false, "Enable proxying download request to remote storage")
+
 	// Static auth options.
 	serverCmd.Flags().StringSliceVar(&flagAuthStaticTokens, "auth-static-token", nil, "Static API token to protect the boring-registry")
 
@@ -288,12 +297,20 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	if err := registerModule(mux, s, metrics.Module, instrumentation); err != nil {
+	proxyUrlService := core.NewProxyUrlService(flagProxy, prefixProxy)
+
+	if err := registerModule(mux, s, metrics.Module, instrumentation, proxyUrlService); err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux, s, metrics.Provider, instrumentation); err != nil {
+	if err := registerProvider(mux, s, metrics.Provider, instrumentation, proxyUrlService); err != nil {
 		return nil, err
+	}
+
+	if flagProxy {
+		if err := registerProxy(mux, s, metrics.Proxy, instrumentation); err != nil {
+			return nil, err
+		}
 	}
 
 	if flagProviderNetworkMirrorEnabled {
@@ -327,8 +344,8 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware) error {
-	service := module.NewService(s)
+func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
+	service := module.NewService(s, proxyUrlService)
 	{
 		service = module.LoggingMiddleware()(service)
 	}
@@ -371,8 +388,8 @@ func authMiddleware() endpoint.Middleware {
 	return auth.Middleware(providers...)
 }
 
-func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware) error {
-	service := provider.NewService(s)
+func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
+	service := provider.NewService(s, proxyUrlService)
 	{
 		service = provider.LoggingMiddleware()(service)
 	}
@@ -418,6 +435,30 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, m
 			mirror.MakeHandler(
 				service,
 				authMiddleware(),
+				metrics,
+				instrumentation,
+				opts...,
+			),
+		),
+	)
+
+	return nil
+}
+
+func registerProxy(mux *http.ServeMux, storage storage.Storage, metrics *o11y.ProxyMetrics, instrumentation o11y.Middleware) error {
+	opts := []httptransport.ServerOption{
+		httptransport.ServerErrorEncoder(proxy.ErrorEncoder),
+		httptransport.ServerBefore(
+			httptransport.PopulateRequestContext,
+		),
+	}
+
+	mux.Handle(
+		fmt.Sprintf(`%s/`, prefixProxy),
+		http.StripPrefix(
+			prefixProxy,
+			proxy.MakeHandler(
+				storage,
 				metrics,
 				instrumentation,
 				opts...,

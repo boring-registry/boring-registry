@@ -79,7 +79,8 @@ func TestService_GetModule(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage()
-				svc     = NewService(storage)
+				proxy   = core.NewProxyUrlService(false, "/proxy")
+				svc     = NewService(storage, proxy)
 			)
 
 			_, err := storage.UploadModule(ctx, tc.module.Namespace, tc.module.Name, tc.module.Provider, tc.module.Version, tc.data)
@@ -159,7 +160,8 @@ func TestService_ListModuleVersions(t *testing.T) {
 			var (
 				ctx     = context.Background()
 				storage = NewInmemStorage(WithInmemArchiveFormat(tc.format))
-				svc     = NewService(storage)
+				proxy   = core.NewProxyUrlService(false, "/proxy")
+				svc     = NewService(storage, proxy)
 			)
 
 			// Make sure this test case is actually doing something

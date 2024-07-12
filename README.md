@@ -125,6 +125,14 @@ credentials "boring-registry.example.com" {
 }
 ```
 
+### Proxy
+
+By default the boring-registry return pre-signed URLs, pointing to the remote storage, as download URLs for the Terraform CLI. The boring-registry can be configured with a flag to serve as a proxy to deliver the files directly from boring-registry instead of redirecting to the remote storage.
+
+You can activate the proxy by using the `--proxy` flag or by providing it as an environment variable `BORING_REGISTRY_PROXY=true`.
+
+***Note :** If activated, the flag proxy will be applied to modules and providers, but not mirrors.*
+
 ## Internal Storage Layout
 
 The boring-registry is using the following storage layout inside the storage backend:

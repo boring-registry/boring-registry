@@ -8,6 +8,7 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/mirror"
 	"github.com/boring-registry/boring-registry/pkg/module"
 	"github.com/boring-registry/boring-registry/pkg/provider"
+	"github.com/boring-registry/boring-registry/pkg/proxy"
 )
 
 const (
@@ -18,6 +19,7 @@ type Storage interface {
 	provider.Storage
 	module.Storage
 	mirror.Storage
+	proxy.Storage
 }
 
 // unmarshalSigningKeys tries to unmarshal the byte-array into core.SigningKeys, and if that fails into core.GPGPublicKey.

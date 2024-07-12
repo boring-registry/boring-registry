@@ -6,19 +6,25 @@ import (
 )
 
 const (
-	HostnameLabel  = "hostname"
-	NamespaceLabel = "namespace"
-	NameLabel      = "name"
-	ProviderLabel  = "provider"
-	VersionLabel   = "version"
-	OsLabel        = "os"
-	ArchLabel      = "arch"
+	HostnameLabel     = "hostname"
+	NamespaceLabel    = "namespace"
+	NameLabel         = "name"
+	ProviderLabel     = "provider"
+	VersionLabel      = "version"
+	OsLabel           = "os"
+	ArchLabel         = "arch"
+	ProxyFailureLabel = "failure"
+
+	ProxyFailureUrl      = "bad-url"
+	ProxyFailureRequest  = "invalid-request"
+	ProxyFailureDownload = "download"
 )
 
 type ServerMetrics struct {
 	Mirror   *MirrorMetrics
 	Module   *ModuleMetrics
 	Provider *ProviderMetrics
+	Proxy    *ProxyMetrics
 	Http     *HttpMetrics
 }
 type MirrorMetrics struct {
@@ -34,6 +40,10 @@ type ProviderMetrics struct {
 	ListVersions *prometheus.CounterVec
 	Download     *prometheus.CounterVec
 }
+type ProxyMetrics struct {
+	Download *prometheus.CounterVec
+	Failure  *prometheus.CounterVec
+}
 type HttpMetrics struct {
 	RequestsTotal   *prometheus.CounterVec
 	RequestDuration *prometheus.HistogramVec
@@ -47,6 +57,7 @@ func NewMetrics(buckets []float64) *ServerMetrics {
 
 	mirrorsSubsystem := "mirrors"
 	providersSubsystem := "providers"
+	proxySubsystem := "proxy"
 	modulesSubsystem := "modules"
 	requestSubsystem := "request"
 	responseSubsystem := "response"
@@ -123,6 +134,26 @@ func NewMetrics(buckets []float64) *ServerMetrics {
 					Help:      "The total number of module download requests",
 				},
 				[]string{NamespaceLabel, NameLabel, ProviderLabel, VersionLabel},
+			),
+		},
+		Proxy: &ProxyMetrics{
+			Download: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: boringNamespace,
+					Subsystem: proxySubsystem,
+					Name:      "download_total",
+					Help:      "The total number of download requests",
+				},
+				[]string{},
+			),
+			Failure: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: boringNamespace,
+					Subsystem: proxySubsystem,
+					Name:      "download_failure_total",
+					Help:      "The total number of download failures",
+				},
+				[]string{ProxyFailureLabel},
 			),
 		},
 		Http: &HttpMetrics{

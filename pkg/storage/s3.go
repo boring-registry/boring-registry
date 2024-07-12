@@ -439,6 +439,10 @@ func (s *S3Storage) download(ctx context.Context, key string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func (s *S3Storage) GetDownloadUrl(ctx context.Context, url string) (string, error) {
+	return fmt.Sprintf("%s/%s", s.bucketEndpoint, url), nil
+}
+
 // S3StorageOption provides additional options for the S3Storage.
 type S3StorageOption func(*S3Storage)
 

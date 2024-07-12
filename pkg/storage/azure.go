@@ -393,6 +393,10 @@ func (s *AzureStorage) download(ctx context.Context, key string) ([]byte, error)
 	return data, nil
 }
 
+func (s *AzureStorage) GetDownloadUrl(ctx context.Context, url string) (string, error) {
+	return fmt.Sprintf("%s%s", s.client.URL(), url), nil
+}
+
 // AzureStorageOption provides additional options for the AzureStorage.
 type AzureStorageOption func(*AzureStorage)
 
