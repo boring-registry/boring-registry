@@ -1,0 +1,6 @@
+mike == 2.1.2
+mkdocs == 1.5.3
+mkdocs-git-revision-date-localized-plugin == 1.2.6
+mkdocs-literate-nav == 0.6.1
+mkdocs-material == 9.5.29
+mkdocs-same-dir == 0.1.3
