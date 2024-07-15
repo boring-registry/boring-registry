@@ -20,4 +20,4 @@ More information about the supported object storage solutions can be found here:
 - [AWS S3](./storage-backends/aws-s3.md)
 - [Azure Blob Storage](./storage-backends/azure-blob-storage.md)
 - [Google Cloud Storage](./storage-backends/google-cloud-storage.md)
-- [MinIo](./storage-backends/minio.md)
+- [MinIO](./storage-backends/minio.md)
