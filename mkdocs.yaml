@@ -24,9 +24,9 @@ nav:
       - Okta: configuration/authentication/okta.md
     - Download Proxy: configuration/download-proxy.md
     - Provider Network Mirror: configuration/provider-network-mirror.md
-    - Tasks:
-      - Publish Modules: configuration/tasks/publish-modules.md
-      - Publish Providers: configuration/tasks/publish-providers.md
+  - Tasks:
+    - Publish Modules: tasks/publish-modules.md
+    - Publish Providers: tasks/publish-providers.md
 
 theme:
   name: material

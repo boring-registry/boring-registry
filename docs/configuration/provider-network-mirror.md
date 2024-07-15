@@ -1,6 +1,5 @@
 # Provider Network Mirror
 
-> [!NOTE]
 > The Provider Network Mirror feature is available starting from `v0.12.0`.
 > The Network Mirror is enabled by default, but can be disabled with `--network-mirror=false`.
 
@@ -17,7 +16,7 @@ provider_installation {
 ```
 
 To populate the mirror, the provider release artifacts need to be uploaded to the storage backend.
-Refer to the [Internal Storage Layout](#internal-storage-layout) section for an overview of the required structure.
+Refer to the [Internal Storage Layout](./storage-layout.md) documentation for an overview of the required structure.
 The [`terraform providers mirror`](https://developer.hashicorp.com/terraform/cli/commands/providers/mirror) command is a good starting point for collecting the necessary files.
 
 ## Pull-through mirror
