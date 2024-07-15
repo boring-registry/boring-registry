@@ -19,3 +19,6 @@
 # Helm related files
 *.tgz
 Chart.lock
+
+# mkdocs
+site
