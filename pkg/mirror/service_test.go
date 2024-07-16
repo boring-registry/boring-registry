@@ -78,7 +78,7 @@ func Test_pullThroughMirror_ListProviderVersions(t *testing.T) {
 	}{
 		{
 			name: "expired context",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						<-ctx.Done()
@@ -101,7 +101,7 @@ func Test_pullThroughMirror_ListProviderVersions(t *testing.T) {
 		},
 		{
 			name: "failed to retrieve from upstream and from mirror",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						// mock url.Error from client to upstream to simulate unavailable upstream
@@ -123,7 +123,7 @@ func Test_pullThroughMirror_ListProviderVersions(t *testing.T) {
 		},
 		{
 			name: "valid upstream response",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return &core.ProviderVersions{
@@ -151,7 +151,7 @@ func Test_pullThroughMirror_ListProviderVersions(t *testing.T) {
 		},
 		{
 			name: "upstream unavailable, response from mirror",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						// mock url.Error from client to upstream to simulate unavailable upstream
@@ -234,7 +234,7 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 	}{
 		{
 			name: "failed to retrieve from upstream and from mirror",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return nil, &url.Error{}
@@ -263,7 +263,7 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 			name: "dissimilar platforms for the versions",
 			// This test case replicates the condition under which this bug occurred:
 			// https://github.com/boring-registry/boring-registry/pull/143#discussion_r1335798065
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return &core.ProviderVersions{
@@ -337,7 +337,7 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 		},
 		{
 			name: "requested version not in upstream versions but in mirror versions",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return &core.ProviderVersions{
@@ -428,7 +428,7 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 		},
 		{
 			name: "successfully retrieve response from upstream",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return &core.ProviderVersions{
@@ -503,7 +503,7 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 		},
 		{
 			name: "upstream fails but mirror succeeds",
-			svc: &pullTroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 						return nil, &url.Error{}
@@ -604,14 +604,14 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		svc     pullTroughMirror
+		svc     pullThroughMirror
 		args    args
 		want    *retrieveProviderArchiveResponse
 		wantErr bool
 	}{
 		{
 			name: "provider exists in the mirror",
-			svc: pullTroughMirror{
+			svc: pullThroughMirror{
 				mirror: &mirror{
 					storage: &mockedStorage{
 						getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -637,7 +637,7 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 		},
 		{
 			name: "a non-core.ProviderError happened while looking up the provider in the mirror",
-			svc: pullTroughMirror{
+			svc: pullThroughMirror{
 				mirror: &mirror{
 					storage: &mockedStorage{
 						getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -650,7 +650,7 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 		},
 		{
 			name: "error when retrieving the provider from upstram",
-			svc: pullTroughMirror{
+			svc: pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customGetProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
 						return nil, errors.New("mocked error")
