@@ -78,13 +78,13 @@ func NewMirror(s Storage) Service {
 	}
 }
 
-type pullTroughMirror struct {
+type pullThroughMirror struct {
 	upstream upstreamProvider
 	mirror   Service
 	copier   Copier
 }
 
-func (p *pullTroughMirror) ListProviderVersions(ctx context.Context, provider *core.Provider) (*ListProviderVersionsResponse, error) {
+func (p *pullThroughMirror) ListProviderVersions(ctx context.Context, provider *core.Provider) (*ListProviderVersionsResponse, error) {
 	upstreamCtx, cancelUpstreamCtx := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelUpstreamCtx()
 	providerVersionsResponse, err := p.upstream.listProviderVersions(upstreamCtx, provider)
@@ -103,7 +103,7 @@ func (p *pullTroughMirror) ListProviderVersions(ctx context.Context, provider *c
 	return p.mirror.ListProviderVersions(ctx, provider)
 }
 
-func (p *pullTroughMirror) ListProviderInstallation(ctx context.Context, provider *core.Provider) (*ListProviderInstallationResponse, error) {
+func (p *pullThroughMirror) ListProviderInstallation(ctx context.Context, provider *core.Provider) (*ListProviderInstallationResponse, error) {
 	upstreamCtx, cancelUpstreamCtx := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelUpstreamCtx()
 	response, err := p.upstream.listProviderVersions(upstreamCtx, provider)
@@ -133,7 +133,7 @@ func (p *pullTroughMirror) ListProviderInstallation(ctx context.Context, provide
 	return p.mirror.ListProviderInstallation(ctx, provider)
 }
 
-func (p *pullTroughMirror) RetrieveProviderArchive(ctx context.Context, provider *core.Provider) (*retrieveProviderArchiveResponse, error) {
+func (p *pullThroughMirror) RetrieveProviderArchive(ctx context.Context, provider *core.Provider) (*retrieveProviderArchiveResponse, error) {
 	// If it's in the cache, then redirect to storage
 	mirrored, err := p.mirror.RetrieveProviderArchive(ctx, provider)
 	if err == nil {
@@ -160,7 +160,7 @@ func (p *pullTroughMirror) RetrieveProviderArchive(ctx context.Context, provider
 	}, nil
 }
 
-func (p *pullTroughMirror) upstreamSha256Sums(ctx context.Context, provider *core.Provider, versions *core.ProviderVersions) (*core.Sha256Sums, error) {
+func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *core.Provider, versions *core.ProviderVersions) (*core.Sha256Sums, error) {
 	if len(versions.Versions) == 0 || len(versions.Versions[0].Platforms) == 0 {
 		return nil, errors.New("core.ProviderVersions doesn't contain any platforms")
 	}
@@ -185,7 +185,7 @@ func (p *pullTroughMirror) upstreamSha256Sums(ctx context.Context, provider *cor
 
 func NewPullThroughMirror(s Storage, c Copier) Service {
 	remoteServiceDiscovery := discovery.NewRemoteServiceDiscovery(http.DefaultClient)
-	svc := &pullTroughMirror{
+	svc := &pullThroughMirror{
 		upstream: newUpstreamProviderRegistry(remoteServiceDiscovery),
 		mirror: &mirror{
 			storage: s,
