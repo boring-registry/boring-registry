@@ -19,7 +19,7 @@ Support for the [Module Registry Protocol](https://www.terraform.io/internals/mo
 ## Installation
 
 Boring-registry can be installed in various ways, among others we offer a container image and also support the installation with Helm on Kubernetes.
-Learn more about the installation [in our documentation](https://boring-registry.github.io/boring-registry/v0.14.0/installation/helm/).
+Learn more about the installation [in our documentation](https://boring-registry.github.io/boring-registry/latest/installation/helm/).
 
 ## Configuration
 
