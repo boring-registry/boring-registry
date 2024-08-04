@@ -134,7 +134,7 @@ func archiveModule(root string) (io.Reader, error) {
 		}
 
 		// update the name to correctly reflect the desired destination when untaring
-		header.Name = strings.TrimPrefix(strings.Replace(path, root, "", -1), string(filepath.Separator))
+		header.Name = archiveFileHeaderName(path, root)
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
@@ -175,4 +175,24 @@ func meetsSemverConstraints(spec *module.Spec) (bool, error) {
 // Returns a boolean indicating if the module meets the constraints
 func meetsRegexConstraints(spec *module.Spec) bool {
 	return versionConstraintsRegex.MatchString(spec.Metadata.Version)
+}
+
+func archiveFileHeaderName(path, root string) string {
+	// Check if the module is uploaded non-recursively from the current directory
+	if root == "." {
+		return path
+	}
+
+	// Remove the root prefix from the path
+	if strings.HasPrefix(path, root) {
+		relativePath := strings.TrimPrefix(path, root)
+
+		// the leading slash needs to be removed
+		if strings.HasPrefix(relativePath, "/") {
+			relativePath = relativePath[1:]
+		}
+		return relativePath
+	}
+
+	return path
 }
