@@ -3,16 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
-
-	httptransport "github.com/go-kit/kit/transport/http"
-)
-
-type muxVar string
-
-const (
-	RootUrlContextKey muxVar = "rootUrl"
 )
 
 // ProxyUrlService represents Boring tool to manage proxyfied downloads.
@@ -39,10 +30,6 @@ func (p *proxyUrlService) IsProxyEnabled(ctx context.Context) bool {
 }
 
 func (p *proxyUrlService) GetProxyUrl(ctx context.Context, downloadUrl string) (string, error) {
-	rootUrl, ok := ctx.Value(RootUrlContextKey).(string)
-	if !ok {
-		return "", fmt.Errorf("%w: rootUrl is not in context", ErrVarMissing)
-	}
 
 	parsedUrl, err := url.ParseRequestURI(downloadUrl)
 	if err != nil {
@@ -51,34 +38,7 @@ func (p *proxyUrlService) GetProxyUrl(ctx context.Context, downloadUrl string) (
 
 	baseUrl := fmt.Sprintf("%s://%s/", parsedUrl.Scheme, parsedUrl.Host)
 	pathUrl := downloadUrl[len(baseUrl):]
-	finalUrl := fmt.Sprintf("%s%s/%s", rootUrl, p.ProxyPath, pathUrl)
+	finalUrl := fmt.Sprintf("%s/%s", p.ProxyPath, pathUrl)
 
 	return finalUrl, nil
-}
-
-// ExtractRootUrl return an URl composed of the scheme (http or https) and the host of the incoming request
-func ExtractRootUrl() httptransport.RequestFunc {
-	return func(ctx context.Context, r *http.Request) context.Context {
-		rootUrl := getRootURLFromRequest(r)
-
-		// Add the rootUrl to the context
-		ctx = context.WithValue(ctx, RootUrlContextKey, rootUrl)
-
-		return ctx
-	}
-}
-
-// Get the root part of the URL of the request
-func getRootURLFromRequest(r *http.Request) string {
-	// Find the protocol (http or https)
-	var protocol string
-	if r.TLS != nil {
-		protocol = "https://"
-	} else {
-		protocol = "http://"
-	}
-
-	// Build root URL
-	rootUrl := protocol + r.Host
-	return rootUrl
 }

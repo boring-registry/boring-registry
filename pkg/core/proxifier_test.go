@@ -57,10 +57,6 @@ func TestProxifier_GetProxyUrl(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			if tc.rootUrl != "" {
-				ctx = context.WithValue(ctx, RootUrlContextKey, tc.rootUrl)
-			}
-
 			url, err := tc.service.GetProxyUrl(ctx, tc.downloadUrl)
 
 			if tc.expectError {
