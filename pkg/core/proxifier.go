@@ -30,7 +30,6 @@ func (p *proxyUrlService) IsProxyEnabled(ctx context.Context) bool {
 }
 
 func (p *proxyUrlService) GetProxyUrl(ctx context.Context, downloadUrl string) (string, error) {
-
 	parsedUrl, err := url.ParseRequestURI(downloadUrl)
 	if err != nil {
 		return "", fmt.Errorf("downloadUrl cannot be parsed '%s': %w", downloadUrl, err)
