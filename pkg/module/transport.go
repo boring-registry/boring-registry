@@ -52,7 +52,6 @@ func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.ModuleMetr
 				append(
 					options,
 					httptransport.ServerBefore(extractMuxVars(varNamespace, varName, varProvider, varVersion)),
-					httptransport.ServerBefore(core.ExtractRootUrl()),
 					httptransport.ServerBefore(jwt.HTTPToContext()),
 				)...,
 			),
