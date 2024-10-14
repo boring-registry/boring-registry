@@ -120,12 +120,12 @@ func (r *RemoteServiceDiscovery) wellKnownEndpoint(ctx context.Context, host str
 
 	resp, err := r.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve well known endpoint for %s: %w", host, err)
+		return nil, fmt.Errorf("failed to retrieve well known endpoint for %s: %w", u.String(), err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to resolve well known endpoint for %s: status code is %d", host, resp.StatusCode)
+		return nil, fmt.Errorf("failed to resolve well known endpoint for %s: status code is %d", u.String(), resp.StatusCode)
 	}
 
 	if value := resp.Header.Get(contentTypeKey); value != applicationJson {
