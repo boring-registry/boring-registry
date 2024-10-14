@@ -170,10 +170,17 @@ func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *co
 	clone := provider.Clone()
 	for _, v := range versions.Versions {
 		if v.Version == provider.Version {
+			if len(v.Platforms) < 1 {
+				continue
+			}
 			clone.OS = v.Platforms[0].OS
 			clone.Arch = v.Platforms[0].Arch
 			break
 		}
+	}
+
+	if clone.OS == "" || clone.Arch == "" {
+		return nil, errors.New("core.ProviderVersions doesn't contain any OS and/or Arch")
 	}
 
 	providerUpstream, err := p.upstream.getProvider(ctx, clone)
