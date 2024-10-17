@@ -161,8 +161,8 @@ func (p *pullThroughMirror) RetrieveProviderArchive(ctx context.Context, provide
 }
 
 func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *core.Provider, versions *core.ProviderVersions) (*core.Sha256Sums, error) {
-	if len(versions.Versions) == 0 || len(versions.Versions[0].Platforms) == 0 {
-		return nil, errors.New("core.ProviderVersions doesn't contain any platforms")
+	if len(versions.Versions) == 0 {
+		return nil, errors.New("core.ProviderVersions doesn't contain any versions")
 	}
 
 	// To retrieve the SHA256SUM, we need to construct a core.Provider that has all required fields set to download the provider from upstream.

@@ -167,17 +167,21 @@ func addAuthToken(ctx context.Context, w http.ResponseWriter, response interface
 
 	if !listResponse.isMirror {
 		t := ctx.Value(jwt.JWTContextKey)
-		token, ok := t.(string)
-		if !ok {
-			return errors.New("failed to type assert to string")
+		var token string
+		if t != nil {
+			token, ok = t.(string)
+			if !ok {
+				return errors.New("failed to type assert to string")
+			}
 		}
-
 		for k, a := range listResponse.Archives {
 			parsed, err := url.Parse(a.Url)
 			if err != nil {
 				return err
 			}
-			parsed.RawQuery = fmt.Sprintf("token=%s", token)
+			if token != "" {
+				parsed.RawQuery = fmt.Sprintf("token=%s", token)
+			}
 			a.Url = parsed.String()
 			listResponse.Archives[k] = a
 		}
