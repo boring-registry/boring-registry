@@ -134,6 +134,35 @@ spec:
               port: telemetry
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+        {{- if .Values.proxy.enabled }}
+        # Sidecar Nginx container
+        - name: nginx
+          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag | default "latest" }}"
+          ports:
+            - containerPort: 80
+              name: nginx
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: ephemeral
+              mountPath: "/var/cache/nginx"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: ephemeral
+          emptyDir:
+            sizeLimit: "{{- .Values.proxy.cache.maxSize }}M"
+      {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

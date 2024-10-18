@@ -1,0 +1,34 @@
+{{- if .Values.proxy.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  labels:
+    {{- include "boring-registry.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes 1;
+    events { worker_connections 1024; }
+
+    http {
+      proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.proxy.cache.maxSize }}m inactive=60m use_temp_path=off;
+
+      server {
+        listen 80;
+
+        location / {
+          access_log off;
+          proxy_cache my_cache;
+          proxy_cache_valid 200 302 {{ .Values.proxy.cache.hit }};
+          proxy_cache_valid 404 {{ .Values.proxy.cache.miss }};
+          proxy_pass http://localhost:{{ .Values.server.port }};
+        }
+
+        location /healthz {
+          access_log off;
+          return 200 'OK';
+          add_header Content-Type text/plain;
+        }
+      }
+    }
+{{- end }}

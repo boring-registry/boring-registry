@@ -116,3 +116,13 @@ server:
     #   prefix: ""
     #   saEmail: ""
     #   signedURL: false
+proxy:
+  enabled: false
+  image:
+    repository: nginx
+    tag: 1.27
+    pullPolicy: IfNotPresent
+  cache:
+    hit: 15m # 200
+    miss: 1m # 404
+    maxSize: 500 # Megabyte; nginx and k8s use different short names for it :facepalm:
