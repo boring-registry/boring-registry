@@ -123,6 +123,7 @@ proxy:
     tag: 1.27
     pullPolicy: IfNotPresent
   cache:
-    hit: 15m # 200
+    hit: 15m # 200 302
+    download: 5m # 204 307
     miss: 1m # 404
     maxSize: 500 # Megabyte; nginx and k8s use different short names for it :facepalm:

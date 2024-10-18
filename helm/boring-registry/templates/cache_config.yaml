@@ -19,7 +19,8 @@ data:
         location / {
           access_log off;
           proxy_cache my_cache;
-          proxy_cache_valid 200 204 302 {{ .Values.proxy.cache.hit }};
+          proxy_cache_valid 200 302 {{ .Values.proxy.cache.hit }};
+          proxy_cache_valid 204 307 {{ .Values.proxy.cache.download }}; # br gives back signed URLs with `X-Amz-Expires=300` for S3
           proxy_cache_valid 404 {{ .Values.proxy.cache.miss }};
           proxy_cache_revalidate on;
           proxy_pass http://localhost:{{ .Values.server.port }};
