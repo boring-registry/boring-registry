@@ -134,10 +134,10 @@ spec:
               port: telemetry
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-        {{- if .Values.proxy.enabled }}
+        {{- if .Values.cachingProxy.enabled }}
         # Sidecar Nginx container
         - name: nginx
-          image: "{{ .Values.proxy.image.repository }}:{{ .Values.proxy.image.tag | default "latest" }}"
+          image: "{{ .Values.cachingProxy.image.repository }}:{{ .Values.cachingProxy.image.tag | default "latest" }}"
           ports:
             - containerPort: 80
               name: nginx
@@ -162,7 +162,7 @@ spec:
             name: nginx-config
         - name: ephemeral
           emptyDir:
-            sizeLimit: "{{- .Values.proxy.cache.maxSize }}M"
+            sizeLimit: "{{- .Values.cachingProxy.cache.maxSize }}M"
       {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:

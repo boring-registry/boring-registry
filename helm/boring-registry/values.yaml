@@ -118,7 +118,7 @@ server:
     #   signedURL: false
 
 # the nginx caching proxy configuration
-proxy:
+cachingProxy:
   enabled: false
   image:
     repository: nginx

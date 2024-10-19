@@ -9,7 +9,7 @@ spec:
   type: {{ .Values.server.service.type }}
   ports:
     - port: {{ .Values.server.service.port }}
-      targetPort: {{ .Values.proxy.enabled | ternary "nginx" "api" }}
+      targetPort: {{ .Values.cachingProxy.enabled | ternary "nginx" "api" }}
       protocol: TCP
       name: http
   selector:
