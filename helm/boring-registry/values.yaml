@@ -116,6 +116,8 @@ server:
     #   prefix: ""
     #   saEmail: ""
     #   signedURL: false
+
+# the nginx caching proxy configuration
 proxy:
   enabled: false
   image:
@@ -124,6 +126,6 @@ proxy:
     pullPolicy: IfNotPresent
   cache:
     hit: 15m # 200 302
-    download: 5m # 204 307
+    download: 5m # 204 307; BR uses 5 minute validity for signed URLs by default
     miss: 1m # 404
     maxSize: 500 # Megabyte; nginx and k8s use different short names for it :facepalm:

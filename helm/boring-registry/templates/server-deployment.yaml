@@ -147,13 +147,14 @@ spec:
               subPath: nginx.conf
             - name: ephemeral
               mountPath: "/var/cache/nginx"
+          # we are passing through these probes
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /metrics
               port: 80
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /metrics
               port: 80
       volumes:
         - name: nginx-config
