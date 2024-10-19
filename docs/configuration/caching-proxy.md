@@ -16,7 +16,7 @@ To keep the confidentiality of the data, the cache configuration will
 
 ```nginx
 http {
-  proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.proxy.cache.maxSize }}m inactive=60m use_temp_path=off;
+  proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.cachingProxy.cache.maxSize }}m inactive=60m use_temp_path=off;
 
   server {
     listen 80;
@@ -26,9 +26,9 @@ http {
       proxy_cache my_cache;
 
       # Cache validity settings
-      proxy_cache_valid 200 302 {{ .Values.proxy.cache.hit }};
-      proxy_cache_valid 204 307 {{ .Values.proxy.cache.download }}; # br gives back signed URLs with `X-Amz-Expires=300` for S3
-      proxy_cache_valid 404 {{ .Values.proxy.cache.miss }};
+      proxy_cache_valid 200 302 {{ .Values.cachingProxy.cache.hit }};
+      proxy_cache_valid 204 307 {{ .Values.cachingProxy.cache.download }}; # br gives back signed URLs with `X-Amz-Expires=300` for S3
+      proxy_cache_valid 404 {{ .Values.cachingProxy.cache.miss }};
       proxy_cache_revalidate on;
 
       # Ensure that all authorization headers are checked by the backend
