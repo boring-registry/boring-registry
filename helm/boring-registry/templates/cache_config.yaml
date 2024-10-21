@@ -13,6 +13,13 @@ data:
     http {
       proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.cachingProxy.cache.maxSize }}m inactive=60m use_temp_path=off;
 
+      # API keys/token used to separate different caches thus the string `Authentication: Bearer foobar1234` must be cleaned
+      # Define the map to replace spaces with underscores
+      map $http_authorization $sanitized_auth {
+        default "";
+        "~^(Bearer\s+(.+))$" "Bearer_$2";
+      }
+
       server {
         listen 80;
 
@@ -24,14 +31,18 @@ data:
           proxy_cache_valid 200 302 {{ .Values.cachingProxy.cache.hit }};
           proxy_cache_valid 204 307 {{ .Values.cachingProxy.cache.download }};
           proxy_cache_valid 404 {{ .Values.cachingProxy.cache.miss }};
+
+          # Cache key including the sanitized authorization header
+          proxy_cache_key "$scheme://$host$request_uri$sanitized_auth";
+
+          # Ignore cache control headers from backend
+          proxy_ignore_headers Cache-Control Expires;
+
+          # Revalidate cache on stale
           proxy_cache_revalidate on;
 
-          # Ensure that all authorization headers are checked by the backend
-          proxy_cache_bypass $http_authorization;
+          # Pass all authorization headers to the backend
           proxy_set_header Authorization $http_authorization;
-
-          # Use cache even if authorisation header is present, but key off header
-          proxy_cache_key "$http_authorization$scheme$proxy_host$request_uri";
 
           # Pass the request to the backend server
           proxy_pass http://localhost:{{ .Values.server.port }};
@@ -39,6 +50,10 @@ data:
 
         location /metrics {
           access_log off;
+
+          # Bypass the cache and forward directly to the backend
+          proxy_cache_bypass on;
+          proxy_no_cache on;
           proxy_pass http://localhost:{{ .Values.server.telemetryPort }};
         }
       }

@@ -122,10 +122,10 @@ cachingProxy:
   enabled: false
   image:
     repository: nginx
-    tag: 1.27
+    tag: 1 # use a more generic version
     pullPolicy: IfNotPresent
   cache:
     hit: 15m # 200 302
-    download: 5m # 204 307; BR uses 5 minute validity for signed URLs by default
+    download: 4m # 204 307; BR uses 5 minute validity for signed URLs by default
     miss: 1m # 404
     maxSize: 500 # Megabyte; nginx and k8s use different short names for it :facepalm:
