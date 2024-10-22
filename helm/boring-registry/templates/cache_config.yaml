@@ -29,11 +29,10 @@ data:
 
           # Cache validity settings
           proxy_cache_valid 200 302 {{ .Values.cachingProxy.cache.hit }};
-          proxy_cache_valid 204 307 {{ .Values.cachingProxy.cache.download }};
           proxy_cache_valid 404 {{ .Values.cachingProxy.cache.miss }};
 
           # Cache key including the sanitized authorization header
-          proxy_cache_key "$scheme://$host$request_uri$sanitized_auth";
+          proxy_cache_key "$host$request_uri$sanitized_auth";
 
           # Ignore cache control headers from backend
           proxy_ignore_headers Cache-Control Expires;
@@ -43,6 +42,11 @@ data:
 
           # Pass all authorization headers to the backend
           proxy_set_header Authorization $http_authorization;
+
+          # Retry mechanism settings
+          proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+          proxy_next_upstream_tries 3;     # Maximum number of retries
+          proxy_next_upstream_timeout 10s; # Timeout for each retry
 
           # Pass the request to the backend server
           proxy_pass http://localhost:{{ .Values.server.port }};

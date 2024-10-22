@@ -151,11 +151,11 @@ spec:
           livenessProbe:
             httpGet:
               path: /metrics
-              port: 80
+              port: nginx
           readinessProbe:
             httpGet:
               path: /metrics
-              port: 80
+              port: nginx
       volumes:
         - name: nginx-config
           configMap:
