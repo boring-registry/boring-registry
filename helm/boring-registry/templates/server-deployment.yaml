@@ -141,6 +141,8 @@ spec:
           ports:
             - containerPort: 80
               name: nginx
+            - containerPort: 8080
+              name: probes
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/nginx.conf
@@ -151,18 +153,20 @@ spec:
           livenessProbe:
             httpGet:
               path: /metrics
-              port: nginx
+              port: probes
           readinessProbe:
             httpGet:
               path: /metrics
-              port: nginx
+              port: probes
+          resources:
+            {{- toYaml .Values.cachingProxy.resources | nindent 12 }}
       volumes:
         - name: nginx-config
           configMap:
             name: nginx-config
         - name: ephemeral
           emptyDir:
-            sizeLimit: "{{- .Values.cachingProxy.cache.maxSize }}M"
+            sizeLimit: {{- .Values.cachingProxy.cache.maxSize }}
       {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:

@@ -1,6 +1,6 @@
 # Caching Proxy
 
-if running the boring-registry in Kubernetes, the Helm chart contains an option to activate a Nginx cache sidecar.
+if running the boring-registry in Kubernetes, the Helm chart includes an option to activate a Nginx cache sidecar.
 
 The cache is useful for systems where a lot of stacks query module or provider versions which will trigger a scan of storage backend.
 This feature came into being as a user experienced S3 throtteling. Once you reach this stage, this cache might help.
@@ -18,7 +18,7 @@ To keep the confidentiality of the data, the cache configuration will
 
 ```nginx
 http {
-  proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.cachingProxy.cache.maxSize }}m inactive=60m use_temp_path=off;
+  proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.cachingProxy.cache.maxSize }} inactive=60m use_temp_path=off;
 
   [ ... ]
 

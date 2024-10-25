@@ -11,9 +11,9 @@ data:
     events { worker_connections 2048; } # no of connections of clients + proxy upstream
 
     http {
-      proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.cachingProxy.cache.maxSize }}m inactive=60m use_temp_path=off;
+      proxy_cache_path /var/cache/nginx levels=1:2 keys_zone=my_cache:10m max_size={{- .Values.cachingProxy.cache.maxSize }} inactive=60m use_temp_path=off;
 
-      # API keys/token used to separate different caches thus the string `Authentication: Bearer foobar1234` must be cleaned
+      # the API keys/token are used to separate different caches, thus the string `Authentication: Bearer foobar1234` must be cleaned
       # Define the map to replace spaces with underscores
       map $http_authorization $sanitized_auth {
         default "";
@@ -51,11 +51,17 @@ data:
           # Pass the request to the backend server
           proxy_pass http://localhost:{{ .Values.server.port }};
         }
-
+        # keep metrics internal
         location /metrics {
           access_log off;
-
-          # Bypass the cache and forward directly to the backend
+          return 302 /;
+        }
+      }
+      server {
+        listen 8080;
+        location /metrics {
+          access_log off;
+          # Bypass cache and forward directly to the backend
           proxy_cache_bypass on;
           proxy_no_cache on;
           proxy_pass http://localhost:{{ .Values.server.telemetryPort }};
