@@ -116,3 +116,22 @@ server:
     #   prefix: ""
     #   saEmail: ""
     #   signedURL: false
+
+# the nginx caching proxy configuration
+cachingProxy:
+  enabled: false
+  image:
+    repository: nginx
+    tag: 1 # we use a generic version by default
+    pullPolicy: IfNotPresent
+  cache:
+    hit: 15m # 200 302
+    miss: 1m # 404
+    maxSize: 500M # This value is used by nginx and Kubernetes, please use either `k` or `M`
+  resources: {}
+    # requests:
+    #   cpu: 100m
+    #   memory: 64Mi
+    # limits:
+    #   cpu: 100m
+    #   memory: 64Mi

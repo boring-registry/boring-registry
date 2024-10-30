@@ -134,6 +134,40 @@ spec:
               port: telemetry
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
+        {{- if .Values.cachingProxy.enabled }}
+        # Sidecar Nginx container
+        - name: nginx
+          image: "{{ .Values.cachingProxy.image.repository }}:{{ .Values.cachingProxy.image.tag | default "latest" }}"
+          ports:
+            - containerPort: 80
+              name: nginx
+            - containerPort: 8080
+              name: probes
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: ephemeral
+              mountPath: "/var/cache/nginx"
+          # we are passing through these probes
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: probes
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: probes
+          resources:
+            {{- toYaml .Values.cachingProxy.resources | nindent 12 }}
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: nginx-config
+        - name: ephemeral
+          emptyDir:
+            sizeLimit: {{- .Values.cachingProxy.cache.maxSize }}
+      {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
