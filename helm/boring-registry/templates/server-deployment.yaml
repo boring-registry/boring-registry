@@ -166,7 +166,7 @@ spec:
             name: nginx-config
         - name: ephemeral
           emptyDir:
-            sizeLimit: {{- .Values.cachingProxy.cache.maxSize }}
+            sizeLimit: {{ .Values.cachingProxy.cache.maxSize }}
       {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:
