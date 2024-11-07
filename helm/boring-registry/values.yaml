@@ -116,6 +116,19 @@ server:
     #   prefix: ""
     #   saEmail: ""
     #   signedURL: false
+  
+  # Additional volumes on the output Deployment definition.
+  volumes: []
+  # - name: foo
+  #   secret:
+  #     secretName: mysecret
+  #     optional: false
+
+  # Additional volumeMounts on the output Deployment definition.
+  volumeMounts: []
+  # - name: foo
+  #   mountPath: "/etc/foo"
+  #   readOnly: true
 
 # the nginx caching proxy configuration
 cachingProxy:
