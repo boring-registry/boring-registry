@@ -6,7 +6,7 @@
 global:
   image:
     repository: ghcr.io/boring-registry/boring-registry
-    tag: v0.15.3
+    tag: v0.15.4
     pullPolicy: Always
 
 nameOverride: ""
