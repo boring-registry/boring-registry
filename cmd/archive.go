@@ -117,18 +117,41 @@ func archiveModule(root string) (io.Reader, error) {
 	defer tw.Close()
 
 	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+		datapath := path
 		// return on any error
 		if err != nil {
 			return err
 		}
 
-		// return on non-regular files
-		if !fi.Mode().IsRegular() {
+		// return on non-regular files or not symlinks to files
+		if !fi.Mode().IsRegular() && !(fi.Mode()&os.ModeSymlink == os.ModeSymlink) {
 			return nil
+
+		} else if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+			linkName, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return err
+			}
+			if filepath.IsAbs(linkName) {
+				datapath = linkName
+			} else {
+				convertPath, err := filepath.Abs(linkName)
+				if err != nil {
+					return (err)
+				}
+				datapath = convertPath
+			}
+			fileInfo, err := os.Lstat(datapath)
+			//Do not follow symlink to dir
+			if fileInfo.IsDir() {
+				return nil
+			}
 		}
 
 		// create a new dir/file header
-		header, err := tar.FileInfoHeader(fi, fi.Name())
+		fileInfo, err := os.Lstat(datapath)
+
+		header, err := tar.FileInfoHeader(fileInfo, fi.Name())
 		if err != nil {
 			return err
 		}
@@ -140,7 +163,7 @@ func archiveModule(root string) (io.Reader, error) {
 			return err
 		}
 
-		data, err := os.Open(path)
+		data, err := os.Open(datapath)
 		if err != nil {
 			return err
 		}
