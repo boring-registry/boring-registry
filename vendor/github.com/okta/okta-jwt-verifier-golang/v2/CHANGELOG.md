@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.1.0 (September 5th, 2024)
+
+### Updates:
+
+Make Audience validation optional [#116](https://github.com/okta/okta-jwt-verifier-golang/pull/116)
+
 ## v2.0.4 (February 26th, 2024)
 
 ### Updates:

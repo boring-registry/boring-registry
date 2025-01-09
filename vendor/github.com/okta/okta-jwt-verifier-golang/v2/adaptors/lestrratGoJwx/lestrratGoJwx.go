@@ -23,8 +23,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/lestrrat-go/jwx/jwk"
-	"github.com/lestrrat-go/jwx/jws"
+	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
 	"github.com/okta/okta-jwt-verifier-golang/v2/adaptors"
 	"github.com/okta/okta-jwt-verifier-golang/v2/utils"
 )
@@ -65,7 +65,7 @@ func (lgj *LestrratGoJwx) Decode(jwt string, jwkUri string) (interface{}, error)
 		return nil, fmt.Errorf("could not cast %v to jwk.Set", value)
 	}
 
-	token, err := jws.VerifySet([]byte(jwt), jwkSet)
+	token, err := jws.Verify([]byte(jwt), jws.WithKeySet(jwkSet))
 	if err != nil {
 		return nil, err
 	}
