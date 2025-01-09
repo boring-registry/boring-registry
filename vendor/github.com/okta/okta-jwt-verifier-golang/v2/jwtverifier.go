@@ -265,6 +265,11 @@ func (j *JwtVerifier) validateNonce(nonce interface{}) error {
 }
 
 func (j *JwtVerifier) validateAudience(audience interface{}) error {
+	// Audience is optional, it will be validated if it is present in the ClaimsToValidate array
+	if expectedAudience, exists := j.ClaimsToValidate["aud"]; !exists || audience == expectedAudience {
+		return nil
+	}
+
 	switch v := audience.(type) {
 	case string:
 		if v != j.ClaimsToValidate["aud"] {
