@@ -54,63 +54,63 @@ spec:
             {{- else if .Values.server.auth.existingSecret }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.server.auth.existingSecret }}
-                  key: {{ .Values.server.auth.existingSecretKey }}
+                  name: {{ .Values.server.auth.existingSecret | quote }}
+                  key: {{ .Values.server.auth.existingSecretKey | quote }}
             {{- else }}
-              value: {{ .Values.server.auth.value }}
+              value: {{ .Values.server.auth.value | quote }}
             {{- end }}
 
             {{- if .Values.server.tlsCertFile }}
             - name: BORING_REGISTRY_TLS_CERT_FILE
-              value:  {{ .Values.server.tlsCertFile }}
+              value:  {{ .Values.server.tlsCertFile | quote }}
             {{- end }}
 
             {{- if .Values.server.tlsKeyFile }}
             - name: BORING_REGISTRY_TLS_KEY_FILE
-              value:  {{ .Values.server.tlsKeyFile }}
+              value:  {{ .Values.server.tlsKeyFile | qute }}
             {{- end }}
 
             # Storage configuration.
             {{- with .Values.server.storage.s3 }}
             - name: BORING_REGISTRY_STORAGE_S3_BUCKET
-              value:  {{ .bucket }}
+              value:  {{ .bucket | quote }}
             {{- if .prefix }}
             - name: BORING_REGISTRY_STORAGE_S3_PREFIX
-              value:  {{ .prefix }}
+              value:  {{ .prefix | quote }}
             {{- end }}
             {{- if .region }}
             - name: BORING_REGISTRY_STORAGE_S3_REGION
-              value:  {{ .region }}
+              value:  {{ .region | quote }}
             {{- end }}
             {{- if .endpoint }}
             - name: BORING_REGISTRY_STORAGE_S3_ENDPOINT
-              value:  {{ .endpoint }}
+              value:  {{ .endpoint | quote }}
             {{- end }}
             {{- if .pathStyle }}
             - name: BORING_REGISTRY_STORAGE_S3_PATHSTYLE
-              value:  {{ .pathStyle }}
+              value:  {{ .pathStyle | quote }}
             {{- end }}
             {{- end }}
 
             {{- with .Values.server.storage.gcs }}
             - name: BORING_REGISTRY_STORAGE_GCS_BUCKET
-              value:  {{ .bucket }}
+              value:  {{ .bucket | quote }}
             {{- if .prefix }}
             - name: BORING_REGISTRY_STORAGE_GCS_PREFIX
-              value:  {{ .prefix }}
+              value:  {{ .prefix | quote }}
             {{- end }}
             {{- if .saEmail }}
             - name: BORING_REGISTRY_STORAGE_GCS_SA_EMAIL
-              value:  {{ .saEmail }}
+              value:  {{ .saEmail | quote }}
             {{- end }}
             {{- if .signedURL }}
             - name: BORING_REGISTRY_STORAGE_GCS_SIGNED_URL
-              value:  {{ .signedURL }}
+              value:  {{ .signedURL | quote }}
             {{- end }}
             {{- end }}
 
             {{- range .Values.server.extraEnvs }}
-            - name: {{ .name }}
+            - name: {{ .name | quote }}
             {{- if .value }}
               value: {{ .value | quote }}
             {{- else if .valueFrom }}
