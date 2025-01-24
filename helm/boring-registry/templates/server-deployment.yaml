@@ -67,7 +67,7 @@ spec:
 
             {{- if .Values.server.tlsKeyFile }}
             - name: BORING_REGISTRY_TLS_KEY_FILE
-              value:  {{ .Values.server.tlsKeyFile | qute }}
+              value:  {{ .Values.server.tlsKeyFile | quote }}
             {{- end }}
 
             # Storage configuration.
