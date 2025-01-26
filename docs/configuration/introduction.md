@@ -12,6 +12,12 @@ Important Note:
 
 Example: To enable debug logging you can either pass the `--debug` flag or set the environment `BORING_REGISTRY_DEBUG=true` variable.
 
+## Authentication
+
+- [API token](./authentication/api-token.md)
+- [OIDC](./authentication/oidc.md)
+- [Okta](./authentication/okta.md)
+
 ## Storage Backends
 
 The boring-registry persists modules and providers in an object storage.

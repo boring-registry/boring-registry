@@ -15,6 +15,7 @@ Support for the [Module Registry Protocol](https://www.terraform.io/internals/mo
 * Network mirror for providers
 * Pull-through mirror for providers
 * Support for S3, GCS, Azure Blob Storage, and MinIO object storage
+* Support for OIDC and static API token authorization
 
 ## Installation
 
