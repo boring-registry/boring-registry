@@ -21,6 +21,7 @@ nav:
       - MinIO: configuration/storage-backends/minio.md
     - Authentication:
       - API Token: configuration/authentication/api-token.md
+      - OIDC: configuration/authentication/oidc.md
       - Okta: configuration/authentication/okta.md
     - Download Proxy: configuration/download-proxy.md
     - Provider Network Mirror: configuration/provider-network-mirror.md

@@ -44,31 +44,35 @@ var (
 )
 
 var (
-	// Proxy options.
+	// Proxy options
 	flagProxy bool
 
-	// General server options.
+	// General server options
 	flagTLSCertFile         string
 	flagTLSKeyFile          string
 	flagListenAddr          string
 	flagTelemetryListenAddr string
 	flagModuleArchiveFormat string
 
-	// Login options.
-	flagLoginIssuer     string
-	flagLoginClient     string
-	flagLoginScopes     []string
+	// Login options
 	flagLoginGrantTypes []string
-	flagLoginAuthz      string
-	flagLoginToken      string
 	flagLoginPorts      []int
 
-	// Static auth.
+	// Static auth
 	flagAuthStaticTokens []string
 
-	// Okta auth.
-	flagAuthOktaIssuer string
-	flagAuthOktaClaims []string
+	// OIDC auth
+	flagAuthOidcIssuer   string
+	flagAuthOidcClientId string
+	flagAuthOidcScopes   []string
+
+	// Okta auth
+	flagAuthOktaIssuer   string
+	flagAuthOktaClientId string
+	flagAuthOktaClaims   []string
+	flagAuthOktaAuthz    string
+	flagAuthOktaToken    string
+	flagLoginScopes      []string
 
 	// Provider Network Mirror
 	flagProviderNetworkMirrorEnabled            bool
@@ -195,14 +199,19 @@ func init() {
 	// Okta auth options.
 	serverCmd.Flags().StringVar(&flagAuthOktaIssuer, "auth-okta-issuer", "", "Okta issuer")
 	serverCmd.Flags().StringSliceVar(&flagAuthOktaClaims, "auth-okta-claims", nil, "Okta claims to validate")
+	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
+
+	// OIDC auth options
+	serverCmd.Flags().StringVar(&flagAuthOidcIssuer, "auth-oidc-issuer", "", "OIDC issuer URL")
+	serverCmd.Flags().StringVar(&flagAuthOidcClientId, "auth-oidc-clientid", "", "OIDC client identifier")
+	serverCmd.Flags().StringSliceVar(&flagAuthOidcScopes, "auth-oidc-scopes", nil, "List of OAuth2 scopes")
 
 	// Terraform Login Protocol options.
-	serverCmd.Flags().StringVar(&flagLoginClient, "login-client", "", "The client_id value to use when making requests")
+	serverCmd.Flags().StringVar(&flagAuthOktaClientId, "login-client", "", "The client_id value to use when making requests")
 	serverCmd.Flags().StringSliceVar(&flagLoginGrantTypes, "login-grant-types", []string{"authz_code"}, "An array describing a set of OAuth 2.0 grant types")
-	serverCmd.Flags().StringVar(&flagLoginAuthz, "login-authz", "", "The server's authorization endpoint")
-	serverCmd.Flags().StringVar(&flagLoginToken, "login-token", "", "The server's token endpoint")
-	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{10000, 10010}, "Inclusive range of TCP ports that Terraform may use")
-	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
+	serverCmd.Flags().StringVar(&flagAuthOktaAuthz, "login-authz", "", "The server's authorization endpoint")
+	serverCmd.Flags().StringVar(&flagAuthOktaToken, "login-token", "", "The server's token endpoint")
+	serverCmd.Flags().IntSliceVar(&flagLoginPorts, "login-ports", []int{10000, 10010}, "Inclusive range of TCP ports that Terraform/OpenTofu CLI may use")
 
 	// Provider Network Mirror options
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "network-mirror", true, "Enable the provider network mirror")
@@ -244,53 +253,16 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
-	options := []discovery.Option{
-		discovery.WithModulesV1(fmt.Sprintf("%s/", prefixModules)),
-		discovery.WithProvidersV1(fmt.Sprintf("%s/", prefixProviders)),
-	}
-
-	if flagLoginClient != "" {
-		login := &discovery.LoginV1{
-			Client: flagLoginClient,
-		}
-
-		if flagLoginGrantTypes != nil {
-			login.GrantTypes = flagLoginGrantTypes
-		}
-
-		if flagLoginAuthz != "" {
-			login.Authz = flagLoginAuthz
-		}
-
-		if flagLoginToken != "" {
-			login.Token = flagLoginToken
-		}
-
-		if flagLoginPorts != nil {
-			login.Ports = flagLoginPorts
-		}
-
-		if flagLoginScopes != nil {
-			login.Scopes = flagLoginScopes
-		}
-
-		options = append(options, discovery.WithLoginV1(login))
-	}
-
-	terraformJSON, err := json.Marshal(discovery.New(options...))
+	authMiddleware, login, err := authMiddleware(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-type", "application/json")
-		w.Write(terraformJSON)
-	})
 
 	metrics := o11y.NewMetrics(nil)
 	instrumentation := o11y.NewMiddleware(metrics.Http)
 
 	registerMetrics(mux)
+	registerDiscovery(mux, login)
 
 	s, err := setupStorage(ctx)
 	if err != nil {
@@ -299,11 +271,11 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 
 	proxyUrlService := core.NewProxyUrlService(flagProxy, prefixProxy)
 
-	if err := registerModule(mux, s, metrics.Module, instrumentation, proxyUrlService); err != nil {
+	if err := registerModule(mux, s, authMiddleware, metrics.Module, instrumentation, proxyUrlService); err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux, s, metrics.Provider, instrumentation, proxyUrlService); err != nil {
+	if err := registerProvider(mux, s, authMiddleware, metrics.Provider, instrumentation, proxyUrlService); err != nil {
 		return nil, err
 	}
 
@@ -322,12 +294,93 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 			svc = mirror.NewMirror(s)
 		}
 
-		if err := registerMirror(mux, s, svc, metrics.Mirror, instrumentation); err != nil {
+		if err := registerMirror(mux, s, svc, authMiddleware, metrics.Mirror, instrumentation); err != nil {
 			return nil, err
 		}
 	}
 
 	return mux, nil
+}
+
+func setupOidc(ctx context.Context) (auth.Provider, *discovery.LoginV1, error) {
+	authCtx, cancelAuthCtx := context.WithTimeout(ctx, 15*time.Second)
+	defer cancelAuthCtx()
+
+	slog.Debug("setting up oidc auth",
+		slog.String("client-id", flagAuthOidcClientId),
+		slog.String("issuer", flagAuthOidcIssuer),
+		slog.String("client-id", flagAuthOidcClientId),
+		slog.Any("ports", flagLoginPorts),
+		slog.Any("scopes", flagAuthOidcScopes),
+	)
+
+	provider, err := auth.NewOidcProvider(authCtx, flagAuthOidcIssuer, flagAuthOidcClientId)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
+	}
+
+	login := &discovery.LoginV1{
+		Client:     flagAuthOidcClientId,
+		GrantTypes: flagLoginGrantTypes,
+		Authz:      provider.AuthURL(),
+		Token:      provider.TokenURL(),
+		Ports:      flagLoginPorts,
+		Scopes:     flagAuthOidcScopes,
+	}
+
+	return provider, login, nil
+}
+
+func setupOkta() (auth.Provider, *discovery.LoginV1) {
+	slog.Debug("setting up okta auth", slog.String("issuer", flagAuthOktaIssuer), slog.String("client-id", flagAuthOktaClientId))
+	slog.Warn("Okta auth is deprecated, please migrate to OIDC auth")
+	p := auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...)
+	login := &discovery.LoginV1{
+		Client:     flagAuthOktaClientId,
+		GrantTypes: flagLoginGrantTypes,
+		Authz:      flagAuthOktaAuthz,
+		Token:      flagAuthOktaToken,
+		Ports:      flagLoginPorts,
+		Scopes:     flagLoginScopes,
+	}
+
+	return p, login
+}
+
+func authMiddleware(ctx context.Context) (endpoint.Middleware, *discovery.LoginV1, error) {
+	providers := []auth.Provider{}
+
+	if flagAuthStaticTokens != nil {
+		providers = append(providers, auth.NewStaticProvider(flagAuthStaticTokens...))
+	}
+
+	// Check if OIDC or Okta are configured, we only want to allow one at a time.
+	// OIDC is recommended, we want to deprecate our Okta-specific implementation and use our OIDC implementation instead, which Okta also supports.
+	if flagAuthOidcIssuer != "" && flagAuthOktaIssuer != "" {
+		return nil, nil, errors.New("both OIDC and Okta are configured, only one is allowed at a time")
+	}
+
+	// We construct the auth.Provider on this level, as we need the OIDC provider to look up the
+	// authorization and token endpoints dynamically to populate the LoginV1
+	var login *discovery.LoginV1
+	var p auth.Provider
+
+	if flagAuthOidcIssuer != "" {
+		var err error
+		p, login, err = setupOidc(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else if flagAuthOktaIssuer != "" {
+		p, login = setupOkta()
+	}
+
+	if err := login.Validate(); err != nil {
+		return nil, nil, err
+	}
+
+	providers = append(providers, p)
+	return auth.Middleware(providers...), login, nil
 }
 
 func registerMetrics(mux *http.ServeMux) {
@@ -344,7 +397,27 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
+func registerDiscovery(mux *http.ServeMux, login *discovery.LoginV1) error {
+	options := []discovery.Option{
+		discovery.WithModulesV1(fmt.Sprintf("%s/", prefixModules)),
+		discovery.WithProvidersV1(fmt.Sprintf("%s/", prefixProviders)),
+		discovery.WithLoginV1(login),
+	}
+
+	terraformJSON, err := json.Marshal(discovery.New(options...))
+	if err != nil {
+		return err
+	}
+
+	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-type", "application/json")
+		w.Write(terraformJSON)
+	})
+
+	return nil
+}
+
+func registerModule(mux *http.ServeMux, s storage.Storage, auth endpoint.Middleware, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
 	service := module.NewService(s, proxyUrlService)
 	{
 		service = module.LoggingMiddleware()(service)
@@ -363,7 +436,7 @@ func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleM
 			prefixModules,
 			module.MakeHandler(
 				service,
-				authMiddleware(),
+				auth,
 				metrics,
 				instrumentation,
 				opts...,
@@ -374,21 +447,7 @@ func registerModule(mux *http.ServeMux, s storage.Storage, metrics *o11y.ModuleM
 	return nil
 }
 
-func authMiddleware() endpoint.Middleware {
-	var providers []auth.Provider
-
-	if flagAuthStaticTokens != nil {
-		providers = append(providers, auth.NewStaticProvider(flagAuthStaticTokens...))
-	}
-
-	if flagAuthOktaIssuer != "" {
-		providers = append(providers, auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...))
-	}
-
-	return auth.Middleware(providers...)
-}
-
-func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
+func registerProvider(mux *http.ServeMux, s storage.Storage, authMiddleware endpoint.Middleware, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
 	service := provider.NewService(s, proxyUrlService)
 	{
 		service = provider.LoggingMiddleware()(service)
@@ -407,7 +466,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.Provi
 			prefixProviders,
 			provider.MakeHandler(
 				service,
-				authMiddleware(),
+				authMiddleware,
 				metrics,
 				instrumentation,
 				opts...,
@@ -418,7 +477,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage, metrics *o11y.Provi
 	return nil
 }
 
-func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware) error {
+func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, authMiddleware endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware) error {
 	service := mirror.LoggingMiddleware()(svc)
 
 	opts := []httptransport.ServerOption{
@@ -434,7 +493,7 @@ func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, m
 			prefixMirror,
 			mirror.MakeHandler(
 				service,
-				authMiddleware(),
+				authMiddleware,
 				metrics,
 				instrumentation,
 				opts...,
