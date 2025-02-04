@@ -218,38 +218,6 @@ func init() {
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughEnabled, "network-mirror-pull-through", false, "Enable the pull-through provider network mirror. This setting takes no effect if network-mirror is disabled")
 }
 
-// TODO(oliviermichaelis): move to root, as the storage flags are defined in root?
-func setupStorage(ctx context.Context) (storage.Storage, error) {
-	switch {
-	case flagS3Bucket != "":
-		return storage.NewS3Storage(ctx,
-			flagS3Bucket,
-			storage.WithS3StorageBucketPrefix(flagS3Prefix),
-			storage.WithS3StorageBucketRegion(flagS3Region),
-			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
-			storage.WithS3StoragePathStyle(flagS3PathStyle),
-			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
-			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
-		)
-	case flagGCSBucket != "":
-		return storage.NewGCSStorage(flagGCSBucket,
-			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
-			storage.WithGCSServiceAccount(flagGCSServiceAccount),
-			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
-			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
-		)
-	case flagAzureStorageContainer != "":
-		return storage.NewAzureStorage(flagAzureStorageAccount,
-			flagAzureStorageContainer,
-			storage.WithAzureStoragePrefix(flagAzureStoragePrefix),
-			storage.WithAzureStorageArchiveFormat(flagModuleArchiveFormat),
-			storage.WithAzureStorageSignedUrlExpiry(flagAzureStorageSignedURLExpiry),
-		)
-	default:
-		return nil, errors.New("storage provider is not specified")
-	}
-}
-
 func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
@@ -477,7 +445,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage, authMiddleware endp
 	return nil
 }
 
-func registerMirror(mux *http.ServeMux, s storage.Storage, svc mirror.Service, authMiddleware endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware) error {
+func registerMirror(mux *http.ServeMux, _ storage.Storage, svc mirror.Service, authMiddleware endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware) error {
 	service := mirror.LoggingMiddleware()(svc)
 
 	opts := []httptransport.ServerOption{

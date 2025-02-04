@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/boring-registry/boring-registry/pkg/storage"
 )
 
 const (
@@ -114,6 +118,37 @@ func setupLogger() {
 		handler = handler.WithAttrs([]slog.Attr{slog.String("hostname", hostname)})
 	}
 	slog.SetDefault(slog.New(handler))
+}
+
+func setupStorage(ctx context.Context) (storage.Storage, error) {
+	switch {
+	case flagS3Bucket != "":
+		return storage.NewS3Storage(ctx,
+			flagS3Bucket,
+			storage.WithS3StorageBucketPrefix(flagS3Prefix),
+			storage.WithS3StorageBucketRegion(flagS3Region),
+			storage.WithS3StorageBucketEndpoint(flagS3Endpoint),
+			storage.WithS3StoragePathStyle(flagS3PathStyle),
+			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
+			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
+		)
+	case flagGCSBucket != "":
+		return storage.NewGCSStorage(flagGCSBucket,
+			storage.WithGCSStorageBucketPrefix(flagGCSPrefix),
+			storage.WithGCSServiceAccount(flagGCSServiceAccount),
+			storage.WithGCSSignedUrlExpiry(flagGCSSignedURLExpiry),
+			storage.WithGCSArchiveFormat(flagModuleArchiveFormat),
+		)
+	case flagAzureStorageContainer != "":
+		return storage.NewAzureStorage(flagAzureStorageAccount,
+			flagAzureStorageContainer,
+			storage.WithAzureStoragePrefix(flagAzureStoragePrefix),
+			storage.WithAzureStorageArchiveFormat(flagModuleArchiveFormat),
+			storage.WithAzureStorageSignedUrlExpiry(flagAzureStorageSignedURLExpiry),
+		)
+	default:
+		return nil, errors.New("storage provider is not specified")
+	}
 }
 
 func bindFlags(cmd *cobra.Command, v *viper.Viper) {
