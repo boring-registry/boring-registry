@@ -1,7 +1,7 @@
 # ARG before first stage to share the value across multiple stages
 ARG BASEDIR=/go/src/github.com/boring-registry/boring-registry
 
-FROM golang:1.23 AS build
+FROM golang:1.24 AS build
 
 ARG VERSION
 ARG GIT_COMMIT
