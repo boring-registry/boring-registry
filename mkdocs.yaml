@@ -25,6 +25,7 @@ nav:
       - Okta: configuration/authentication/okta.md
     - Download Proxy: configuration/download-proxy.md
     - Provider Network Mirror: configuration/provider-network-mirror.md
+    - Caching Proxy: configuration/caching-proxy.md
   - Tasks:
     - Publish Modules: tasks/publish-modules.md
     - Publish Providers: tasks/publish-providers.md
