@@ -343,8 +343,10 @@ func authMiddleware(ctx context.Context) (endpoint.Middleware, *discovery.LoginV
 		p, login = setupOkta()
 	}
 
-	if err := login.Validate(); err != nil {
-		return nil, nil, err
+	if login != nil { // Can be nil if neither Oidc or Okta are configured
+		if err := login.Validate(); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	providers = append(providers, p)
@@ -372,7 +374,7 @@ func registerDiscovery(mux *http.ServeMux, login *discovery.LoginV1) error {
 		discovery.WithLoginV1(login),
 	}
 
-	terraformJSON, err := json.Marshal(discovery.New(options...))
+	terraformJSON, err := json.Marshal(discovery.NewDiscovery(options...))
 	if err != nil {
 		return err
 	}

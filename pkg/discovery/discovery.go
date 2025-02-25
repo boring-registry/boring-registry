@@ -86,7 +86,7 @@ func WithLoginV1(login *LoginV1) Option {
 	}
 }
 
-func New(options ...Option) *Discovery {
+func NewDiscovery(options ...Option) *Discovery {
 	discovery := &Discovery{}
 
 	for _, option := range options {
