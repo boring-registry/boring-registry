@@ -16,8 +16,22 @@ server:
   replicas: 1
   annotations: {}
   imagePullSecrets: []
-  securityContext: {}
-  podSecurityContext: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    fsGroup: 65534
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    privileged: false
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -148,3 +162,13 @@ cachingProxy:
     # limits:
     #   cpu: 100m
     #   memory: 64Mi
+  securityContext:
+    privileged: false
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault

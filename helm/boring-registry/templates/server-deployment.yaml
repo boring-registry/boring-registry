@@ -147,7 +147,7 @@ spec:
         - name: nginx
           image: "{{ .Values.cachingProxy.image.repository }}:{{ .Values.cachingProxy.image.tag | default "latest" }}"
           ports:
-            - containerPort: 80
+            - containerPort: 8000
               name: nginx
             - containerPort: 8080
               name: probes
@@ -168,6 +168,10 @@ spec:
               port: probes
           resources:
             {{- toYaml .Values.cachingProxy.resources | nindent 12 }}
+          {{- with .Values.cachingProxy.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       volumes:
         - name: nginx-config
           configMap:
