@@ -328,28 +328,29 @@ func authMiddleware(ctx context.Context) (endpoint.Middleware, *discovery.LoginV
 		return nil, nil, errors.New("both OIDC and Okta are configured, only one is allowed at a time")
 	}
 
-	// We construct the auth.Provider on this level, as we need the OIDC provider to look up the
+	// We construct the discovery.LoginV1 on this level, as we need the OIDC provider to look up the
 	// authorization and token endpoints dynamically to populate the LoginV1
 	var login *discovery.LoginV1
-	var p auth.Provider
-
-	if flagAuthOidcIssuer != "" {
-		var err error
-		p, login, err = setupOidc(ctx)
-		if err != nil {
-			return nil, nil, err
+	if flagAuthOidcIssuer != "" || flagAuthOktaIssuer != "" {
+		var p auth.Provider
+		if flagAuthOidcIssuer != "" {
+			var err error
+			p, login, err = setupOidc(ctx)
+			if err != nil {
+				return nil, nil, err
+			}
+		} else if flagAuthOktaIssuer != "" {
+			p, login = setupOkta()
 		}
-	} else if flagAuthOktaIssuer != "" {
-		p, login = setupOkta()
+		providers = append(providers, p)
 	}
 
-	if login != nil { // Can be nil if neither Oidc or Okta are configured
+	if login != nil { // Can be nil if neither Oidc, Okta, or API token are configured
 		if err := login.Validate(); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	providers = append(providers, p)
 	return auth.Middleware(providers...), login, nil
 }
 
