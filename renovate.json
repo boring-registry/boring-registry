@@ -1,3 +1,37 @@
 {
-  "enabled": false
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "packageRules": [
+    {
+      "matchPackagePrefixes": [
+        "github.com/aws/aws-sdk-go-v2"
+      ],
+      "schedule": [
+        "every monday"
+      ],
+      "groupName": "aws-sdk-go-v2"
+    },
+    {
+      "matchPackagePrefixes": [
+        "google.golang.org/genproto"
+      ],
+      "schedule": [
+        "every month"
+      ]
+    },
+    {
+      "matchPackagePrefixes": [
+        "golang.org/x/oauth2",
+        "golang.org/x/sync"
+      ],
+      "schedule": [
+        "every month"
+      ]
+    }
+  ],
+  "constraints": {
+    "go": "1.23"
+  }
 }

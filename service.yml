@@ -4,12 +4,6 @@ lang: go
 lang_version: 1.23.10
 git:
   enable: true
-github:
-  enable: true
-codeowners:
-  enable: true
 semaphore:
   enable: true
   pipeline_enable: false
-sonarqube:
-  enable: false
