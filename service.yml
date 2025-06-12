@@ -1,9 +1,15 @@
 name: boring-registry
 automerge_delay: 1
-lang: go
-lang_version: 1.23.10
+lang: unknown
+lang_version: unknown
 git:
   enable: true
 semaphore:
   enable: true
   pipeline_enable: false
+sonarqube:
+  enable: false
+renovatebot:
+  enable: false
+launchdarkly:
+  enable: false
