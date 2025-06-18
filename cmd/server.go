@@ -10,6 +10,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -274,18 +275,55 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	return mux, nil
 }
 
-func parseOidc(ctx context.Context) ([]map[string]interface{}, error) {
-    parsedList := []map[string]interface{}{}
+func setFieldByKey(config *auth.OidcConfig, key string, value interface{}) error {
+    keyToField := map[string]string{
+        "client_id": "ClientID",
+        "issuer":    "Issuer",
+        "scopes":    "Scopes",
+        "login_grants": "LoginGrants",
+        "login_ports":  "LoginPorts",
+    }
+
+    fieldName, ok := keyToField[key]
+	if !ok {
+		return fmt.Errorf("no mapping found for key: %s", key)
+	}
+
+	v := reflect.ValueOf(config).Elem()
+	field := v.FieldByName(fieldName)
+
+	if !field.IsValid() {
+		return fmt.Errorf("no such field: %s in struct", fieldName)
+	}
+
+	if !field.CanSet() {
+		return fmt.Errorf("cannot set field: %s", fieldName)
+	}
+
+	fieldValue := reflect.ValueOf(value)
+	if field.Type() != fieldValue.Type() {
+		return fmt.Errorf("provided value type doesn't match field type")
+	}
+
+	field.Set(fieldValue)
+	return nil
+}
+
+
+func parseOidc(ctx context.Context) ([]auth.OidcConfig, error) {
+    parsedList := []auth.OidcConfig{}
 
     if len(flagAuthOidc) != 0 {
+        fmt.Printf("flagAuthOidc: %v\n", flagAuthOidc)
         for _, oidcConfig := range flagAuthOidc {
-            parsed := map[string]interface{}{
-                "client_id":    "",
-                "issuer":       "",
-                "scopes":       []string{},
-                "login_grants": flagLoginGrantTypes,
-                "login_ports":  flagLoginPorts,
+            parsed := &auth.OidcConfig{
+                ClientID:    "",
+                Issuer:      "",
+                Scopes:      []string{},
+                LoginGrants: flagLoginGrantTypes,
+                LoginPorts:  flagLoginPorts,
             }
+
             pairs := strings.Split(oidcConfig, ";")
 
             for _, pair := range pairs {
@@ -300,7 +338,10 @@ func parseOidc(ctx context.Context) ([]map[string]interface{}, error) {
                 value := strings.TrimSpace(kv[1])
 
                 if key == "scopes" || key == "login_grants" {
-                    parsed[key] = strings.Split(value, ",")
+                    err := setFieldByKey(parsed, key, strings.Split(value, ","))
+                    if err != nil {
+                        return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+                    }
                 } else if key == "login_ports" {
                     ports := strings.Split(value, ",")
                     intPorts := []int{}
@@ -311,13 +352,18 @@ func parseOidc(ctx context.Context) ([]map[string]interface{}, error) {
                         }
                         intPorts = append(intPorts, intPort)
                     }
-                    parsed[key] = intPorts
+                    err := setFieldByKey(parsed, key, intPorts)
+                    if err != nil {
+                        return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+                    }
                 } else {
-                    parsed[key] = value
+                    err := setFieldByKey(parsed, key, value)
+                    if err != nil {
+                        return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+                    }
                 }
-
-            parsedList = append(parsedList, parsed)
             }
+            parsedList = append(parsedList, *parsed)
         }
 	} else {
 		slog.Debug("setting up oidc auth",
@@ -328,14 +374,14 @@ func parseOidc(ctx context.Context) ([]map[string]interface{}, error) {
             slog.Any("scopes", flagAuthOidcScopes),
         )
 
-	    parsed :=  map[string]interface{}{
-	        "client_id": flagAuthOidcClientId,
-	        "issuer":    flagAuthOidcIssuer,
-	        "scopes":    flagAuthOidcScopes,
-	        "login_grants": flagLoginGrantTypes,
-	        "login_ports":  flagLoginPorts,
+	    parsed :=  &auth.OidcConfig{
+	        ClientID: flagAuthOidcClientId,
+	        Issuer:    flagAuthOidcIssuer,
+	        Scopes:    flagAuthOidcScopes,
+	        LoginGrants: flagLoginGrantTypes,
+	        LoginPorts:  flagLoginPorts,
 	    }
-	    parsedList = append(parsedList, parsed)
+	    parsedList = append(parsedList, *parsed)
 	}
 
 	return parsedList, nil
@@ -346,7 +392,6 @@ func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, erro
 	defer cancelAuthCtx()
 
 	oidcConfigs, error := parseOidc(ctx)
-
 	if error != nil {
         return nil, nil, fmt.Errorf("failed to parse OIDC configuration: %w", error)
     }
@@ -356,44 +401,18 @@ func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, erro
 
 	for _, config := range oidcConfigs {
         slog.Debug("setting up oidc auth", slog.Any("config", config))
-
-        issuer, ok := config["issuer"].(string)
-        if !ok {
-            return nil, nil, fmt.Errorf("invalid type for issuer: expected string, got %T", config["issuer"])
-        }
-
-        clientID, ok := config["client_id"].(string)
-        if !ok {
-            return nil, nil, fmt.Errorf("invalid type for client_id: expected string, got %T", config["client_id"])
-        }
-
-        grantTypes, ok := config["login_grants"].([]string)
-        if !ok {
-            return nil, nil, fmt.Errorf("invalid type for login_grants: expected []string, got %T", config["login_grants"])
-        }
-
-        ports, ok := config["login_ports"].([]int)
-        if !ok {
-            return nil, nil, fmt.Errorf("invalid type for login_ports: expected []int, got %T", config["login_ports"])
-        }
-
-        scopes, ok := config["scopes"].([]string)
-        if !ok {
-            return nil, nil, fmt.Errorf("invalid type for scopes: expected []string, got %T", config["scopes"])
-        }
-
-        provider, err := auth.NewOidcProvider(authCtx, issuer, clientID)
+        provider, err := auth.NewOidcProvider(authCtx, config.Issuer, config.ClientID)
         if err != nil {
             return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
         }
 
         login := &discovery.LoginV1{
-            Client:     clientID,
-            GrantTypes: grantTypes,
+            Client:     config.ClientID,
+            GrantTypes: config.LoginGrants,
             Authz:      provider.AuthURL(),
             Token:      provider.TokenURL(),
-            Ports:      ports,
-            Scopes:     scopes,
+            Ports:      config.LoginPorts,
+            Scopes:     config.Scopes,
         }
         providers = append(providers, provider)
         logins = append(logins, login)

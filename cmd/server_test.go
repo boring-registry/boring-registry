@@ -13,13 +13,13 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/discovery"
 )
 
-func findLoginByClient(logins []*discovery.LoginV1, clientID string) bool {
-    for _, login := range logins {
-        if login.Client == clientID {
-            return true
+func findLoginByClient(logins []*discovery.LoginV1, clientID []string) bool {
+    for index, login := range logins {
+        if login.Client != clientID[index] {
+            return false
         }
     }
-    return false
+    return true
 }
 
 func TestAuthMiddleware(t *testing.T) {
@@ -54,6 +54,7 @@ func TestAuthMiddleware(t *testing.T) {
 		wantErr          bool
 		errMessage       string
 		authIssuer       string
+		expectedOidcClients []string
 	}{
 		{
 			name:             "only OIDC is configured",
@@ -81,16 +82,16 @@ func TestAuthMiddleware(t *testing.T) {
                 fmt.Sprintf("client_id=boring-registry-test1;issuer=%s;scopes=openid;login_grants=grants1,grants2;login_ports=123,456", s.URL),
                 fmt.Sprintf("client_id=boring-registry-test2;issuer=%s;scopes=openid", s.URL),
             },
-            authOidcClientId: "boring-registry-test2",
             authIssuer:   s.URL,
-    },
+            expectedOidcClients: []string{"boring-registry-test1", "boring-registry-test2"},
+        },
 	}
 
 	for _, test := range tests {
 		// Initializing global variables, this is potentially problematic!
 		flagAuthOidcIssuer = test.authOidcIssuer
 		if flagAuthOidcIssuer == "" {
-		flagAuthOidcIssuer = test.authIssuer
+		    flagAuthOidcIssuer = test.authIssuer
 		}
 		flagAuthOidcClientId = test.authOidcClientId
 		flagAuthOktaIssuer = test.authOktaIssuer
@@ -106,10 +107,12 @@ func TestAuthMiddleware(t *testing.T) {
 		} else {
 			assert.NoError(t, err)
 			if assert.NotNil(t, logins) {
-				if test.authOidcIssuer != "" {
-                    assert.True(t, findLoginByClient(logins, test.authOidcClientId), "Expected client not found in logins")
+			    if len(test.authOidc) > 0 {
+			        assert.True(t, findLoginByClient(logins, test.expectedOidcClients), "Expected clients not found in logins")
+			    } else if test.authOidcIssuer != "" {
+                    assert.True(t, findLoginByClient(logins, []string{test.authOidcClientId}), "Expected client not found in logins")
 				} else if test.authOktaIssuer != "" {
-                    assert.True(t, findLoginByClient(logins, test.authOktaClientId), "Expected client not found in logins")
+                    assert.True(t, findLoginByClient(logins, []string{test.authOktaClientId}), "Expected client not found in logins")
 				}
 
 			    for _, login := range logins {
