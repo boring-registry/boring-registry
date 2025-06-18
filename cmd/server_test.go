@@ -9,7 +9,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/boring-registry/boring-registry/pkg/discovery"
 )
+
+func findLoginByClient(logins []*discovery.LoginV1, clientID string) bool {
+    for _, login := range logins {
+        if login.Client == clientID {
+            return true
+        }
+    }
+    return false
+}
 
 func TestAuthMiddleware(t *testing.T) {
 	data := `{
@@ -73,22 +83,24 @@ func TestAuthMiddleware(t *testing.T) {
 		flagAuthOktaAuthz = test.authOktaAuthz
 		flagAuthOktaToken = test.authOktaToken
 
-		mw, login, err := authMiddleware(context.Background())
+		mw, logins, err := authMiddleware(context.Background())
 		if test.wantErr {
 			assert.Error(t, err)
 			assert.ErrorContains(t, err, test.errMessage)
 		} else {
 			assert.NoError(t, err)
-			if assert.NotNil(t, login) {
+			if assert.NotNil(t, logins) {
 				if test.authOidcIssuer != "" {
-					assert.Equal(t, test.authOidcClientId, login.Client)
+                    assert.True(t, findLoginByClient(logins, test.authOidcClientId), "Expected client not found in logins")
 				} else if test.authOktaIssuer != "" {
-					assert.Equal(t, test.authOktaClientId, login.Client)
+                    assert.True(t, findLoginByClient(logins, test.authOktaClientId), "Expected client not found in logins")
 				}
-				assert.NotEmpty(t, login.Authz)
-				assert.NotEmpty(t, login.Token)
-				assert.NotEmpty(t, login.GrantTypes)
-				assert.NotEmpty(t, login.Ports)
+			    for _, login := range logins {
+                    assert.NotEmpty(t, login.Authz)
+                    assert.NotEmpty(t, login.Token)
+                    assert.NotEmpty(t, login.GrantTypes)
+                    assert.NotEmpty(t, login.Ports)
+				}
 			}
 			assert.NotNil(t, mw)
 		}
