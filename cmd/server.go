@@ -10,6 +10,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -297,7 +298,23 @@ func parseOidc(ctx context.Context) ([]map[string]interface{}, error) {
                 }
                 key := strings.TrimSpace(kv[0])
                 value := strings.TrimSpace(kv[1])
-                parsed[key] = value
+
+                if key == "scopes" || key == "login_grants" {
+                    parsed[key] = strings.Split(value, ",")
+                } else if key == "login_ports" {
+                    ports := strings.Split(value, ",")
+                    intPorts := []int{}
+                    for _, port := range ports {
+                        intPort, err := strconv.Atoi(strings.TrimSpace(port))
+                        if err != nil {
+                            return nil, fmt.Errorf("invalid port value: %s", port)
+                        }
+                        intPorts = append(intPorts, intPort)
+                    }
+                    parsed[key] = intPorts
+                } else {
+                    parsed[key] = value
+                }
 
             parsedList = append(parsedList, parsed)
             }
