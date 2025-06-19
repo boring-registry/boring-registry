@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-    "fmt"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
