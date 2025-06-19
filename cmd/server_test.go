@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,7 +10,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/boring-registry/boring-registry/pkg/discovery"
 )
+
+func findLoginByClient(logins []*discovery.LoginV1, clientID []string) bool {
+    for index, login := range logins {
+        if login.Client != clientID[index] {
+            return false
+        }
+    }
+    return true
+}
 
 func TestAuthMiddleware(t *testing.T) {
 	data := `{
@@ -33,6 +44,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	tests := []struct {
 		name             string
+		authOidc         []string
 		authOidcIssuer   string
 		authOidcClientId string
 		authOktaIssuer   string
@@ -41,6 +53,8 @@ func TestAuthMiddleware(t *testing.T) {
 		authOktaToken    string
 		wantErr          bool
 		errMessage       string
+		authIssuer       string
+		expectedOidcClients []string
 	}{
 		{
 			name:             "only OIDC is configured",
@@ -62,33 +76,53 @@ func TestAuthMiddleware(t *testing.T) {
 			authOktaAuthz:    "/authz",
 			authOktaToken:    "/token",
 		},
+		{
+		    name:            "Multiple OIDC set",
+            authOidc: []string{
+                fmt.Sprintf("client_id=boring-registry-test1;issuer=%s;scopes=openid;login_grants=grants1,grants2;login_ports=123,456", s.URL),
+                fmt.Sprintf("client_id=boring-registry-test2;issuer=%s;scopes=openid", s.URL),
+            },
+            authIssuer:   s.URL,
+            expectedOidcClients: []string{"boring-registry-test1", "boring-registry-test2"},
+        },
 	}
 
 	for _, test := range tests {
 		// Initializing global variables, this is potentially problematic!
 		flagAuthOidcIssuer = test.authOidcIssuer
+		if flagAuthOidcIssuer == "" {
+		    flagAuthOidcIssuer = test.authIssuer
+		}
 		flagAuthOidcClientId = test.authOidcClientId
 		flagAuthOktaIssuer = test.authOktaIssuer
 		flagAuthOktaClientId = test.authOktaClientId
 		flagAuthOktaAuthz = test.authOktaAuthz
 		flagAuthOktaToken = test.authOktaToken
+		flagAuthOidc = test.authOidc
 
-		mw, login, err := authMiddleware(context.Background())
+		mw, logins, err := authMiddleware(context.Background())
 		if test.wantErr {
 			assert.Error(t, err)
 			assert.ErrorContains(t, err, test.errMessage)
 		} else {
 			assert.NoError(t, err)
-			if assert.NotNil(t, login) {
-				if test.authOidcIssuer != "" {
-					assert.Equal(t, test.authOidcClientId, login.Client)
+			if assert.NotNil(t, logins) {
+			    if len(test.authOidc) > 0 {
+			        assert.True(t, findLoginByClient(logins, test.expectedOidcClients), "Expected clients not found in logins")
+			    } else if test.authOidcIssuer != "" {
+                    assert.True(t, findLoginByClient(logins, []string{test.authOidcClientId}), "Expected client not found in logins")
 				} else if test.authOktaIssuer != "" {
-					assert.Equal(t, test.authOktaClientId, login.Client)
+                    assert.True(t, findLoginByClient(logins, []string{test.authOktaClientId}), "Expected client not found in logins")
 				}
-				assert.NotEmpty(t, login.Authz)
-				assert.NotEmpty(t, login.Token)
-				assert.NotEmpty(t, login.GrantTypes)
-				assert.NotEmpty(t, login.Ports)
+
+			    for _, login := range logins {
+			        if test.authOidcIssuer != "" || test.authOktaIssuer != "" {
+                        assert.NotEmpty(t, login.Authz)
+                        assert.NotEmpty(t, login.Token)
+                        assert.NotEmpty(t, login.GrantTypes)
+                        assert.NotEmpty(t, login.Ports)
+                    }
+				}
 			}
 			assert.NotNil(t, mw)
 		}

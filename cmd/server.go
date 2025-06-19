@@ -10,6 +10,9 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"reflect"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -62,6 +65,7 @@ var (
 	flagAuthStaticTokens []string
 
 	// OIDC auth
+	flagAuthOidc         []string
 	flagAuthOidcIssuer   string
 	flagAuthOidcClientId string
 	flagAuthOidcScopes   []string
@@ -202,6 +206,7 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 
 	// OIDC auth options
+	serverCmd.Flags().StringSliceVar(&flagAuthOidc, "auth-oidc", []string{}, "Enable multiple OIDC authentication methods. Format: client_id=...;issuer=...;scopes=...;login_grants=...;login_ports=...")
 	serverCmd.Flags().StringVar(&flagAuthOidcIssuer, "auth-oidc-issuer", "", "OIDC issuer URL")
 	serverCmd.Flags().StringVar(&flagAuthOidcClientId, "auth-oidc-clientid", "", "OIDC client identifier")
 	serverCmd.Flags().StringSliceVar(&flagAuthOidcScopes, "auth-oidc-scopes", nil, "List of OAuth2 scopes")
@@ -221,7 +226,7 @@ func init() {
 func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
 
-	authMiddleware, login, err := authMiddleware(ctx)
+	authMiddleware, logins, err := authMiddleware(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +235,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	instrumentation := o11y.NewMiddleware(metrics.Http)
 
 	registerMetrics(mux)
-	registerDiscovery(mux, login)
+	registerDiscovery(mux, logins)
 
 	s, err := setupStorage(ctx)
 	if err != nil {
@@ -270,52 +275,170 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	return mux, nil
 }
 
-func setupOidc(ctx context.Context) (auth.Provider, *discovery.LoginV1, error) {
+func setFieldByKey(config *auth.OidcConfig, key string, value interface{}) error {
+    keyToField := map[string]string{
+        "client_id": "ClientID",
+        "issuer":    "Issuer",
+        "scopes":    "Scopes",
+        "login_grants": "LoginGrants",
+        "login_ports":  "LoginPorts",
+    }
+
+    fieldName, ok := keyToField[key]
+	if !ok {
+		return fmt.Errorf("no mapping found for key: %s", key)
+	}
+
+	v := reflect.ValueOf(config).Elem()
+	field := v.FieldByName(fieldName)
+
+	if !field.IsValid() {
+		return fmt.Errorf("no such field: %s in struct", fieldName)
+	}
+
+	if !field.CanSet() {
+		return fmt.Errorf("cannot set field: %s", fieldName)
+	}
+
+	fieldValue := reflect.ValueOf(value)
+	if field.Type() != fieldValue.Type() {
+		return fmt.Errorf("provided value type doesn't match field type")
+	}
+
+	field.Set(fieldValue)
+	return nil
+}
+
+
+func parseOidc(ctx context.Context) ([]auth.OidcConfig, error) {
+    parsedList := []auth.OidcConfig{}
+
+    if len(flagAuthOidc) != 0 {
+        fmt.Printf("flagAuthOidc: %v\n", flagAuthOidc)
+        for _, oidcConfig := range flagAuthOidc {
+            parsed := &auth.OidcConfig{
+                ClientID:    "",
+                Issuer:      "",
+                Scopes:      []string{},
+                LoginGrants: flagLoginGrantTypes,
+                LoginPorts:  flagLoginPorts,
+            }
+
+            pairs := strings.Split(oidcConfig, ";")
+
+            for _, pair := range pairs {
+                if pair == "" {
+                    continue
+                }
+                kv := strings.SplitN(pair, "=", 2)
+                if len(kv) != 2 {
+                    return nil, fmt.Errorf("invalid key-value pair: %s", pair)
+                }
+                key := strings.TrimSpace(kv[0])
+                value := strings.TrimSpace(kv[1])
+
+                if key == "scopes" || key == "login_grants" {
+                    err := setFieldByKey(parsed, key, strings.Split(value, ","))
+                    if err != nil {
+                        return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+                    }
+                } else if key == "login_ports" {
+                    ports := strings.Split(value, ",")
+                    intPorts := []int{}
+                    for _, port := range ports {
+                        intPort, err := strconv.Atoi(strings.TrimSpace(port))
+                        if err != nil {
+                            return nil, fmt.Errorf("invalid port value: %s", port)
+                        }
+                        intPorts = append(intPorts, intPort)
+                    }
+                    err := setFieldByKey(parsed, key, intPorts)
+                    if err != nil {
+                        return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+                    }
+                } else {
+                    err := setFieldByKey(parsed, key, value)
+                    if err != nil {
+                        return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+                    }
+                }
+            }
+            parsedList = append(parsedList, *parsed)
+        }
+	} else {
+		slog.Debug("setting up oidc auth",
+            slog.String("client-id", flagAuthOidcClientId),
+            slog.String("issuer", flagAuthOidcIssuer),
+            slog.Any("login-grant", flagLoginGrantTypes),
+            slog.Any("login-ports", flagLoginPorts),
+            slog.Any("scopes", flagAuthOidcScopes),
+        )
+
+	    parsed :=  &auth.OidcConfig{
+	        ClientID: flagAuthOidcClientId,
+	        Issuer:    flagAuthOidcIssuer,
+	        Scopes:    flagAuthOidcScopes,
+	        LoginGrants: flagLoginGrantTypes,
+	        LoginPorts:  flagLoginPorts,
+	    }
+	    parsedList = append(parsedList, *parsed)
+	}
+
+	return parsedList, nil
+}
+
+func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, error) {
 	authCtx, cancelAuthCtx := context.WithTimeout(ctx, 15*time.Second)
 	defer cancelAuthCtx()
 
-	slog.Debug("setting up oidc auth",
-		slog.String("client-id", flagAuthOidcClientId),
-		slog.String("issuer", flagAuthOidcIssuer),
-		slog.String("client-id", flagAuthOidcClientId),
-		slog.Any("ports", flagLoginPorts),
-		slog.Any("scopes", flagAuthOidcScopes),
-	)
+	oidcConfigs, error := parseOidc(ctx)
+	if error != nil {
+        return nil, nil, fmt.Errorf("failed to parse OIDC configuration: %w", error)
+    }
 
-	provider, err := auth.NewOidcProvider(authCtx, flagAuthOidcIssuer, flagAuthOidcClientId)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
-	}
+	providers := []auth.Provider{}
+	logins := []*discovery.LoginV1{}
 
-	login := &discovery.LoginV1{
-		Client:     flagAuthOidcClientId,
-		GrantTypes: flagLoginGrantTypes,
-		Authz:      provider.AuthURL(),
-		Token:      provider.TokenURL(),
-		Ports:      flagLoginPorts,
-		Scopes:     flagAuthOidcScopes,
-	}
+	for _, config := range oidcConfigs {
+        slog.Debug("setting up oidc auth", slog.Any("config", config))
+        provider, err := auth.NewOidcProvider(authCtx, config.Issuer, config.ClientID)
+        if err != nil {
+            return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
+        }
 
-	return provider, login, nil
+        login := &discovery.LoginV1{
+            Client:     config.ClientID,
+            GrantTypes: config.LoginGrants,
+            Authz:      provider.AuthURL(),
+            Token:      provider.TokenURL(),
+            Ports:      config.LoginPorts,
+            Scopes:     config.Scopes,
+        }
+        providers = append(providers, provider)
+        logins = append(logins, login)
+    }
+
+	return providers, logins, nil
 }
 
-func setupOkta() (auth.Provider, *discovery.LoginV1) {
+func setupOkta() ([]auth.Provider, []*discovery.LoginV1) {
 	slog.Debug("setting up okta auth", slog.String("issuer", flagAuthOktaIssuer), slog.String("client-id", flagAuthOktaClientId))
 	slog.Warn("Okta auth is deprecated, please migrate to OIDC auth")
-	p := auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...)
-	login := &discovery.LoginV1{
-		Client:     flagAuthOktaClientId,
-		GrantTypes: flagLoginGrantTypes,
-		Authz:      flagAuthOktaAuthz,
-		Token:      flagAuthOktaToken,
-		Ports:      flagLoginPorts,
-		Scopes:     flagLoginScopes,
+	p := []auth.Provider{auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...)}
+	login := []*discovery.LoginV1{&discovery.LoginV1{
+            Client:     flagAuthOktaClientId,
+            GrantTypes: flagLoginGrantTypes,
+            Authz:      flagAuthOktaAuthz,
+            Token:      flagAuthOktaToken,
+            Ports:      flagLoginPorts,
+            Scopes:     flagLoginScopes,
+        },
 	}
 
 	return p, login
 }
 
-func authMiddleware(ctx context.Context) (endpoint.Middleware, *discovery.LoginV1, error) {
+func authMiddleware(ctx context.Context) (endpoint.Middleware, []*discovery.LoginV1, error) {
 	providers := []auth.Provider{}
 
 	if flagAuthStaticTokens != nil {
@@ -324,34 +447,36 @@ func authMiddleware(ctx context.Context) (endpoint.Middleware, *discovery.LoginV
 
 	// Check if OIDC or Okta are configured, we only want to allow one at a time.
 	// OIDC is recommended, we want to deprecate our Okta-specific implementation and use our OIDC implementation instead, which Okta also supports.
-	if flagAuthOidcIssuer != "" && flagAuthOktaIssuer != "" {
+	if (flagAuthOidcIssuer != "" || len(flagAuthOidc) > 0) && flagAuthOktaIssuer != "" {
 		return nil, nil, errors.New("both OIDC and Okta are configured, only one is allowed at a time")
 	}
 
 	// We construct the discovery.LoginV1 on this level, as we need the OIDC provider to look up the
 	// authorization and token endpoints dynamically to populate the LoginV1
-	var login *discovery.LoginV1
-	if flagAuthOidcIssuer != "" || flagAuthOktaIssuer != "" {
-		var p auth.Provider
-		if flagAuthOidcIssuer != "" {
+	var logins []*discovery.LoginV1
+	if flagAuthOidcIssuer != "" || len(flagAuthOidc) > 0 || flagAuthOktaIssuer != "" {
+		var ps []auth.Provider
+		if flagAuthOidcIssuer != "" || len(flagAuthOidc) > 0 {
 			var err error
-			p, login, err = setupOidc(ctx)
+			ps, logins, err = setupOidc(ctx)
 			if err != nil {
 				return nil, nil, err
 			}
 		} else if flagAuthOktaIssuer != "" {
-			p, login = setupOkta()
+			ps, logins = setupOkta()
 		}
-		providers = append(providers, p)
+		providers = append(providers, ps...)
 	}
 
-	if login != nil { // Can be nil if neither Oidc, Okta, or API token are configured
-		if err := login.Validate(); err != nil {
-			return nil, nil, err
-		}
+    for _, login := range logins {
+        if login != nil { // Can be nil if neither Oidc, Okta, nor API token are configured
+            if err := login.Validate(); err != nil {
+                return nil, nil, err
+            }
+        }
 	}
 
-	return auth.Middleware(providers...), login, nil
+	return auth.Middleware(providers...), logins, nil
 }
 
 func registerMetrics(mux *http.ServeMux) {
@@ -368,11 +493,14 @@ func registerMetrics(mux *http.ServeMux) {
 	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
 }
 
-func registerDiscovery(mux *http.ServeMux, login *discovery.LoginV1) error {
+func registerDiscovery(mux *http.ServeMux, logins []*discovery.LoginV1) error {
 	options := []discovery.Option{
 		discovery.WithModulesV1(fmt.Sprintf("%s/", prefixModules)),
 		discovery.WithProvidersV1(fmt.Sprintf("%s/", prefixProviders)),
-		discovery.WithLoginV1(login),
+	}
+
+	for _, login := range logins {
+	    options = append(options, discovery.WithLoginV1(login))
 	}
 
 	terraformJSON, err := json.Marshal(discovery.NewDiscovery(options...))
