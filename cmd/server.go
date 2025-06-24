@@ -499,8 +499,8 @@ func registerDiscovery(mux *http.ServeMux, logins []*discovery.LoginV1) error {
 		discovery.WithProvidersV1(fmt.Sprintf("%s/", prefixProviders)),
 	}
 
-	for _, login := range logins {
-	    options = append(options, discovery.WithLoginV1(login))
+	if len(logins) > 0 {
+	    options = append(options, discovery.WithLoginV1(logins[0]))
 	}
 
 	terraformJSON, err := json.Marshal(discovery.NewDiscovery(options...))
