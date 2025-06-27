@@ -19,6 +19,7 @@ The following configuration options are available:
 |`--storage-s3-prefix`|`BORING_REGISTRY_STORAGE_S3_PREFIX`|S3 bucket prefix to use for the registry (optional)|
 |`--storage-s3-region`|`BORING_REGISTRY_STORAGE_S3_REGION` or `AWS_REGION` or `AWS_DEFAULT_REGION`|S3 bucket region to use for the registry|
 |`--storage-s3-signedurl-expiry`|`BORING_REGISTRY_STORAGE_S3_SIGNEDURL_EXPIRY`|Generate S3 signed URL valid for X seconds (default 5m0s)|
+|`--storage-s3-client-log-mode`|`BORING_REGISTRY_STORAGE_S3_CLIENT_LOG_MODE`|AWS S3 configuration for client log mode (for viewing AWS S3 Client logs, only when debug is not enough).<br/>Possible values are `Signing`, `Retries`, `Request`, `RequestWithBody`, `Response`, `ResponseWithBody`, `DeprecatedUsage`, `RequestEventMessage` and `ResponseEventMessage` separated by a comma|
 
 The following shows a minimal example to run `boring-registry server` with S3:
 

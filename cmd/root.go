@@ -32,6 +32,7 @@ var (
 	flagS3Endpoint        string
 	flagS3PathStyle       bool
 	flagS3SignedURLExpiry time.Duration
+	flagS3ClientLogMode   string
 
 	// GCS options.
 	flagGCSBucket          string
@@ -80,6 +81,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&flagS3Endpoint, "storage-s3-endpoint", "", "S3 bucket endpoint URL (required for MINIO)")
 	rootCmd.PersistentFlags().BoolVar(&flagS3PathStyle, "storage-s3-pathstyle", false, "S3 use PathStyle (required for MINIO)")
 	rootCmd.PersistentFlags().DurationVar(&flagS3SignedURLExpiry, "storage-s3-signedurl-expiry", 5*time.Minute, "Generate S3 signed URL valid for X seconds.")
+	rootCmd.PersistentFlags().StringVar(&flagS3ClientLogMode, "storage-s3-client-log-mode", "", "AWS S3 configuration for client log mode (for viewing AWS S3 Client logs, only when debug is not enough)")
 	rootCmd.PersistentFlags().StringVar(&flagGCSBucket, "storage-gcs-bucket", "", "Bucket to use when using the GCS registry type")
 	rootCmd.PersistentFlags().StringVar(&flagGCSPrefix, "storage-gcs-prefix", "", "Prefix to use when using the GCS registry type")
 	rootCmd.PersistentFlags().StringVar(&flagGCSServiceAccount, "storage-gcs-sa-email", "", `Google service account email to be used for Application Default Credentials (ADC).
@@ -131,6 +133,7 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithS3StoragePathStyle(flagS3PathStyle),
 			storage.WithS3ArchiveFormat(flagModuleArchiveFormat),
 			storage.WithS3StorageSignedUrlExpiry(flagS3SignedURLExpiry),
+			storage.WithS3ClientLogMode(flagS3ClientLogMode),
 		)
 	case flagGCSBucket != "":
 		return storage.NewGCSStorage(flagGCSBucket,

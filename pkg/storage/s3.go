@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
@@ -63,6 +64,7 @@ type S3Storage struct {
 	moduleArchiveFormat string
 	forcePathStyle      bool
 	signedURLExpiry     time.Duration
+	clientLogMode       aws.ClientLogMode
 }
 
 // GetModule retrieves information about a module from the S3 storage.
@@ -489,6 +491,14 @@ func WithS3StorageSignedUrlExpiry(t time.Duration) S3StorageOption {
 	}
 }
 
+// WithS3ClientLogMode configures the duration until the signed url expires
+func WithS3ClientLogMode(logMode string) S3StorageOption {
+	clientLogMode := parseClientLogMode(logMode)
+	return func(s *S3Storage) {
+		s.clientLogMode = clientLogMode
+	}
+}
+
 // NewS3Storage returns a fully initialized S3 storage.
 func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption) (Storage, error) {
 	// Required- and default-values should be set here
@@ -514,8 +524,16 @@ func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption
 		return aws.Endpoint{}, &aws.EndpointNotFoundError{}
 	})
 
-	// Create the S3 client
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(s.bucketRegion), config.WithEndpointResolverWithOptions(customResolver))
+	// Create the S3 client with conditional logging
+	configLoadOptions := []func(*config.LoadOptions) error{
+		config.WithRegion(s.bucketRegion),
+		config.WithEndpointResolverWithOptions(customResolver),
+	}
+	if s.clientLogMode != 0 {
+		configLoadOptions = append(configLoadOptions, config.WithClientLogMode(s.clientLogMode))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, configLoadOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -535,4 +553,40 @@ func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption
 	}
 
 	return s, nil
+}
+
+// Parse the raw client log mode value and return the corresponding logging mode
+func parseClientLogMode(rawClientLogMode string) aws.ClientLogMode {
+	if rawClientLogMode == "" {
+		return 0
+	}
+
+	var logMode aws.ClientLogMode = 0
+	modes := strings.Split(strings.ToLower(rawClientLogMode), ",")
+
+	for _, mode := range modes {
+		mode = strings.TrimSpace(mode)
+		switch mode {
+		case "signing":
+			logMode |= aws.LogSigning
+		case "retries":
+			logMode |= aws.LogRetries
+		case "request":
+			logMode |= aws.LogRequest
+		case "requestwithbody":
+			logMode |= aws.LogRequestWithBody
+		case "response":
+			logMode |= aws.LogResponse
+		case "responsewithbody":
+			logMode |= aws.LogResponseWithBody
+		case "deprecatedusage":
+			logMode |= aws.LogDeprecatedUsage
+		case "requesteventmessage":
+			logMode |= aws.LogRequestEventMessage
+		case "responseeventmessage":
+			logMode |= aws.LogResponseEventMessage
+		}
+	}
+
+	return logMode
 }
