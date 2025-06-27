@@ -125,6 +125,7 @@ server:
     #   region: ""
     #   endpoint: ""
     #   pathStyle: false
+    #   clientLogMode: ""
     # gcs:
     #   bucket: ""
     #   prefix: ""
