@@ -491,7 +491,7 @@ func WithS3StorageSignedUrlExpiry(t time.Duration) S3StorageOption {
 	}
 }
 
-// WithS3ClientLogMode configures the duration until the signed url expires
+// WithS3ClientLogMode configures theclient log mode to affect to the AWS client
 func WithS3ClientLogMode(logMode string) S3StorageOption {
 	clientLogMode := parseClientLogMode(logMode)
 	return func(s *S3Storage) {
