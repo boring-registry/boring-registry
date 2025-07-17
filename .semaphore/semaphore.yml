@@ -33,7 +33,7 @@ blocks:
           commands:
             - go test ./...
             - make build
-            - "curl -H \"Authorization: Bearer $SEMAPHORE_OIDC_TOKEN\" https://terraform-registry.internal/.well-known/terraform.json"
+            - "curl -H \"Authorization: Bearer $SEMAPHORE_OIDC_TOKEN\" https://terraform-registry.stage.dp.confluent.io/.well-known/terraform.json"
             - mkdir -p ~/.terraform.d
             - echo '{"credentials":{"terraform-registry.stage.dp.confluent.io":{"token":"$SEMAPHORE_OIDC_TOKEN"}}}' > ~/.terraform.d/credentials.tfrc.json
             - "cat ~/.terraform.d/credentials.tfrc.json"
