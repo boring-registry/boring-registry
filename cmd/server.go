@@ -399,23 +399,45 @@ func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, erro
 	providers := []auth.Provider{}
 	logins := []*discovery.LoginV1{}
 
-	for _, config := range oidcConfigs {
+	// Check if global login flags are provided
+	hasGlobalLoginFlags := flagAuthOktaAuthz != "" && flagAuthOktaToken != "" && flagAuthOktaClientId != ""
+
+	for i, config := range oidcConfigs {
         slog.Debug("setting up oidc auth", slog.Any("config", config))
         provider, err := auth.NewOidcProvider(authCtx, config.Issuer, config.ClientID)
         if err != nil {
             return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
         }
 
-        login := &discovery.LoginV1{
-            Client:     config.ClientID,
-            GrantTypes: config.LoginGrants,
-            Authz:      provider.AuthURL(),
-            Token:      provider.TokenURL(),
-            Ports:      config.LoginPorts,
-            Scopes:     config.Scopes,
+        // Only create login configuration for the first provider if global login flags are provided
+        // or if this is the first provider and no global flags are provided
+        if (hasGlobalLoginFlags && i == 0) || (!hasGlobalLoginFlags && i == 0) {
+            var login *discovery.LoginV1
+            if hasGlobalLoginFlags {
+                // Use global login flags
+                login = &discovery.LoginV1{
+                    Client:     flagAuthOktaClientId,
+                    GrantTypes: flagLoginGrantTypes,
+                    Authz:      flagAuthOktaAuthz,
+                    Token:      flagAuthOktaToken,
+                    Ports:      flagLoginPorts,
+                    Scopes:     flagLoginScopes,
+                }
+            } else {
+                // Use provider-specific login configuration
+                login = &discovery.LoginV1{
+                    Client:     config.ClientID,
+                    GrantTypes: config.LoginGrants,
+                    Authz:      provider.AuthURL(),
+                    Token:      provider.TokenURL(),
+                    Ports:      config.LoginPorts,
+                    Scopes:     config.Scopes,
+                }
+            }
+            logins = append(logins, login)
         }
+        
         providers = append(providers, provider)
-        logins = append(logins, login)
     }
 
 	return providers, logins, nil
@@ -468,13 +490,12 @@ func authMiddleware(ctx context.Context) (endpoint.Middleware, []*discovery.Logi
 		providers = append(providers, ps...)
 	}
 
-    for _, login := range logins {
-        if login != nil { // Can be nil if neither Oidc, Okta, nor API token are configured
-            if err := login.Validate(); err != nil {
-                return nil, nil, err
-            }
+    // Only validate the first login configuration, as the discovery mechanism only supports one
+    if len(logins) > 0 && logins[0] != nil {
+        if err := logins[0].Validate(); err != nil {
+            return nil, nil, err
         }
-	}
+    }
 
 	return auth.Middleware(providers...), logins, nil
 }
