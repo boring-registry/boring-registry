@@ -33,5 +33,5 @@ blocks:
           commands:
             - go test ./...
             - make build
-            - terraform login terraform-registry.stage.dp.confluent.io
-            - curl -H "Authorization: Bearer $SEMAPHORE_OIDC_TOKEN" https://terraform-registry.internal/.well-known/terraform.json
+            - "terraform login terraform-registry.stage.dp.confluent.io"
+            - "curl -H \"Authorization: Bearer $SEMAPHORE_OIDC_TOKEN\" https://terraform-registry.internal/.well-known/terraform.json"
