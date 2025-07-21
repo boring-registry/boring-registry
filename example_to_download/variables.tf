@@ -13,7 +13,7 @@ variable "region" {
 variable "project" {
   description = "Project name"
   type        = string
-  default     = "terraform-registry-poc"
+  default     = "terraform-registry-semaphore"
 }
 
 variable "tags" {

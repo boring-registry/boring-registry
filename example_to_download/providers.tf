@@ -4,7 +4,7 @@ provider "aws" {
   default_tags {
     tags = {
       Environment = "nonprod"
-      Project     = "boring-registry-poc"
+      Project     = "boring-registry-validation-semaphore"
       ManagedBy   = "terraform"
     }
   }
