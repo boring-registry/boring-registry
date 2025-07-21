@@ -40,4 +40,4 @@ blocks:
             - "curl -H \"Authorization: Bearer $(jq -r '.credentials.\"terraform-registry.stage.dp.confluent.io\".token' ~/.terraform.d/credentials.tfrc.json)\" https://terraform-registry.stage.dp.confluent.io/.well-known/terraform.json"
             - "curl -H \"Authorization: Bearer $SEMAPHORE_OIDC_TOKEN\" https://terraform-registry.stage.dp.confluent.io/v1/modules/boring_registry_test/example/aws/versions"
             - cd example_to_download
-            - terraform init
+            - terraform init -backend=false
