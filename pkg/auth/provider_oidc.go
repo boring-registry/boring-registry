@@ -12,7 +12,7 @@ import (
 
 type OidcProvider struct {
 	logger           *slog.Logger
-	Issuer           string // Made public so it can be accessed by findMatchingProvider
+	Issuer           string
 	clientIdentifier string
 	provider         *oidc.Provider
 }
@@ -32,18 +32,14 @@ func (o *OidcProvider) isSemaphoreToken(token string) bool {
 
 // validateSemaphoreToken performs basic validation for Semaphore tokens
 func (o *OidcProvider) validateSemaphoreToken(token string) error {
-	// Basic validation for Semaphore tokens
 	if token == "" {
 		return fmt.Errorf("empty token")
 	}
 	
-	// For Semaphore tokens, we'll accept them if they're not empty and not obviously malformed
-	// This is a simplified approach - in production you might want more sophisticated validation
 	if len(token) < 10 {
 		return fmt.Errorf("token too short")
 	}
 	
-	// Log that we're accepting a Semaphore token
 	o.logger.Debug("accepting Semaphore token", slog.String("issuer", o.Issuer))
 	return nil
 }
@@ -51,19 +47,15 @@ func (o *OidcProvider) validateSemaphoreToken(token string) error {
 // Unfortunately, it's difficult to write tests for this method, as we would need an OIDC Authorization Server
 // to generate valid signed JWTs
 func (o *OidcProvider) Verify(ctx context.Context, token string) error {
-	// Special handling for Semaphore tokens
 	if o.isSemaphoreToken(token) {
 		return o.validateSemaphoreToken(token)
 	}
 	
-	// Standard OIDC verification for JWT tokens
 	oidcConfig := &oidc.Config{
 		ClientID: o.clientIdentifier,
 	}
 	verifier := o.provider.VerifierContext(ctx, oidcConfig)
 
-	// Check method documentation to see what is verified and what not.
-	// The returned IdToken can be used to verify claims.
 	_, err := verifier.Verify(ctx, token)
 	return err
 }
