@@ -12,7 +12,7 @@ import (
 
 type OidcProvider struct {
 	logger           *slog.Logger
-	Issuer           string
+	issuer           string
 	clientIdentifier string
 	provider         *oidc.Provider
 }
@@ -25,9 +25,14 @@ type OidcConfig struct {
     LoginPorts  []int
 }
 
+// GetIssuer returns the issuer URL for this OIDC provider
+func (o *OidcProvider) GetIssuer() string {
+	return o.issuer
+}
+
 // isSemaphoreToken checks if this is a Semaphore token (not necessarily JWT)
 func (o *OidcProvider) isSemaphoreToken(token string) bool {
-	return strings.Contains(o.Issuer, "semaphore.ci.confluent.io")
+	return strings.Contains(o.issuer, "semaphore.ci.confluent.io")
 }
 
 // validateSemaphoreToken performs basic validation for Semaphore tokens
@@ -40,7 +45,7 @@ func (o *OidcProvider) validateSemaphoreToken(token string) error {
 		return fmt.Errorf("token too short")
 	}
 	
-	o.logger.Debug("accepting Semaphore token", slog.String("issuer", o.Issuer))
+	o.logger.Debug("accepting Semaphore token", slog.String("issuer", o.issuer))
 	return nil
 }
 
@@ -80,7 +85,7 @@ func NewOidcProvider(ctx context.Context, issuer, clientIdentifier string) (*Oid
 
 	return &OidcProvider{
 		logger:           logger,
-		Issuer:           issuer,
+		issuer:           issuer,
 		clientIdentifier: clientIdentifier,
 		provider:         provider,
 	}, nil

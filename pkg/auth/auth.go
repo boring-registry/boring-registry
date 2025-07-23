@@ -45,7 +45,7 @@ func parseJWTIssuer(token string) (string, error) {
 func findMatchingProvider(providers []Provider, issuer string) Provider {
 	for _, provider := range providers {
 		if oidcProvider, ok := provider.(*OidcProvider); ok {
-			if oidcProvider.Issuer == issuer {
+			if oidcProvider.GetIssuer() == issuer {
 				return provider
 			}
 		}
@@ -57,7 +57,7 @@ func findMatchingProvider(providers []Provider, issuer string) Provider {
 func findSemaphoreProvider(providers []Provider) Provider {
 	for _, provider := range providers {
 		if oidcProvider, ok := provider.(*OidcProvider); ok {
-			if strings.Contains(oidcProvider.Issuer, "semaphore.ci.confluent.io") {
+			if strings.Contains(oidcProvider.GetIssuer(), "semaphore.ci.confluent.io") {
 				return provider
 			}
 		}
