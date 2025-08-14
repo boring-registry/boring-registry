@@ -44,6 +44,14 @@ var (
 	flagAzureStorageContainer       string
 	flagAzureStoragePrefix          string
 	flagAzureStorageSignedURLExpiry time.Duration
+
+	// OCI Registry options
+	flagOCIRegistry    string
+	flagOCIRepository  string
+	flagOCIUsername    string
+	flagOCIPassword    string
+	flagOCIToken       string
+	flagOCIInsecure    bool
 )
 
 var rootCmd = &cobra.Command{
@@ -90,6 +98,12 @@ For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().StringVar(&flagAzureStorageContainer, "storage-azure-container", "", "Azure Storage Container to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagAzureStoragePrefix, "storage-azure-prefix", "", "Azure Storage prefix to use for the registry")
 	rootCmd.PersistentFlags().DurationVar(&flagAzureStorageSignedURLExpiry, "storage-azure-signedurl-expiry", 5*time.Minute, "Generate Azure Storage signed URL valid for X seconds.")
+	rootCmd.PersistentFlags().StringVar(&flagOCIRegistry, "storage-oci-registry", "", "OCI registry hostname to use for the registry")
+	rootCmd.PersistentFlags().StringVar(&flagOCIRepository, "storage-oci-repository", "", "OCI repository path to use for the registry")
+	rootCmd.PersistentFlags().StringVar(&flagOCIUsername, "storage-oci-username", "", "OCI registry username for authentication")
+	rootCmd.PersistentFlags().StringVar(&flagOCIPassword, "storage-oci-password", "", "OCI registry password for authentication")
+	rootCmd.PersistentFlags().StringVar(&flagOCIToken, "storage-oci-token", "", "OCI registry token for authentication")
+	rootCmd.PersistentFlags().BoolVar(&flagOCIInsecure, "storage-oci-insecure", false, "Allow insecure connections to OCI registry")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
@@ -145,6 +159,15 @@ func setupStorage(ctx context.Context) (storage.Storage, error) {
 			storage.WithAzureStoragePrefix(flagAzureStoragePrefix),
 			storage.WithAzureStorageArchiveFormat(flagModuleArchiveFormat),
 			storage.WithAzureStorageSignedUrlExpiry(flagAzureStorageSignedURLExpiry),
+		)
+	case flagOCIRegistry != "":
+		return storage.NewOCIStorage(ctx,
+			flagOCIRegistry,
+			flagOCIRepository,
+			storage.WithOCIUsername(flagOCIUsername),
+			storage.WithOCIPassword(flagOCIPassword),
+			storage.WithOCIToken(flagOCIToken),
+			storage.WithOCIInsecure(flagOCIInsecure),
 		)
 	default:
 		return nil, errors.New("storage provider is not specified")
