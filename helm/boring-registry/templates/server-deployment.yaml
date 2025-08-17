@@ -90,6 +90,10 @@ spec:
             - name: BORING_REGISTRY_STORAGE_S3_PATHSTYLE
               value:  {{ .pathStyle | quote }}
             {{- end }}
+            {{- if .clientLogMode }}
+            - name: BORING_REGISTRY_STORAGE_S3_CLIENT_LOG_MODE
+              value:  {{ .clientLogMode | quote }}
+            {{- end }}
             {{- end }}
 
             {{- with .Values.server.storage.gcs }}
