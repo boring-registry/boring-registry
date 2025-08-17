@@ -22,16 +22,19 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 			}
 
 			if token, ok := tokenValue.(string); ok {
+			    var lastError error
 				for _, provider := range providers {
 					err := provider.Verify(ctx, token)
 					if err != nil {
 						slog.Debug("failed to verify token", slog.String("err", err.Error()))
-						return nil, fmt.Errorf("failed to verify token: %w", err)
+						lastError = err
+						continue
 					} else {
 						slog.Debug("successfully verified token")
 						return next(ctx, request)
 					}
 				}
+				return nil, fmt.Errorf("failed to verify token: %w", lastError)
 			} else {
 				return nil, fmt.Errorf("%w: request does not contain a token", core.ErrUnauthorized)
 			}
