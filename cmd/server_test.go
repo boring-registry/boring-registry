@@ -14,7 +14,7 @@ import (
 )
 
 func findLoginByClient(logins []*discovery.LoginV1, clientID []string) bool {
-    for index, login := range logins {
+	for index, login := range logins {
         if login.Client != clientID[index] {
             return false
         }
