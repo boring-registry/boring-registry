@@ -12,7 +12,7 @@ execution_time_limit:
   hours: 1
 
 queue:
-  - when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x'"
+  - when: "branch != 'main' and branch !~ '[0-9]+\\.[0-9]+\\.x'"
     processing: parallel
 
 global_job_config:
@@ -26,10 +26,26 @@ blocks:
     dependencies: []
     run:
       # don't run the tests on non-functional changes...
-      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/'], default_branch: 'master'})"
+      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/'], default_branch: 'main'})"
     task:
       jobs:
         - name: Test & Build
           commands:
             - go test ./...
             - make build
+
+  - name: "Build and deploy docker image"
+    dependencies: []
+    run:
+      when: "change_in(['Dockerfile'], {pipeline_file: 'ignore'})"
+    task:
+      jobs:
+        - name: "Build and deploy docker image"
+          commands:
+            - set -x
+            - if [ "$SEMAPHORE_GIT_WORKING_BRANCH" = "main" ]; then IMAGE_ENV=prod; else IMAGE_ENV=dev; fi
+            - export IMAGE_REPO=519856050701.dkr.ecr.us-west-2.amazonaws.com/docker/${IMAGE_ENV}/confluentinc/boring-registry
+            - export IMAGE="${IMAGE_REPO}:${SEMAPHORE_GIT_SHA}"
+            - BUILDKIT_PROGRESS=plain docker build -t $IMAGE .
+            - if [ "$SEMAPHORE_GIT_WORKING_BRANCH" = "main" ]; then docker tag $IMAGE $IMAGE_REPO:latest; docker push $IMAGE_REPO:latest; fi
+            - docker push $IMAGE
