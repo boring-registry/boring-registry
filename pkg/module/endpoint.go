@@ -2,7 +2,10 @@ package module
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 
 	"github.com/go-kit/kit/endpoint"
@@ -27,8 +30,9 @@ type listResponse struct {
 	Modules []listResponseModule `json:"modules,omitempty"`
 }
 
-func listEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoint {
+func listEndpoint(svc Service, metrics *o11y.ModuleMetrics, auditLogger audit.Logger) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		start := time.Now()
 		req := request.(listRequest)
 
 		metrics.ListVersions.With(prometheus.Labels{
@@ -41,6 +45,9 @@ func listEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoint {
 		if err != nil {
 			return nil, err
 		}
+
+		resource := fmt.Sprintf("%s/%s/%s", req.namespace, req.name, req.provider)
+		audit.LogRegistryAccess(ctx, auditLogger, "module", resource, audit.ActionList, time.Since(start))
 
 		var versions []listResponseVersion
 
@@ -69,8 +76,9 @@ type downloadRequest struct {
 
 type downloadResponse struct{ url string }
 
-func downloadEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoint {
+func downloadEndpoint(svc Service, metrics *o11y.ModuleMetrics, auditLogger audit.Logger) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		start := time.Now()
 		req := request.(downloadRequest)
 
 		metrics.Download.With(prometheus.Labels{
@@ -84,6 +92,9 @@ func downloadEndpoint(svc Service, metrics *o11y.ModuleMetrics) endpoint.Endpoin
 		if err != nil {
 			return nil, err
 		}
+
+		resource := fmt.Sprintf("%s/%s/%s/%s", req.namespace, req.name, req.provider, req.version)
+		audit.LogRegistryAccess(ctx, auditLogger, "module", resource, audit.ActionDownload, time.Since(start))
 
 		return downloadResponse{
 			url: res.DownloadURL,

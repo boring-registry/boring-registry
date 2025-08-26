@@ -2,7 +2,10 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"time"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 
@@ -15,8 +18,9 @@ type listRequest struct {
 	name      string
 }
 
-func listEndpoint(svc Service, metrics *o11y.ProviderMetrics) endpoint.Endpoint {
+func listEndpoint(svc Service, metrics *o11y.ProviderMetrics, auditLogger audit.Logger) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		start := time.Now()
 		req := request.(listRequest)
 
 		metrics.ListVersions.With(prometheus.Labels{
@@ -24,7 +28,15 @@ func listEndpoint(svc Service, metrics *o11y.ProviderMetrics) endpoint.Endpoint 
 			o11y.NameLabel:      req.name,
 		}).Inc()
 
-		return svc.ListProviderVersions(ctx, req.namespace, req.name)
+		result, err := svc.ListProviderVersions(ctx, req.namespace, req.name)
+		if err != nil {
+			return nil, err
+		}
+
+		resource := fmt.Sprintf("%s/%s", req.namespace, req.name)
+		audit.LogRegistryAccess(ctx, auditLogger, "provider", resource, audit.ActionList, time.Since(start))
+
+		return result, nil
 	}
 }
 
@@ -47,8 +59,9 @@ type downloadResponse struct {
 	SigningKeys         core.SigningKeys `json:"signing_keys"`
 }
 
-func downloadEndpoint(svc Service, metrics *o11y.ProviderMetrics) endpoint.Endpoint {
+func downloadEndpoint(svc Service, metrics *o11y.ProviderMetrics, auditLogger audit.Logger) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		start := time.Now()
 		req := request.(downloadRequest)
 
 		metrics.Download.With(prometheus.Labels{
@@ -63,6 +76,9 @@ func downloadEndpoint(svc Service, metrics *o11y.ProviderMetrics) endpoint.Endpo
 		if err != nil {
 			return nil, err
 		}
+
+		resource := fmt.Sprintf("%s/%s/%s/%s/%s", req.namespace, req.name, req.version, req.os, req.arch)
+		audit.LogRegistryAccess(ctx, auditLogger, "provider", resource, audit.ActionDownload, time.Since(start))
 
 		return downloadResponse{
 			OS:                  res.OS,

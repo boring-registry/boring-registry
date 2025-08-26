@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	"github.com/boring-registry/boring-registry/pkg/core"
 
 	"github.com/go-kit/kit/auth/jwt"
@@ -15,7 +16,14 @@ import (
 )
 
 type TokenClaims struct {
-	Issuer string `json:"iss"`
+	Issuer     string `json:"iss"`
+	Email      string `json:"email"`
+	Name       string `json:"name"`
+	GivenName  string `json:"given_name"`
+	FamilyName string `json:"family_name"`
+	Subject    string `json:"sub"`
+	ClientID   string `json:"aud"`
+	Username   string `json:"preferred_username"`
 }
 
 func parseJWTIssuer(token string) (string, error) {
@@ -35,6 +43,46 @@ func parseJWTIssuer(token string) (string, error) {
 	}
 
 	return claims.Issuer, nil
+}
+
+// parseJWTClaims extracts user information from JWT token for audit logging
+func parseJWTClaims(token string) (*audit.UserContext, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("malformed jwt, expected 3 parts got %d", len(parts))
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("malformed jwt payload: %v", err)
+	}
+
+	var claims TokenClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal claims: %v", err)
+	}
+
+	userCtx := &audit.UserContext{
+		UserEmail: claims.Email,
+		UserName:  claims.Name,
+		Subject:   claims.Subject,
+		Issuer:    claims.Issuer,
+		ClientID:  claims.ClientID,
+	}
+
+	if userCtx.UserName == "" {
+		userCtx.UserName = claims.Username
+	}
+
+	if userCtx.UserName == "" && (claims.GivenName != "" || claims.FamilyName != "") {
+		userCtx.UserName = strings.TrimSpace(fmt.Sprintf("%s %s", claims.GivenName, claims.FamilyName))
+	}
+
+	if userCtx.UserID == "" {
+		userCtx.UserID = claims.Email
+	}
+
+	return userCtx, nil
 }
 
 type IssuerProvider interface {
@@ -82,6 +130,14 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 								return nil, fmt.Errorf("failed to verify token: %w", err)
 							} else {
 								slog.Debug("successfully verified token with matching provider", slog.String("issuer", issuer))
+
+								if userCtx, err := parseJWTClaims(token); err == nil {
+									ctx = audit.SetUserInContext(ctx, userCtx)
+									slog.Debug("extracted user context for audit",
+										slog.String("email", userCtx.UserEmail),
+										slog.String("subject", userCtx.Subject))
+								}
+
 								return next(ctx, request)
 							}
 						}
@@ -97,6 +153,16 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 						continue
 					} else {
 						slog.Debug("successfully verified token")
+
+						if isLikelyJWT(token) {
+							if userCtx, err := parseJWTClaims(token); err == nil {
+								ctx = audit.SetUserInContext(ctx, userCtx)
+								slog.Debug("extracted user context for audit",
+									slog.String("email", userCtx.UserEmail),
+									slog.String("subject", userCtx.Subject))
+							}
+						}
+
 						return next(ctx, request)
 					}
 				}
