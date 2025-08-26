@@ -47,5 +47,9 @@ blocks:
             - export IMAGE_REPO=519856050701.dkr.ecr.us-west-2.amazonaws.com/docker/${IMAGE_ENV}/confluentinc/boring-registry
             - export IMAGE="${IMAGE_REPO}:${SEMAPHORE_GIT_SHA}"
             - BUILDKIT_PROGRESS=plain docker build -t $IMAGE .
-            - if [ "$SEMAPHORE_GIT_WORKING_BRANCH" = "main" ]; then docker tag $IMAGE $IMAGE_REPO:latest; docker push $IMAGE_REPO:latest; fi
+            - |
+              if [ "$SEMAPHORE_GIT_WORKING_BRANCH" = "main" ]; then
+                docker tag $IMAGE $IMAGE_REPO:latest
+                docker push $IMAGE_REPO:latest
+              fi
             - docker push $IMAGE
