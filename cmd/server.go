@@ -38,11 +38,11 @@ const (
 )
 
 var (
-	prefix		  = fmt.Sprintf("/%s", apiVersion)
+	prefix          = fmt.Sprintf("/%s", apiVersion)
 	prefixModules   = fmt.Sprintf("%s/modules", prefix)
 	prefixProviders = fmt.Sprintf("%s/providers", prefix)
-	prefixMirror	= fmt.Sprintf("%s/mirror", prefix)
-	prefixProxy	 = fmt.Sprintf("%s/proxy", prefix)
+	prefixMirror    = fmt.Sprintf("%s/mirror", prefix)
+	prefixProxy     = fmt.Sprintf("%s/proxy", prefix)
 )
 
 var (
@@ -50,21 +50,21 @@ var (
 	flagProxy bool
 
 	// General server options
-	flagTLSCertFile		 string
-	flagTLSKeyFile		  string
-	flagListenAddr		  string
+	flagTLSCertFile         string
+	flagTLSKeyFile          string
+	flagListenAddr          string
 	flagTelemetryListenAddr string
 	flagModuleArchiveFormat string
 
 	// Login options
 	flagLoginGrantTypes []string
-	flagLoginPorts	  []int
+	flagLoginPorts      []int
 
 	// Static auth
 	flagAuthStaticTokens []string
 
 	// OIDC auth
-	flagAuthOidc		 []string
+	flagAuthOidc         []string
 	flagAuthOidcIssuer   string
 	flagAuthOidcClientId string
 	flagAuthOidcScopes   []string
@@ -73,12 +73,12 @@ var (
 	flagAuthOktaIssuer   string
 	flagAuthOktaClientId string
 	flagAuthOktaClaims   []string
-	flagAuthOktaAuthz	string
-	flagAuthOktaToken	string
-	flagLoginScopes	  []string
+	flagAuthOktaAuthz    string
+	flagAuthOktaToken    string
+	flagLoginScopes      []string
 
 	// Provider Network Mirror
-	flagProviderNetworkMirrorEnabled			bool
+	flagProviderNetworkMirrorEnabled            bool
 	flagProviderNetworkMirrorPullThroughEnabled bool
 )
 
@@ -97,17 +97,17 @@ var serverCmd = &cobra.Command{
 		}
 
 		server := &http.Server{
-			Addr:		 flagListenAddr,
+			Addr:         flagListenAddr,
 			ReadTimeout:  5 * time.Second,
 			WriteTimeout: 5 * time.Second,
-			Handler:	  mux,
+			Handler:      mux,
 		}
 
 		telemetryServer := &http.Server{
-			Addr:		 flagTelemetryListenAddr,
+			Addr:         flagTelemetryListenAddr,
 			ReadTimeout:  5 * time.Second,
 			WriteTimeout: 5 * time.Second,
-			Handler:	  mux,
+			Handler:      mux,
 		}
 
 		sigint := make(chan os.Signal, 1)
@@ -326,7 +326,6 @@ func setFieldByKey(config *auth.OidcConfig, key string, value interface{}) error
 	return setter(config, value)
 }
 
-
 func parseOidc(ctx context.Context) ([]auth.OidcConfig, error) {
 	parsedList := []auth.OidcConfig{}
 
@@ -334,9 +333,9 @@ func parseOidc(ctx context.Context) ([]auth.OidcConfig, error) {
 		slog.Debug("flagAuthOidc", "value", flagAuthOidc)
 		for _, oidcConfig := range flagAuthOidc {
 			parsed := &auth.OidcConfig{
-				ClientID:	"",
-				Issuer:	  "",
-				Scopes:	  []string{},
+				ClientID:    "",
+				Issuer:      "",
+				Scopes:      []string{},
 				LoginGrants: flagLoginGrantTypes,
 				LoginPorts:  flagLoginPorts,
 			}
@@ -401,9 +400,9 @@ func parseOidc(ctx context.Context) ([]auth.OidcConfig, error) {
 		)
 
 		parsed := &auth.OidcConfig{
-			ClientID:	flagAuthOidcClientId,
-			Issuer:	  flagAuthOidcIssuer,
-			Scopes:	  flagAuthOidcScopes,
+			ClientID:    flagAuthOidcClientId,
+			Issuer:      flagAuthOidcIssuer,
+			Scopes:      flagAuthOidcScopes,
 			LoginGrants: flagLoginGrantTypes,
 			LoginPorts:  flagLoginPorts,
 		}
@@ -428,7 +427,7 @@ func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, erro
 	// Check if global login flags are provided
 	hasGlobalLoginFlags := flagAuthOktaAuthz != "" && flagAuthOktaToken != "" && flagAuthOktaClientId != ""
 
-			for i, config := range oidcConfigs {
+	for i, config := range oidcConfigs {
 		slog.Debug("setting up oidc auth", slog.Any("config", config))
 		provider, err := auth.NewOidcProvider(authCtx, config.Issuer, config.ClientID, config.AcceptNonJWTTokens)
 		if err != nil {
@@ -442,22 +441,22 @@ func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, erro
 			if hasGlobalLoginFlags {
 				// Use global login flags
 				login = &discovery.LoginV1{
-					Client:	 flagAuthOktaClientId,
+					Client:     flagAuthOktaClientId,
 					GrantTypes: flagLoginGrantTypes,
-					Authz:	  flagAuthOktaAuthz,
-					Token:	  flagAuthOktaToken,
-					Ports:	  flagLoginPorts,
-					Scopes:	 flagLoginScopes,
+					Authz:      flagAuthOktaAuthz,
+					Token:      flagAuthOktaToken,
+					Ports:      flagLoginPorts,
+					Scopes:     flagLoginScopes,
 				}
 			} else {
 				// Use provider-specific login configuration
 				login = &discovery.LoginV1{
-					Client:	 config.ClientID,
+					Client:     config.ClientID,
 					GrantTypes: config.LoginGrants,
-					Authz:	  provider.AuthURL(),
-					Token:	  provider.TokenURL(),
-					Ports:	  config.LoginPorts,
-					Scopes:	 config.Scopes,
+					Authz:      provider.AuthURL(),
+					Token:      provider.TokenURL(),
+					Ports:      config.LoginPorts,
+					Scopes:     config.Scopes,
 				}
 			}
 			logins = append(logins, login)
@@ -474,12 +473,12 @@ func setupOkta() ([]auth.Provider, []*discovery.LoginV1) {
 	slog.Warn("Okta auth is deprecated, please migrate to OIDC auth")
 	p := []auth.Provider{auth.NewOktaProvider(flagAuthOktaIssuer, flagAuthOktaClaims...)}
 	login := []*discovery.LoginV1{&discovery.LoginV1{
-		Client:	 flagAuthOktaClientId,
+		Client:     flagAuthOktaClientId,
 		GrantTypes: flagLoginGrantTypes,
-		Authz:	  flagAuthOktaAuthz,
-		Token:	  flagAuthOktaToken,
-		Ports:	  flagLoginPorts,
-		Scopes:	 flagLoginScopes,
+		Authz:      flagAuthOktaAuthz,
+		Token:      flagAuthOktaToken,
+		Ports:      flagLoginPorts,
+		Scopes:     flagLoginScopes,
 	},
 	}
 

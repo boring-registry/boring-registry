@@ -46,7 +46,7 @@ func TestOidcProviderGetIssuer(t *testing.T) {
 	provider := &OidcProvider{
 		issuer: issuer,
 	}
-	
+
 	assert.Equal(t, issuer, provider.GetIssuer())
 }
 
@@ -90,7 +90,7 @@ func TestOidcProviderNonJWTTokenHandling(t *testing.T) {
 				issuer:             "https://example.com",
 				acceptNonJWTTokens: tt.acceptNonJWTTokens,
 			}
-			
+
 			err := provider.Verify(context.Background(), tt.token)
 			if tt.expectError {
 				assert.Error(t, err)
@@ -103,7 +103,7 @@ func TestOidcProviderNonJWTTokenHandling(t *testing.T) {
 
 func TestOidcProviderValidateNonJWTToken(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(nil, &slog.HandlerOptions{Level: slog.LevelError}))
-	
+
 	provider := &OidcProvider{
 		logger: logger,
 		issuer: "https://example.com",
@@ -201,7 +201,7 @@ func TestOidcProviderVerify(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			io.WriteString(w, jwksData)
 		})
-		
+
 		s := httptest.NewServer(mux)
 		defer s.Close()
 		issuer = s.URL
@@ -264,7 +264,7 @@ func TestNewOidcProvider(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, provider)
 	})
-	
+
 	t.Run("provider with non-JWT token support", func(t *testing.T) {
 		data := `{
 			"issuer": "ISSUER",

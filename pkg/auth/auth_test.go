@@ -12,10 +12,10 @@ import (
 )
 
 type mockProvider struct {
-	name         string
-	issuer       string
+	name          string
+	issuer        string
 	shouldSucceed bool
-	verifyFunc   func(ctx context.Context, token string) error
+	verifyFunc    func(ctx context.Context, token string) error
 }
 
 func (m *mockProvider) Verify(ctx context.Context, token string) error {
@@ -43,11 +43,11 @@ func (m *mockOidcProvider) GetIssuer() string {
 func createJWTWithIssuer(issuer string) string {
 	header := `{"alg":"HS256","typ":"JWT"}`
 	payload := fmt.Sprintf(`{"iss":"%s","sub":"1234567890","name":"John Doe","iat":1516239022}`, issuer)
-	
+
 	headerB64 := base64.RawURLEncoding.EncodeToString([]byte(header))
 	payloadB64 := base64.RawURLEncoding.EncodeToString([]byte(payload))
 	signature := base64.RawURLEncoding.EncodeToString([]byte("dummy-signature"))
-	
+
 	return fmt.Sprintf("%s.%s.%s", headerB64, payloadB64, signature)
 }
 
@@ -112,7 +112,7 @@ func TestFindMatchingProvider(t *testing.T) {
 	}
 	oidcProvider2 := &mockOidcProvider{
 		mockProvider: &mockProvider{
-			name:   "provider2", 
+			name:   "provider2",
 			issuer: "https://example2.com",
 		},
 	}
@@ -132,7 +132,7 @@ func TestFindMatchingProvider(t *testing.T) {
 		},
 		{
 			name:     "find second matching provider",
-			issuer:   "https://example2.com", 
+			issuer:   "https://example2.com",
 			expected: oidcProvider2,
 		},
 		{
@@ -230,18 +230,18 @@ func TestAuthMiddleware(t *testing.T) {
 	t.Run("JWT with matching issuer", func(t *testing.T) {
 		issuer := "https://example.com"
 		token := createJWTWithIssuer(issuer)
-		
+
 		matchingProvider := &mockOidcProvider{
 			mockProvider: &mockProvider{
-				name:         "matching",
-				issuer:       issuer,
+				name:          "matching",
+				issuer:        issuer,
 				shouldSucceed: true,
 			},
 		}
 		nonMatchingProvider := &mockOidcProvider{
 			mockProvider: &mockProvider{
-				name:         "non-matching",
-				issuer:       "https://other.com",
+				name:          "non-matching",
+				issuer:        "https://other.com",
 				shouldSucceed: false,
 			},
 		}
@@ -254,21 +254,21 @@ func TestAuthMiddleware(t *testing.T) {
 	t.Run("JWT with no matching provider fallback to all providers", func(t *testing.T) {
 		issuer := "https://example.com"
 		token := createJWTWithIssuer(issuer)
-		
+
 		provider1 := &mockOidcProvider{
 			mockProvider: &mockProvider{
-				name:         "provider1",
-				issuer:       "https://other1.com",
+				name:          "provider1",
+				issuer:        "https://other1.com",
 				shouldSucceed: false,
 			},
 		}
-					provider2 := &mockOidcProvider{
-				mockProvider: &mockProvider{
-					name:         "provider2",
-					issuer:       "https://other2.com",
-					shouldSucceed: true,
-				},
-			}
+		provider2 := &mockOidcProvider{
+			mockProvider: &mockProvider{
+				name:          "provider2",
+				issuer:        "https://other2.com",
+				shouldSucceed: true,
+			},
+		}
 
 		ctx := context.WithValue(context.Background(), jwt.JWTContextKey, token)
 		_, err := Middleware(provider1, provider2)(nopEndpoint)(ctx, nil)
@@ -277,7 +277,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("malformed JWT fallback to all providers", func(t *testing.T) {
 		token := "malformed.jwt"
-		
+
 		provider1 := &mockProvider{name: "provider1", shouldSucceed: false}
 		provider2 := &mockProvider{name: "provider2", shouldSucceed: true}
 
@@ -288,7 +288,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("non-JWT token try all providers", func(t *testing.T) {
 		token := "simple-token"
-		
+
 		provider1 := &mockProvider{name: "provider1", shouldSucceed: false}
 		provider2 := &mockProvider{name: "provider2", shouldSucceed: true}
 
@@ -299,7 +299,7 @@ func TestAuthMiddleware(t *testing.T) {
 
 	t.Run("all providers fail", func(t *testing.T) {
 		token := "invalid-token"
-		
+
 		provider1 := &mockProvider{name: "provider1", shouldSucceed: false}
 		provider2 := &mockProvider{name: "provider2", shouldSucceed: false}
 
@@ -312,18 +312,18 @@ func TestAuthMiddleware(t *testing.T) {
 	t.Run("JWT with matching issuer succeeds even when other providers fail", func(t *testing.T) {
 		issuer := "https://example.com"
 		token := createJWTWithIssuer(issuer)
-		
+
 		failingProvider := &mockOidcProvider{
 			mockProvider: &mockProvider{
-				name:         "failing",
-				issuer:       "https://other.example.com",
+				name:          "failing",
+				issuer:        "https://other.example.com",
 				shouldSucceed: false,
 			},
 		}
 		matchingProvider := &mockOidcProvider{
 			mockProvider: &mockProvider{
-				name:         "matching",
-				issuer:       issuer,
+				name:          "matching",
+				issuer:        issuer,
 				shouldSucceed: true,
 			},
 		}

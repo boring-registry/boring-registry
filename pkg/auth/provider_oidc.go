@@ -19,12 +19,12 @@ type OidcProvider struct {
 }
 
 type OidcConfig struct {
-    ClientID           string
-    Issuer             string
-    Scopes             []string
-    LoginGrants        []string
-    LoginPorts         []int
-    AcceptNonJWTTokens bool
+	ClientID           string
+	Issuer             string
+	Scopes             []string
+	LoginGrants        []string
+	LoginPorts         []int
+	AcceptNonJWTTokens bool
 }
 
 func (o *OidcProvider) GetIssuer() string {
@@ -35,11 +35,11 @@ func (o *OidcProvider) validateNonJWTToken(token string) error {
 	if token == "" {
 		return fmt.Errorf("empty token")
 	}
-	
+
 	if len(token) < 10 {
 		return fmt.Errorf("token too short")
 	}
-	
+
 	o.logger.Debug("accepting non-JWT token", slog.String("issuer", o.issuer))
 	return nil
 }
@@ -47,15 +47,15 @@ func (o *OidcProvider) validateNonJWTToken(token string) error {
 func (o *OidcProvider) Verify(ctx context.Context, token string) error {
 	parts := strings.Split(token, ".")
 	isJWT := len(parts) == 3
-	
+
 	if !isJWT && o.acceptNonJWTTokens {
 		return o.validateNonJWTToken(token)
 	}
-	
+
 	if !isJWT {
 		return fmt.Errorf("token is not in JWT format and provider does not accept non-JWT tokens")
 	}
-	
+
 	oidcConfig := &oidc.Config{
 		ClientID: o.clientIdentifier,
 	}
