@@ -11,32 +11,27 @@ import (
 )
 
 type OidcProvider struct {
-	logger           *slog.Logger
-	issuer           string
-	clientIdentifier string
-	provider         *oidc.Provider
+	logger             *slog.Logger
+	issuer             string
+	clientIdentifier   string
+	provider           *oidc.Provider
+	acceptNonJWTTokens bool
 }
 
 type OidcConfig struct {
-    ClientID    string
-    Issuer      string
-    Scopes      []string
-    LoginGrants []string
-    LoginPorts  []int
+    ClientID           string
+    Issuer             string
+    Scopes             []string
+    LoginGrants        []string
+    LoginPorts         []int
+    AcceptNonJWTTokens bool
 }
 
-// GetIssuer returns the issuer URL for this OIDC provider
 func (o *OidcProvider) GetIssuer() string {
 	return o.issuer
 }
 
-// isSemaphoreToken checks if this is a Semaphore token (not necessarily JWT)
-func (o *OidcProvider) isSemaphoreToken(token string) bool {
-	return strings.Contains(o.issuer, "semaphore.ci.confluent.io")
-}
-
-// validateSemaphoreToken performs basic validation for Semaphore tokens
-func (o *OidcProvider) validateSemaphoreToken(token string) error {
+func (o *OidcProvider) validateNonJWTToken(token string) error {
 	if token == "" {
 		return fmt.Errorf("empty token")
 	}
@@ -45,15 +40,20 @@ func (o *OidcProvider) validateSemaphoreToken(token string) error {
 		return fmt.Errorf("token too short")
 	}
 	
-	o.logger.Debug("accepting Semaphore token", slog.String("issuer", o.issuer))
+	o.logger.Debug("accepting non-JWT token", slog.String("issuer", o.issuer))
 	return nil
 }
 
-// Unfortunately, it's difficult to write tests for this method, as we would need an OIDC Authorization Server
-// to generate valid signed JWTs
 func (o *OidcProvider) Verify(ctx context.Context, token string) error {
-	if o.isSemaphoreToken(token) {
-		return o.validateSemaphoreToken(token)
+	parts := strings.Split(token, ".")
+	isJWT := len(parts) == 3
+	
+	if !isJWT && o.acceptNonJWTTokens {
+		return o.validateNonJWTToken(token)
+	}
+	
+	if !isJWT {
+		return fmt.Errorf("token is not in JWT format and provider does not accept non-JWT tokens")
 	}
 	
 	oidcConfig := &oidc.Config{
@@ -73,7 +73,7 @@ func (o *OidcProvider) TokenURL() string {
 	return o.provider.Endpoint().TokenURL
 }
 
-func NewOidcProvider(ctx context.Context, issuer, clientIdentifier string) (*OidcProvider, error) {
+func NewOidcProvider(ctx context.Context, issuer, clientIdentifier string, acceptNonJWTTokens bool) (*OidcProvider, error) {
 	logger := slog.Default()
 	start := time.Now()
 	provider, err := oidc.NewProvider(ctx, issuer)
@@ -84,9 +84,10 @@ func NewOidcProvider(ctx context.Context, issuer, clientIdentifier string) (*Oid
 	logger.Info("finished initializing OIDC provider", slog.String("took", time.Since(start).String()))
 
 	return &OidcProvider{
-		logger:           logger,
-		issuer:           issuer,
-		clientIdentifier: clientIdentifier,
-		provider:         provider,
+		logger:             logger,
+		issuer:             issuer,
+		clientIdentifier:   clientIdentifier,
+		provider:           provider,
+		acceptNonJWTTokens: acceptNonJWTTokens,
 	}, nil
 }

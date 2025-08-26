@@ -205,7 +205,7 @@ func init() {
 	serverCmd.Flags().StringSliceVar(&flagLoginScopes, "login-scopes", nil, "List of scopes")
 
 	// OIDC auth options
-	serverCmd.Flags().StringSliceVar(&flagAuthOidc, "auth-oidc", []string{}, "Enable multiple OIDC authentication methods. Format: client_id=...;issuer=...;scopes=...;login_grants=...;login_ports=...")
+	serverCmd.Flags().StringSliceVar(&flagAuthOidc, "auth-oidc", []string{}, "Enable multiple OIDC authentication methods. Format: client_id=...;issuer=...;scopes=...;login_grants=...;login_ports=...;accept_non_jwt_tokens=true/false")
 	serverCmd.Flags().StringVar(&flagAuthOidcIssuer, "auth-oidc-issuer", "", "OIDC issuer URL")
 	serverCmd.Flags().StringVar(&flagAuthOidcClientId, "auth-oidc-clientid", "", "OIDC client identifier")
 	serverCmd.Flags().StringSliceVar(&flagAuthOidcScopes, "auth-oidc-scopes", nil, "List of OAuth2 scopes")
@@ -373,6 +373,15 @@ func parseOidc(ctx context.Context) ([]auth.OidcConfig, error) {
 					if err != nil {
 						return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
 					}
+				} else if key == "accept_non_jwt_tokens" {
+					boolValue, err := strconv.ParseBool(value)
+					if err != nil {
+						return nil, fmt.Errorf("invalid boolean value for accept_non_jwt_tokens: %s", value)
+					}
+					err = setFieldByKey(parsed, key, boolValue)
+					if err != nil {
+						return nil, fmt.Errorf("invalid OIDC configuration %s: %w", key, err)
+					}
 				} else {
 					err := setFieldByKey(parsed, key, value)
 					if err != nil {
@@ -419,9 +428,9 @@ func setupOidc(ctx context.Context) ([]auth.Provider, []*discovery.LoginV1, erro
 	// Check if global login flags are provided
 	hasGlobalLoginFlags := flagAuthOktaAuthz != "" && flagAuthOktaToken != "" && flagAuthOktaClientId != ""
 
-	for i, config := range oidcConfigs {
+			for i, config := range oidcConfigs {
 		slog.Debug("setting up oidc auth", slog.Any("config", config))
-		provider, err := auth.NewOidcProvider(authCtx, config.Issuer, config.ClientID)
+		provider, err := auth.NewOidcProvider(authCtx, config.Issuer, config.ClientID, config.AcceptNonJWTTokens)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
 		}
