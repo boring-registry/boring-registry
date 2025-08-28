@@ -18,10 +18,10 @@ if [ "${chart_version}" != "${internal_version}" ]; then
   chart_version="${internal_version}"
 fi
 
-downloaded_chart_name="${chart_name}-${chart_version}.tgz"
+packaged_chart_name="${chart_name}-${chart_version}.tgz"
 
 # Ensure cleanup on exit
-trap "rm -f ${downloaded_chart_name}" EXIT
+trap "rm -f ${packaged_chart_name}" EXIT
 
 if [ -f "./helm/${chart_name}/Chart.yaml" ]; then
   packaged_chart=$(helm package "./helm/${chart_name}" | grep "Successfully packaged chart" | sed 's/.*: //')
