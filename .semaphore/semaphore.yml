@@ -12,7 +12,7 @@ execution_time_limit:
   hours: 1
 
 queue:
-  - when: "branch != 'master' and branch !~ '[0-9]+\\.[0-9]+\\.x'"
+  - when: "branch != 'main' and branch !~ '[0-9]+\\.[0-9]+\\.x'"
     processing: parallel
 
 global_job_config:
@@ -26,10 +26,28 @@ blocks:
     dependencies: []
     run:
       # don't run the tests on non-functional changes...
-      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/'], default_branch: 'master'})"
+      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/'], default_branch: 'main'})"
     task:
       jobs:
         - name: Test & Build
           commands:
             - go test ./...
             - make build
+
+  - name: "Auto Release and Deploy to ECR"
+    dependencies: ["Test & Build"]
+    run:
+      when: "branch = 'main'"
+    task:
+      env_vars:
+        - name: ECR_REGISTRY
+          value: "519856050701.dkr.ecr.us-west-2.amazonaws.com"
+        - name: AWS_REGION
+          value: "us-west-2"
+        - name: IMAGE_REPOSITORY
+          value: "confluentinc/boring-registry"
+      jobs:
+        - name: "Bump version and Publish Docker image"
+          commands:
+            - curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser
+            - ./auto-release.sh
