@@ -51,3 +51,4 @@ blocks:
           commands:
             - curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser
             - ./auto-release.sh
+            - ./helm-release.sh
