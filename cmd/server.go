@@ -26,6 +26,8 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/proxy"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 
@@ -231,8 +233,11 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
-	// Initialize audit logger
-	auditLogger := audit.NewSlogAuditLogger()
+	auditConfig := buildAuditConfig()
+	auditLogger, err := setupAuditLogger(ctx, auditConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup audit logger: %w", err)
+	}
 
 	metrics := o11y.NewMetrics(nil)
 	instrumentation := o11y.NewMiddleware(metrics.Http)
@@ -276,6 +281,21 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	}
 
 	return mux, nil
+}
+
+func setupAuditLogger(ctx context.Context, auditConfig audit.Config) (audit.Logger, error) {
+	var s3Client audit.S3ClientInterface
+	
+	if auditConfig.Enabled && auditConfig.S3.Bucket != "" {
+		awsConfig, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		}
+		
+		s3Client = s3.NewFromConfig(awsConfig)
+	}
+	
+	return audit.CreateS3AuditLogger(ctx, s3Client, auditConfig)
 }
 
 func setFieldByKey(config *auth.OidcConfig, key string, value interface{}) error {

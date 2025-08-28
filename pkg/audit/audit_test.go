@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 func TestNewSlogAuditLogger(t *testing.T) {
@@ -402,5 +406,341 @@ func TestLogRegistryAccessWithoutUser(t *testing.T) {
 
 	if auditEvent.User != nil {
 		t.Error("Expected no user context, but got:", auditEvent.User)
+	}
+}
+
+func TestConfig_GetS3Config(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   Config
+		expected S3AuditConfig
+	}{
+		{
+			name: "config with all values set",
+			config: Config{
+				Enabled: true,
+				S3: S3AuditConfig{
+					Bucket:        "test-bucket",
+					Region:        "us-west-2",
+					Prefix:        "custom-prefix/",
+					BatchSize:     50,
+					FlushInterval: 15 * time.Second,
+				},
+			},
+			expected: S3AuditConfig{
+				Bucket:        "test-bucket",
+				Region:        "us-west-2",
+				Prefix:        "custom-prefix/",
+				BatchSize:     50,
+				FlushInterval: 15 * time.Second,
+			},
+		},
+		{
+			name: "config with defaults applied",
+			config: Config{
+				Enabled: true,
+				S3: S3AuditConfig{
+					Bucket: "test-bucket",
+					Region: "us-east-1",
+				},
+			},
+			expected: S3AuditConfig{
+				Bucket:        "test-bucket",
+				Region:        "us-east-1",
+				Prefix:        "audit-logs/",
+				BatchSize:     100,
+				FlushInterval: 30 * time.Second,
+			},
+		},
+		{
+			name: "config with zero batch size gets default",
+			config: Config{
+				Enabled: true,
+				S3: S3AuditConfig{
+					Bucket:    "test-bucket",
+					Region:    "us-east-1",
+					BatchSize: 0,
+				},
+			},
+			expected: S3AuditConfig{
+				Bucket:        "test-bucket",
+				Region:        "us-east-1",
+				Prefix:        "audit-logs/",
+				BatchSize:     100,
+				FlushInterval: 30 * time.Second,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.GetS3Config()
+			
+			if result.Bucket != tt.expected.Bucket {
+				t.Errorf("Expected bucket %q, got %q", tt.expected.Bucket, result.Bucket)
+			}
+			if result.Region != tt.expected.Region {
+				t.Errorf("Expected region %q, got %q", tt.expected.Region, result.Region)
+			}
+			if result.Prefix != tt.expected.Prefix {
+				t.Errorf("Expected prefix %q, got %q", tt.expected.Prefix, result.Prefix)
+			}
+			if result.BatchSize != tt.expected.BatchSize {
+				t.Errorf("Expected batch size %d, got %d", tt.expected.BatchSize, result.BatchSize)
+			}
+			if result.FlushInterval != tt.expected.FlushInterval {
+				t.Errorf("Expected flush interval %v, got %v", tt.expected.FlushInterval, result.FlushInterval)
+			}
+		})
+	}
+}
+
+func TestDefaultConfig(t *testing.T) {
+	config := DefaultConfig()
+	
+	if !config.Enabled {
+		t.Error("Expected audit to be enabled by default")
+	}
+	
+	s3Config := config.GetS3Config()
+	if s3Config.BatchSize != 100 {
+		t.Errorf("Expected default batch size 100, got %d", s3Config.BatchSize)
+	}
+	
+	if s3Config.FlushInterval != 30*time.Second {
+		t.Errorf("Expected default flush interval 30s, got %v", s3Config.FlushInterval)
+	}
+	
+	if s3Config.Prefix != "audit-logs/" {
+		t.Errorf("Expected default prefix 'audit-logs/', got %q", s3Config.Prefix)
+	}
+}
+
+func TestNoOpAuditLogger(t *testing.T) {
+	logger := &NoOpAuditLogger{}
+	
+	event := &AuditEvent{
+		Timestamp: time.Now(),
+		Level:     "INFO",
+		Event:     EventAuthLogin,
+		Result:    ResultSuccess,
+	}
+	
+	logger.LogEvent(context.Background(), event)
+}
+
+type mockS3Client struct {
+	putObjectCalls []s3.PutObjectInput
+	shouldError    bool
+	errorMessage   string
+}
+
+func (m *mockS3Client) PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	if m.shouldError {
+		return nil, fmt.Errorf("%s", m.errorMessage)
+	}
+	
+	m.putObjectCalls = append(m.putObjectCalls, *params)
+	
+	return &s3.PutObjectOutput{}, nil
+}
+
+func TestCreateS3AuditLogger(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      Config
+		s3Client    S3ClientInterface
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "audit disabled returns no-op logger",
+			config: Config{
+				Enabled: false,
+				S3: S3AuditConfig{
+					Bucket: "test-bucket",
+					Region: "us-west-2",
+				},
+			},
+			s3Client:    &mockS3Client{},
+			expectError: false,
+		},
+		{
+			name: "valid config with S3 client",
+			config: Config{
+				Enabled: true,
+				S3: S3AuditConfig{
+					Bucket: "test-bucket",
+					Region: "us-west-2",
+				},
+			},
+			s3Client:    &mockS3Client{},
+			expectError: false,
+		},
+		{
+			name: "missing S3 client returns error",
+			config: Config{
+				Enabled: true,
+				S3: S3AuditConfig{
+					Bucket: "test-bucket",
+					Region: "us-west-2",
+				},
+			},
+			s3Client:    nil,
+			expectError: true,
+			errorMsg:    "S3 client not available",
+		},
+		{
+			name: "missing bucket returns error",
+			config: Config{
+				Enabled: true,
+				S3: S3AuditConfig{
+					Region: "us-west-2",
+				},
+			},
+			s3Client:    &mockS3Client{},
+			expectError: true,
+			errorMsg:    "S3 bucket must be specified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, err := CreateS3AuditLogger(context.Background(), tt.s3Client, tt.config)
+			
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error containing %q, got %q", tt.errorMsg, err.Error())
+				}
+				return
+			}
+			
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+			
+			if logger == nil {
+				t.Error("Expected logger but got nil")
+			}
+			
+			if !tt.config.Enabled {
+				_, isNoOp := logger.(*NoOpAuditLogger)
+				if !isNoOp {
+					t.Error("Expected NoOpAuditLogger for disabled audit")
+				}
+			}
+		})
+	}
+}
+
+func TestS3AuditLogger_Basic(t *testing.T) {
+	mockClient := &mockS3Client{}
+	
+	config := S3AuditConfig{
+		Bucket:        "test-audit-bucket",
+		Region:        "us-west-2",
+		Prefix:        "audit-logs/",
+		BatchSize:     2,
+		FlushInterval: 100 * time.Millisecond,
+	}
+	
+	logger, err := NewS3AuditLogger(mockClient, config)
+	if err != nil {
+		t.Fatalf("Failed to create S3 audit logger: %v", err)
+	}
+	defer logger.Close()
+	
+	// Log a single event
+	event := &AuditEvent{
+		Timestamp: time.Now(),
+		Level:     "INFO",
+		Event:     EventAuthLogin,
+		Result:    ResultSuccess,
+		User: &UserContext{
+			UserEmail: "test@example.com",
+			UserName:  "Test User",
+		},
+		SourceIP:  "192.168.1.1",
+		UserAgent: "TestAgent/1.0",
+	}
+	
+	logger.LogEvent(context.Background(), event)
+	
+	event2 := &AuditEvent{
+		Timestamp: time.Now(),
+		Level:     "INFO",
+		Event:     EventRegistryModuleAccess,
+		Result:    ResultSuccess,
+		Resource:  "test/module/aws/1.0.0",
+		Action:    ActionDownload,
+	}
+	
+	logger.LogEvent(context.Background(), event2)
+	
+	time.Sleep(200 * time.Millisecond)
+	if len(mockClient.putObjectCalls) != 1 {
+		t.Errorf("Expected 1 S3 PutObject call, got %d", len(mockClient.putObjectCalls))
+	}
+	
+	if len(mockClient.putObjectCalls) > 0 {
+		call := mockClient.putObjectCalls[0]
+		
+		if *call.Bucket != "test-audit-bucket" {
+			t.Errorf("Expected bucket 'test-audit-bucket', got %q", *call.Bucket)
+		}
+		
+		if !strings.Contains(*call.Key, "audit-logs/") {
+			t.Errorf("Expected key to contain 'audit-logs/', got %q", *call.Key)
+		}
+		
+		if !strings.Contains(*call.Key, "year=") {
+			t.Errorf("Expected key to contain partitioning, got %q", *call.Key)
+		}
+		
+		if *call.ContentType != "application/json" {
+			t.Errorf("Expected content type 'application/json', got %q", *call.ContentType)
+		}
+		
+		eventCount, exists := call.Metadata["event-count"]
+		if !exists {
+			t.Error("Expected 'event-count' in metadata")
+		} else if eventCount != "2" {
+			t.Errorf("Expected event count '2', got %q", eventCount)
+		}
+	}
+}
+
+func TestS3AuditLogger_TimeBasedFlush(t *testing.T) {
+	mockClient := &mockS3Client{}
+	
+	config := S3AuditConfig{
+		Bucket:        "test-audit-bucket",
+		Region:        "us-west-2",
+		Prefix:        "audit-logs/",
+		BatchSize:     100,
+		FlushInterval: 50 * time.Millisecond,
+	}
+	
+	logger, err := NewS3AuditLogger(mockClient, config)
+	if err != nil {
+		t.Fatalf("Failed to create S3 audit logger: %v", err)
+	}
+	defer logger.Close()
+	
+	event := &AuditEvent{
+		Timestamp: time.Now(),
+		Level:     "INFO",
+		Event:     EventAuthLogin,
+		Result:    ResultSuccess,
+	}
+	
+	logger.LogEvent(context.Background(), event)
+	
+	time.Sleep(100 * time.Millisecond)
+	if len(mockClient.putObjectCalls) != 1 {
+		t.Errorf("Expected 1 S3 PutObject call from time-based flush, got %d", len(mockClient.putObjectCalls))
 	}
 }
