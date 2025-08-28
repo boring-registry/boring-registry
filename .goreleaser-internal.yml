@@ -1,3 +1,5 @@
+version: 2
+
 before:
   hooks:
     - go mod download
@@ -28,8 +30,12 @@ dockers:
       - "--label=org.opencontainers.image.version={{.Env.INTERNAL_VERSION}}"
       - "--label=org.opencontainers.image.source=https://github.com/confluentinc/boring-registry"
 
+release:
+  disable: true
+
 checksum:
-  name_template: "checksums.txt"
+  disable: true
+
 changelog:
   sort: asc
   filters:
