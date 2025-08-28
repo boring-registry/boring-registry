@@ -9,6 +9,10 @@ DRY_RUN=${DRY_RUN:-}
 repo_name=boring-registry
 chart_name=boring-registry
 chart_version=$(cat INTERNAL_VERSION)
+downloaded_chart_name="${chart_name}-${chart_version}.tgz"
+
+# Ensure cleanup on exit
+trap "rm -f ${downloaded_chart_name}" EXIT
 
 if [ -f "./helm/${chart_name}/Chart.yaml" ]; then
   helm package "./helm/${chart_name}"
@@ -16,7 +20,6 @@ else
   echo "chart ${chart_name} not found in ${repo_name}"
   exit 1
 fi
-downloaded_chart_name="${chart_name}-${chart_version}.tgz"
 
 real_chart_name=$(helm show chart "${downloaded_chart_name}" | grep "^name: " | cut -d' ' -f 2)
 if [ "${real_chart_name}" != "${chart_name}" ]; then
