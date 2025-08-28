@@ -14,7 +14,7 @@ chart_version=$(grep "^version:" "./helm/${chart_name}/Chart.yaml" | cut -d' ' -
 # Update Chart.yaml version if it doesn't match INTERNAL_VERSION
 if [ "${chart_version}" != "${internal_version}" ]; then
   echo "Updating Chart.yaml version from ${chart_version} to ${internal_version}"
-  sed -i.bak "s/^version: .*/version: ${internal_version}/" "./helm/${chart_name}/Chart.yaml"
+  sed -i "s/^version: .*/version: ${internal_version}/" "./helm/${chart_name}/Chart.yaml"
   chart_version="${internal_version}"
 fi
 
