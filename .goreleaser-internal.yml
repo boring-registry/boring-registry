@@ -1,0 +1,38 @@
+before:
+  hooks:
+    - go mod download
+builds:
+  - main: main.go
+    binary: boring-registry
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    ldflags:
+      - -s
+      - -w
+      - -X github.com/boring-registry/boring-registry/version.Version={{.Env.INTERNAL_VERSION}}
+      - -X github.com/boring-registry/boring-registry/version.Commit={{.Commit}}
+      - -X github.com/boring-registry/boring-registry/version.Date={{.Date}}
+
+dockers:
+  - image_templates:
+      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64,linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Env.INTERNAL_VERSION}}"
+      - "--label=org.opencontainers.image.source=https://github.com/confluentinc/boring-registry"
+
+checksum:
+  name_template: "checksums.txt"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

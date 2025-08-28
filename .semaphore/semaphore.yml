@@ -34,22 +34,20 @@ blocks:
             - go test ./...
             - make build
 
-  - name: "Build and deploy docker image"
-    dependencies: []
+  - name: "Auto Release and Deploy to ECR"
+    dependencies: ["Test & Build"]
     run:
-      when: "change_in(['Dockerfile'], {pipeline_file: 'ignore'})"
+      when: "branch = 'main'"
     task:
+      env_vars:
+        - name: ECR_REGISTRY
+          value: "519856050701.dkr.ecr.us-west-2.amazonaws.com"
+        - name: AWS_REGION
+          value: "us-west-2"
+        - name: IMAGE_REPOSITORY
+          value: "confluentinc/boring-registry"
       jobs:
-        - name: "Build and deploy docker image"
+        - name: "Bump version and Publish Docker image"
           commands:
-            - set -x
-            - if [ "$SEMAPHORE_GIT_WORKING_BRANCH" = "main" ]; then IMAGE_ENV=prod; else IMAGE_ENV=dev; fi
-            - export IMAGE_REPO=519856050701.dkr.ecr.us-west-2.amazonaws.com/docker/${IMAGE_ENV}/confluentinc/boring-registry
-            - export IMAGE="${IMAGE_REPO}:${SEMAPHORE_GIT_SHA}"
-            - BUILDKIT_PROGRESS=plain docker build -t $IMAGE .
-            - |
-              if [ "$SEMAPHORE_GIT_WORKING_BRANCH" = "main" ]; then
-                docker tag $IMAGE $IMAGE_REPO:latest
-                docker push $IMAGE_REPO:latest
-              fi
-            - docker push $IMAGE
+            - curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser
+            - ./auto-release.sh
