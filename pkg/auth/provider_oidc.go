@@ -97,27 +97,16 @@ func (o *OidcProvider) extractUserContext(idToken *oidc.IDToken) (*audit.UserCon
 		return nil, fmt.Errorf("failed to extract claims: %w", err)
 	}
 
-	userCtx := &audit.UserContext{
-		UserEmail: claims.Email,
-		UserName:  claims.Name,
-		Subject:   claims.Subject,
-		Issuer:    o.issuer,
-		ClientID:  claims.ClientID,
-	}
-
-	if userCtx.UserName == "" {
-		userCtx.UserName = claims.Username
-	}
-
-	if userCtx.UserName == "" && (claims.GivenName != "" || claims.FamilyName != "") {
-		userCtx.UserName = strings.TrimSpace(fmt.Sprintf("%s %s", claims.GivenName, claims.FamilyName))
-	}
-
-	if userCtx.UserID == "" {
-		userCtx.UserID = claims.Email
-	}
-
-	return userCtx, nil
+	return buildUserContext(
+		claims.Email,
+		claims.Name,
+		claims.GivenName,
+		claims.FamilyName,
+		claims.Subject,
+		o.issuer,
+		claims.ClientID,
+		claims.Username,
+	), nil
 }
 
 func (o *OidcProvider) AuthURL() string {

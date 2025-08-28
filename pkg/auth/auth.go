@@ -46,6 +46,27 @@ func parseJWTIssuer(token string) (string, error) {
 }
 
 // parseJWTClaims extracts user information from JWT token for audit logging
+func buildUserContext(email, name, givenName, familyName, subject, issuer, clientID, username string) *audit.UserContext {
+	userCtx := &audit.UserContext{
+		UserID:    email,
+		UserEmail: email,
+		UserName:  name,
+		Subject:   subject,
+		Issuer:    issuer,
+		ClientID:  clientID,
+	}
+
+	if userCtx.UserName == "" {
+		userCtx.UserName = username
+	}
+
+	if userCtx.UserName == "" && (givenName != "" || familyName != "") {
+		userCtx.UserName = strings.TrimSpace(fmt.Sprintf("%s %s", givenName, familyName))
+	}
+
+	return userCtx
+}
+
 func parseJWTClaims(token string) (*audit.UserContext, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
@@ -62,27 +83,16 @@ func parseJWTClaims(token string) (*audit.UserContext, error) {
 		return nil, fmt.Errorf("failed to unmarshal claims: %v", err)
 	}
 
-	userCtx := &audit.UserContext{
-		UserEmail: claims.Email,
-		UserName:  claims.Name,
-		Subject:   claims.Subject,
-		Issuer:    claims.Issuer,
-		ClientID:  claims.ClientID,
-	}
-
-	if userCtx.UserName == "" {
-		userCtx.UserName = claims.Username
-	}
-
-	if userCtx.UserName == "" && (claims.GivenName != "" || claims.FamilyName != "") {
-		userCtx.UserName = strings.TrimSpace(fmt.Sprintf("%s %s", claims.GivenName, claims.FamilyName))
-	}
-
-	if userCtx.UserID == "" {
-		userCtx.UserID = claims.Email
-	}
-
-	return userCtx, nil
+	return buildUserContext(
+		claims.Email,
+		claims.Name,
+		claims.GivenName,
+		claims.FamilyName,
+		claims.Subject,
+		claims.Issuer,
+		claims.ClientID,
+		claims.Username,
+	), nil
 }
 
 type IssuerProvider interface {
@@ -154,13 +164,11 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 					} else {
 						slog.Debug("successfully verified token")
 
-						if isLikelyJWT(token) {
-							if userCtx, err := parseJWTClaims(token); err == nil {
-								ctx = audit.SetUserInContext(ctx, userCtx)
-								slog.Debug("extracted user context for audit",
-									slog.String("email", userCtx.UserEmail),
-									slog.String("subject", userCtx.Subject))
-							}
+						if userCtx, err := parseJWTClaims(token); err == nil {
+							ctx = audit.SetUserInContext(ctx, userCtx)
+							slog.Debug("extracted user context for audit",
+								slog.String("email", userCtx.UserEmail),
+								slog.String("subject", userCtx.Subject))
 						}
 
 						return next(ctx, request)
