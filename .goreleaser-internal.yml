@@ -34,7 +34,8 @@ release:
   disable: true
 
 checksum:
-  name_template: "checksums.txt"
+  disable: true
+
 changelog:
   sort: asc
   filters:
