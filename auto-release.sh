@@ -96,16 +96,7 @@ git push origin "$NEW_TAG"
 
 echo "Successfully created and pushed internal version $NEW_VERSION"
 
-echo "Building and pushing Docker image to ECR..."
-if command -v goreleaser >/dev/null; then
-    export GORELEASER_CURRENT_TAG="$NEW_TAG"
-    export INTERNAL_VERSION="$NEW_VERSION"
-    goreleaser release --config .goreleaser-internal.yml --clean --skip=validate
-    echo "Docker image built and pushed to ECR successfully"
-else
-    echo "Warning: goreleaser not found, skipping Docker build"
-fi
-
-echo "Internal release complete!"
+echo "Version bump and git operations complete!"
+echo "Docker images will be built by separate architecture-specific jobs"
 echo "Note: This uses separate versioning from upstream"
 echo "Upstream workflows are not triggered by confluent-v* tags"
