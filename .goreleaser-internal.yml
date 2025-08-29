@@ -17,40 +17,21 @@ builds:
       - -X github.com/boring-registry/boring-registry/version.Commit={{.Commit}}
       - -X github.com/boring-registry/boring-registry/version.Date={{.Date}}
 
-dockers:
-  - image_templates:
-      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-amd64"
+dockers_v2:
+  - image:
+      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}"
     dockerfile: Dockerfile
-    use: buildx
-    skip_push: false
-    build_flag_templates:
-      - "--pull"
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Env.INTERNAL_VERSION}}"
-      - "--label=org.opencontainers.image.source=https://github.com/confluentinc/boring-registry"
-  - image_templates:
-      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-arm64"
-    dockerfile: Dockerfile
-    use: buildx
-    skip_push: false
-    build_flag_templates:
-      - "--pull"
-      - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Env.INTERNAL_VERSION}}"
-      - "--label=org.opencontainers.image.source=https://github.com/confluentinc/boring-registry"
-    goarch: arm64
-
-docker_manifests:
-  - name_template: "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}"
-    image_templates:
-      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-amd64"
-      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-arm64"
+    tags:
+      - "{{ .Env.INTERNAL_VERSION }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Env.INTERNAL_VERSION}}"
+      "org.opencontainers.image.source": "https://github.com/confluentinc/boring-registry"
 
 release:
   disable: true
