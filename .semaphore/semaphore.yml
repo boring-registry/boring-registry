@@ -52,3 +52,26 @@ blocks:
             - curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser
             - ./auto-release.sh
             - ./helm-release.sh
+
+  - name: "Dev Release to DEV ECR"
+    dependencies: ["Test & Build"]
+    run:
+      when: "branch != 'main'"
+    task:
+      env_vars:
+        - name: ECR_REGISTRY
+          value: "519856050701.dkr.ecr.us-west-2.amazonaws.com"
+        - name: AWS_REGION
+          value: "us-west-2"
+        - name: IMAGE_REPOSITORY
+          value: "docker/dev/confluentinc/boring-registry"
+      jobs:
+        - name: "Publish Dev Docker image"
+          commands:
+            - curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser
+            - echo "Dev build for branch: $SEMAPHORE_GIT_BRANCH"
+            - export INTERNAL_VERSION="dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)"
+            - export GORELEASER_CURRENT_TAG="dev-v$INTERNAL_VERSION"
+            - echo "Building and pushing dev version: $INTERNAL_VERSION"
+            - git tag "$GORELEASER_CURRENT_TAG" || echo "Tag already exists, continuing..."
+            - goreleaser release --config .goreleaser-internal.yml --clean --skip=validate
