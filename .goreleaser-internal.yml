@@ -19,17 +19,36 @@ builds:
 
 dockers:
   - image_templates:
-      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}"
+      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-amd64"
     dockerfile: Dockerfile
     use: buildx
-    push: true
     build_flag_templates:
-      - "--platform=linux/amd64,linux/arm64"
+      - "--pull"
+      - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Env.INTERNAL_VERSION}}"
       - "--label=org.opencontainers.image.source=https://github.com/confluentinc/boring-registry"
+  - image_templates:
+      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--pull"
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Env.INTERNAL_VERSION}}"
+      - "--label=org.opencontainers.image.source=https://github.com/confluentinc/boring-registry"
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}"
+    image_templates:
+      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-amd64"
+      - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-arm64"
 
 release:
   disable: true
