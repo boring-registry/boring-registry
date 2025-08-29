@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 )
 
@@ -44,6 +45,13 @@ var (
 	flagAzureStorageContainer       string
 	flagAzureStoragePrefix          string
 	flagAzureStorageSignedURLExpiry time.Duration
+
+	flagAuditEnabled         bool
+	flagAuditS3Bucket        string
+	flagAuditS3Region        string
+	flagAuditS3Prefix        string
+	flagAuditS3BatchSize     int
+	flagAuditS3FlushInterval time.Duration
 )
 
 var rootCmd = &cobra.Command{
@@ -90,6 +98,13 @@ For GCS presigned URLs this SA needs the iam.serviceAccountTokenCreator role.`)
 	rootCmd.PersistentFlags().StringVar(&flagAzureStorageContainer, "storage-azure-container", "", "Azure Storage Container to use for the registry")
 	rootCmd.PersistentFlags().StringVar(&flagAzureStoragePrefix, "storage-azure-prefix", "", "Azure Storage prefix to use for the registry")
 	rootCmd.PersistentFlags().DurationVar(&flagAzureStorageSignedURLExpiry, "storage-azure-signedurl-expiry", 5*time.Minute, "Generate Azure Storage signed URL valid for X seconds.")
+	
+	rootCmd.PersistentFlags().BoolVar(&flagAuditEnabled, "audit-enabled", true, "Enable S3 audit logging")
+	rootCmd.PersistentFlags().StringVar(&flagAuditS3Bucket, "audit-s3-bucket", "", "S3 bucket for audit logs")
+	rootCmd.PersistentFlags().StringVar(&flagAuditS3Region, "audit-s3-region", "", "S3 region for audit logs (defaults to storage S3 region)")
+	rootCmd.PersistentFlags().StringVar(&flagAuditS3Prefix, "audit-s3-prefix", "audit-logs/", "S3 prefix for audit logs")
+	rootCmd.PersistentFlags().IntVar(&flagAuditS3BatchSize, "audit-s3-batch-size", 100, "Batch size for S3 audit uploads")
+	rootCmd.PersistentFlags().DurationVar(&flagAuditS3FlushInterval, "audit-s3-flush-interval", 30*time.Second, "Flush interval for S3 audit uploads")
 }
 
 func initializeConfig(cmd *cobra.Command) error {
@@ -118,6 +133,24 @@ func setupLogger() {
 		handler = handler.WithAttrs([]slog.Attr{slog.String("hostname", hostname)})
 	}
 	slog.SetDefault(slog.New(handler))
+}
+
+func buildAuditConfig() audit.Config {
+	s3Region := flagAuditS3Region
+	if s3Region == "" {
+		s3Region = flagS3Region
+	}
+
+	return audit.Config{
+		Enabled: flagAuditEnabled,
+		S3: audit.S3AuditConfig{
+			Bucket:        flagAuditS3Bucket,
+			Region:        s3Region,
+			Prefix:        flagAuditS3Prefix,
+			BatchSize:     flagAuditS3BatchSize,
+			FlushInterval: flagAuditS3FlushInterval,
+		},
+	}
 }
 
 func setupStorage(ctx context.Context) (storage.Storage, error) {

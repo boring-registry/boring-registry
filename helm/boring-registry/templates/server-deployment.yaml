@@ -109,6 +109,34 @@ spec:
             {{- end }}
             {{- end }}
 
+            # Audit logging configuration.
+            {{- with .Values.server.audit }}
+            {{- if .enabled }}
+            - name: BORING_REGISTRY_AUDIT_ENABLED
+              value: {{ .enabled | quote }}
+            {{- if .s3.bucket }}
+            - name: BORING_REGISTRY_AUDIT_S3_BUCKET
+              value: {{ .s3.bucket | quote }}
+            {{- end }}
+            {{- if .s3.region }}
+            - name: BORING_REGISTRY_AUDIT_S3_REGION
+              value: {{ .s3.region | quote }}
+            {{- end }}
+            {{- if .s3.prefix }}
+            - name: BORING_REGISTRY_AUDIT_S3_PREFIX
+              value: {{ .s3.prefix | quote }}
+            {{- end }}
+            {{- if .s3.batchSize }}
+            - name: BORING_REGISTRY_AUDIT_S3_BATCH_SIZE
+              value: {{ .s3.batchSize | quote }}
+            {{- end }}
+            {{- if .s3.flushInterval }}
+            - name: BORING_REGISTRY_AUDIT_S3_FLUSH_INTERVAL
+              value: {{ .s3.flushInterval | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+
             {{- range .Values.server.extraEnvs }}
             - name: {{ .name | quote }}
             {{- if .value }}

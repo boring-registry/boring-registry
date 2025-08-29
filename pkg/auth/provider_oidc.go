@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	"github.com/coreos/go-oidc/v3/oidc"
 )
 
@@ -61,8 +62,51 @@ func (o *OidcProvider) Verify(ctx context.Context, token string) error {
 	}
 	verifier := o.provider.VerifierContext(ctx, oidcConfig)
 
-	_, err := verifier.Verify(ctx, token)
-	return err
+	idToken, err := verifier.Verify(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	userCtx, err := o.extractUserContext(idToken)
+	if err != nil {
+		o.logger.Debug("failed to extract user context", slog.String("err", err.Error()))
+
+	} else {
+
+		o.logger.Debug("extracted user context for audit",
+			slog.String("email", userCtx.UserEmail),
+			slog.String("subject", userCtx.Subject))
+	}
+
+	return nil
+}
+
+// extractUserContext extracts user information from OIDC token claims
+func (o *OidcProvider) extractUserContext(idToken *oidc.IDToken) (*audit.UserContext, error) {
+	var claims struct {
+		Email      string `json:"email"`
+		Name       string `json:"name"`
+		GivenName  string `json:"given_name"`
+		FamilyName string `json:"family_name"`
+		Subject    string `json:"sub"`
+		ClientID   string `json:"aud"`
+		Username   string `json:"preferred_username"`
+	}
+
+	if err := idToken.Claims(&claims); err != nil {
+		return nil, fmt.Errorf("failed to extract claims: %w", err)
+	}
+
+	return buildUserContext(
+		claims.Email,
+		claims.Name,
+		claims.GivenName,
+		claims.FamilyName,
+		claims.Subject,
+		o.issuer,
+		claims.ClientID,
+		claims.Username,
+	), nil
 }
 
 func (o *OidcProvider) AuthURL() string {

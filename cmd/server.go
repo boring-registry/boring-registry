@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	"github.com/boring-registry/boring-registry/pkg/auth"
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
@@ -25,6 +26,8 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/proxy"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
 
@@ -230,6 +233,12 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		return nil, err
 	}
 
+	auditConfig := buildAuditConfig()
+	auditLogger, err := setupAuditLogger(ctx, auditConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup audit logger: %w", err)
+	}
+
 	metrics := o11y.NewMetrics(nil)
 	instrumentation := o11y.NewMiddleware(metrics.Http)
 
@@ -243,11 +252,11 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 
 	proxyUrlService := core.NewProxyUrlService(flagProxy, prefixProxy)
 
-	if err := registerModule(mux, s, authMiddleware, metrics.Module, instrumentation, proxyUrlService); err != nil {
+	if err := registerModule(mux, s, authMiddleware, metrics.Module, instrumentation, proxyUrlService, auditLogger); err != nil {
 		return nil, err
 	}
 
-	if err := registerProvider(mux, s, authMiddleware, metrics.Provider, instrumentation, proxyUrlService); err != nil {
+	if err := registerProvider(mux, s, authMiddleware, metrics.Provider, instrumentation, proxyUrlService, auditLogger); err != nil {
 		return nil, err
 	}
 
@@ -266,12 +275,27 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 			svc = mirror.NewMirror(s)
 		}
 
-		if err := registerMirror(mux, s, svc, authMiddleware, metrics.Mirror, instrumentation); err != nil {
+		if err := registerMirror(mux, s, svc, authMiddleware, metrics.Mirror, instrumentation, auditLogger); err != nil {
 			return nil, err
 		}
 	}
 
 	return mux, nil
+}
+
+func setupAuditLogger(ctx context.Context, auditConfig audit.Config) (audit.Logger, error) {
+	var s3Client audit.S3ClientInterface
+	
+	if auditConfig.Enabled && auditConfig.S3.Bucket != "" {
+		awsConfig, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS config: %w", err)
+		}
+		
+		s3Client = s3.NewFromConfig(awsConfig)
+	}
+	
+	return audit.CreateS3AuditLogger(ctx, s3Client, auditConfig)
 }
 
 func setFieldByKey(config *auth.OidcConfig, key string, value interface{}) error {
@@ -562,7 +586,7 @@ func registerDiscovery(mux *http.ServeMux, logins []*discovery.LoginV1) error {
 	return nil
 }
 
-func registerModule(mux *http.ServeMux, s storage.Storage, auth endpoint.Middleware, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
+func registerModule(mux *http.ServeMux, s storage.Storage, auth endpoint.Middleware, metrics *o11y.ModuleMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService, auditLogger audit.Logger) error {
 	service := module.NewService(s, proxyUrlService)
 	{
 		service = module.LoggingMiddleware()(service)
@@ -584,6 +608,7 @@ func registerModule(mux *http.ServeMux, s storage.Storage, auth endpoint.Middlew
 				auth,
 				metrics,
 				instrumentation,
+				auditLogger,
 				opts...,
 			),
 		),
@@ -592,7 +617,7 @@ func registerModule(mux *http.ServeMux, s storage.Storage, auth endpoint.Middlew
 	return nil
 }
 
-func registerProvider(mux *http.ServeMux, s storage.Storage, authMiddleware endpoint.Middleware, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService) error {
+func registerProvider(mux *http.ServeMux, s storage.Storage, authMiddleware endpoint.Middleware, metrics *o11y.ProviderMetrics, instrumentation o11y.Middleware, proxyUrlService core.ProxyUrlService, auditLogger audit.Logger) error {
 	service := provider.NewService(s, proxyUrlService)
 	{
 		service = provider.LoggingMiddleware()(service)
@@ -614,6 +639,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage, authMiddleware endp
 				authMiddleware,
 				metrics,
 				instrumentation,
+				auditLogger,
 				opts...,
 			),
 		),
@@ -622,7 +648,7 @@ func registerProvider(mux *http.ServeMux, s storage.Storage, authMiddleware endp
 	return nil
 }
 
-func registerMirror(mux *http.ServeMux, _ storage.Storage, svc mirror.Service, authMiddleware endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware) error {
+func registerMirror(mux *http.ServeMux, _ storage.Storage, svc mirror.Service, authMiddleware endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware, auditLogger audit.Logger) error {
 	service := mirror.LoggingMiddleware()(svc)
 
 	opts := []httptransport.ServerOption{
@@ -641,6 +667,7 @@ func registerMirror(mux *http.ServeMux, _ storage.Storage, svc mirror.Service, a
 				authMiddleware,
 				metrics,
 				instrumentation,
+				auditLogger,
 				opts...,
 			),
 		),

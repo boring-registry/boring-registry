@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/boring-registry/boring-registry/pkg/audit"
 	"github.com/boring-registry/boring-registry/pkg/core"
 	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 
@@ -29,7 +30,7 @@ const (
 )
 
 // MakeHandler returns a fully initialized http.Handler.
-func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware, options ...httptransport.ServerOption) http.Handler {
+func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.MirrorMetrics, instrumentation o11y.Middleware, auditLogger audit.Logger, options ...httptransport.ServerOption) http.Handler {
 	r := mux.NewRouter().StrictSlash(true)
 
 	r.Methods("GET").Path(`/{hostname}/{namespace}/{name}/index.json`).Handler(
