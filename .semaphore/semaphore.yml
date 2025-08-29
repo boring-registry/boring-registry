@@ -68,10 +68,10 @@ blocks:
       jobs:
         - name: "Publish Dev Docker image"
           commands:
-            - curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser
-            - echo "Dev build for branch: $SEMAPHORE_GIT_BRANCH"
-            - export INTERNAL_VERSION="dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)"
-            - export GORELEASER_CURRENT_TAG="dev-v$INTERNAL_VERSION"
-            - echo "Building and pushing dev version: $INTERNAL_VERSION"
-            - git tag "$GORELEASER_CURRENT_TAG" || echo "Tag already exists, continuing..."
-            - goreleaser release --config .goreleaser-internal.yml --clean --skip=validate
+            - "curl -sfL https://goreleaser.com/static/run > /tmp/goreleaser && chmod +x /tmp/goreleaser && sudo mv /tmp/goreleaser /usr/local/bin/goreleaser"
+            - "echo \"Dev build for branch: $SEMAPHORE_GIT_BRANCH\""
+            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "export GORELEASER_CURRENT_TAG=\"dev-v$INTERNAL_VERSION\""
+            - "echo \"Building and pushing dev version: $INTERNAL_VERSION\""
+            - "git tag \"$GORELEASER_CURRENT_TAG\" || echo \"Tag already exists, continuing...\""
+            - "goreleaser release --config .goreleaser-internal.yml --clean --skip=validate"
