@@ -22,6 +22,7 @@ dockers:
       - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-amd64"
     dockerfile: Dockerfile
     use: buildx
+    skip_push: false
     build_flag_templates:
       - "--pull"
       - "--platform=linux/amd64"
@@ -34,6 +35,7 @@ dockers:
       - "{{ .Env.ECR_REGISTRY }}/docker/prod/{{ .Env.IMAGE_REPOSITORY }}:{{ .Env.INTERNAL_VERSION }}-arm64"
     dockerfile: Dockerfile
     use: buildx
+    skip_push: false
     build_flag_templates:
       - "--pull"
       - "--platform=linux/arm64"
@@ -62,3 +64,4 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+
