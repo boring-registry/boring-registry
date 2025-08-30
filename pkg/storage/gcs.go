@@ -117,9 +117,10 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 // GetProvider implements provider.Storage
 func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider *core.Provider) (*core.Provider, error) {
 	var archivePath, shasumPath, shasumSigPath string
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		archivePath, shasumPath, shasumSigPath = internalProviderPath(s.bucketPrefix, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		archivePath, shasumPath, shasumSigPath = mirrorProviderPath(s.bucketPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
 	}
 
@@ -154,9 +155,10 @@ func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider 
 	}
 
 	var signingKeys *core.SigningKeys
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
 	}
 	if err != nil {

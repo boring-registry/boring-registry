@@ -128,7 +128,11 @@ func uploadProvider(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file at path %s: %w", flagFileSha256Sums, err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("failed to close file", slog.String("path", flagFileSha256Sums), slog.String("error", err.Error()))
+		}
+	}()
 
 	sums, err := core.NewSha256Sums(filepath.Base(flagFileSha256Sums), f)
 	if err != nil {
@@ -251,7 +255,11 @@ func validateShaSumsEntry(path string, checksum []byte) error {
 	if err != nil {
 		return fmt.Errorf("failed to open provided archive file: %s", path)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			slog.Warn("failed to close file", slog.String("path", path), slog.String("error", err.Error()))
+		}
+	}()
 
 	c, err := core.Sha256Checksum(f)
 	if err != nil {
@@ -270,7 +278,11 @@ func uploadProviderReleaseFile(ctx context.Context, storage provider.Storage, pa
 	if err != nil {
 		return err
 	}
-	defer archiveFile.Close()
+	defer func() {
+		if err := archiveFile.Close(); err != nil {
+			slog.Warn("failed to close file", slog.String("path", path), slog.String("error", err.Error()))
+		}
+	}()
 
 	uploadCtx, uploadCtxCancel := context.WithTimeout(ctx, 120*time.Second)
 	defer uploadCtxCancel()

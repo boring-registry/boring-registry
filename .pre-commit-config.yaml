@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://json.schemastore.org/pre-commit-config.json
+repos:
+- repo: https://github.com/TekWizely/pre-commit-golang
+  rev: v1.0.0-rc.2
+  hooks:
+    - id: go-fmt
+      args: [-w]
+    - id: go-vet-mod
+    - id: golangci-lint-mod
+    - id: go-mod-tidy
+    - id: go-test-mod
+      args: [-v]

@@ -261,7 +261,7 @@ func TestSigningKeys_IsValidSha256Sums(t *testing.T) {
 	if err := e.Serialize(w); err != nil {
 		panic(err)
 	}
-	w.Close()
+	_ = w.Close()
 
 	b := []byte("{\"boring\":\"registry\"}")
 	signatureBuffer := new(bytes.Buffer)
@@ -401,21 +401,6 @@ Fyw/Va0=
 }
 
 func TestProvider_Clone(t *testing.T) {
-	type fields struct {
-		Hostname            string
-		Namespace           string
-		Name                string
-		Version             string
-		OS                  string
-		Arch                string
-		Filename            string
-		DownloadURL         string
-		Shasum              string
-		SHASumsURL          string
-		SHASumsSignatureURL string
-		SigningKeys         SigningKeys
-		Platforms           []Platform
-	}
 	tests := []struct {
 		name     string
 		provider Provider

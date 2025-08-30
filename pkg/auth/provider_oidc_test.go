@@ -27,7 +27,9 @@ func TestOidcProviderDiscovery(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, strings.ReplaceAll(data, "ISSUER", issuer))
+		if _, err := io.WriteString(w, strings.ReplaceAll(data, "ISSUER", issuer)); err != nil {
+			t.Errorf("failed to write response: %v", err)
+		}
 	}
 	s := httptest.NewServer(http.HandlerFunc(hf))
 	defer s.Close()

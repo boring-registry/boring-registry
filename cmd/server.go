@@ -230,7 +230,9 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 	instrumentation := o11y.NewMiddleware(metrics.Http)
 
 	registerMetrics(mux)
-	registerDiscovery(mux, login)
+	if err := registerDiscovery(mux, login); err != nil {
+		return nil, fmt.Errorf("failed to register discovery: %w", err)
+	}
 
 	s, err := setupStorage(ctx)
 	if err != nil {
@@ -382,7 +384,9 @@ func registerDiscovery(mux *http.ServeMux, login *discovery.LoginV1) error {
 
 	mux.HandleFunc("/.well-known/terraform.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-type", "application/json")
-		w.Write(terraformJSON)
+		if _, err := w.Write(terraformJSON); err != nil {
+			slog.Error("failed to write http response in discovery handler", slog.String("error", err.Error()))
+		}
 	})
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 
 	"github.com/hashicorp/go-version"
@@ -60,7 +61,11 @@ func ParseFile(path string) (*Spec, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			slog.Warn("failed to close file", "path", path, "error", err)
+		}
+	}()
 
 	return Parse(file)
 }

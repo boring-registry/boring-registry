@@ -111,10 +111,18 @@ func archiveModule(root string) (io.Reader, error) {
 	}
 
 	gw := gzip.NewWriter(buf)
-	defer gw.Close()
+	defer func() {
+		if err := gw.Close(); err != nil {
+			slog.Error("failed to close gzip writer", slog.String("module-root", root), slog.Any("error", err))
+		}
+	}()
 
 	tw := tar.NewWriter(gw)
-	defer tw.Close()
+	defer func() {
+		if err := tw.Close(); err != nil {
+			slog.Error("failed to close tar writer", slog.String("module-root", root), slog.Any("error", err))
+		}
+	}()
 
 	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 		// return on any error
@@ -151,7 +159,9 @@ func archiveModule(root string) (io.Reader, error) {
 
 		// manually close here after each file operation; deferring would cause each file close
 		// to wait until all operations have completed.
-		data.Close()
+		if err := data.Close(); err != nil {
+			return fmt.Errorf("failed to close file %s: %w", path, err)
+		}
 
 		return nil
 	})
@@ -188,10 +198,7 @@ func archiveFileHeaderName(path, root string) string {
 		relativePath := strings.TrimPrefix(path, root)
 
 		// the leading slash needs to be removed
-		if strings.HasPrefix(relativePath, "/") {
-			relativePath = relativePath[1:]
-		}
-		return relativePath
+		return strings.TrimPrefix(relativePath, "/")
 	}
 
 	return path

@@ -26,7 +26,7 @@ func TestAuthMiddleware(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		io.WriteString(w, strings.ReplaceAll(data, "ISSUER", flagAuthOidcIssuer))
+		_, _ = io.WriteString(w, strings.ReplaceAll(data, "ISSUER", flagAuthOidcIssuer))
 	}
 	s := httptest.NewServer(http.HandlerFunc(hf))
 	defer s.Close()

@@ -124,9 +124,10 @@ func (s *AzureStorage) UploadModule(ctx context.Context, namespace, name, provid
 // GetProvider retrieves information about a provider from the Azure Storage.
 func (s *AzureStorage) getProvider(ctx context.Context, pt providerType, provider *core.Provider) (*core.Provider, error) {
 	var archivePath, shasumPath, shasumSigPath string
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		archivePath, shasumPath, shasumSigPath = internalProviderPath(s.prefix, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		archivePath, shasumPath, shasumSigPath = mirrorProviderPath(s.prefix, provider.Hostname, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
 	}
 
@@ -161,9 +162,10 @@ func (s *AzureStorage) getProvider(ctx context.Context, pt providerType, provide
 	}
 
 	var signingKeys *core.SigningKeys
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
 	}
 	if err != nil {
