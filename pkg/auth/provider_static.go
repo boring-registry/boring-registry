@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
@@ -13,11 +14,9 @@ type StaticProvider struct {
 
 func (p *StaticProvider) String() string { return "static" }
 
-func (p *StaticProvider) Verify(ctx context.Context, token string) error {
-	for _, validToken := range p.tokens {
-		if token == validToken {
-			return nil
-		}
+func (p *StaticProvider) Verify(_ context.Context, token string) error {
+	if slices.Contains(p.tokens, token) {
+		return nil
 	}
 
 	return core.ErrInvalidToken
@@ -32,8 +31,7 @@ func NewStaticProvider(tokens ...string) Provider {
 	var parsed []string
 	for _, t := range tokens {
 		if strings.ContainsAny(t, ",") {
-			split := strings.Split(t, ",")
-			for _, s := range split {
+			for s := range strings.SplitSeq(t, ",") {
 				if s == "" {
 					// Skip empty strings occurring due to splitting csv values like "test,"
 					continue
