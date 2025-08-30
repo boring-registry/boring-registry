@@ -13,7 +13,7 @@ import (
 
 func Middleware(providers ...Provider) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
-		return func(ctx context.Context, request interface{}) (interface{}, error) {
+		return func(ctx context.Context, request any) (any, error) {
 			tokenValue := ctx.Value(jwt.JWTContextKey)
 
 			// Skip any authorization checks, as there are no providers defined
@@ -21,21 +21,24 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 				return next(ctx, request)
 			}
 
-			if token, ok := tokenValue.(string); ok {
-				for _, provider := range providers {
-					err := provider.Verify(ctx, token)
-					if err != nil {
-						slog.Debug("failed to verify token", slog.String("err", err.Error()))
-						return nil, fmt.Errorf("failed to verify token: %w", err)
-					} else {
-						slog.Debug("successfully verified token")
-						return next(ctx, request)
-					}
-				}
-			} else {
+			token, exists := tokenValue.(string)
+			if !exists {
 				return nil, fmt.Errorf("%w: request does not contain a token", core.ErrUnauthorized)
 			}
 
+			// Iterate through all providers and attempt to verify the token
+			for _, provider := range providers {
+				err := provider.Verify(ctx, token)
+				if err != nil {
+					slog.Debug("failed to verify token", slog.String("provider", provider.String()), slog.String("err", err.Error()))
+					continue
+				} else {
+					slog.Debug("successfully verified token", slog.String("provider", provider.String()))
+					return next(ctx, request)
+				}
+			}
+
+			// No provider could verify the token
 			return nil, core.ErrUnauthorized
 		}
 	}

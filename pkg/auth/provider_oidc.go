@@ -15,6 +15,8 @@ type OidcProvider struct {
 	provider         *oidc.Provider
 }
 
+func (p *OidcProvider) String() string { return "oidc" }
+
 // Unfortunately, it's difficult to write tests for this method, as we would need an OIDC Authorization Server
 // to generate valid signed JWTs
 func (o *OidcProvider) Verify(ctx context.Context, token string) error {
