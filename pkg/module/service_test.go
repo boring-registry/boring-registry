@@ -18,9 +18,11 @@ func testModuleData(files map[string]string) *bytes.Buffer {
 	buf := new(bytes.Buffer)
 
 	gw := gzip.NewWriter(buf)
+	// nolint:errcheck
 	defer gw.Close()
 
 	tw := tar.NewWriter(gw)
+	// nolint:errcheck
 	defer tw.Close()
 
 	for name, moduleData := range files {

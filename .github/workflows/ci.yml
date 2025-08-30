@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: pre-commit
+
+on: [push]
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Install golangci-lint
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.4.0
+        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+        $(go env GOPATH)/bin/golangci-lint --version
+    - uses: actions/setup-python@v3
+    - uses: pre-commit/action@v3.0.1

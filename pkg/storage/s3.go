@@ -166,9 +166,10 @@ func (s *S3Storage) UploadModule(ctx context.Context, namespace, name, provider,
 // GetProvider retrieves information about a provider from the S3 storage.
 func (s *S3Storage) getProvider(ctx context.Context, pt providerType, provider *core.Provider) (*core.Provider, error) {
 	var archivePath, shasumPath, shasumSigPath string
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		archivePath, shasumPath, shasumSigPath = internalProviderPath(s.bucketPrefix, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		archivePath, shasumPath, shasumSigPath = mirrorProviderPath(s.bucketPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
 	}
 
@@ -203,9 +204,10 @@ func (s *S3Storage) getProvider(ctx context.Context, pt providerType, provider *
 	}
 
 	var signingKeys *core.SigningKeys
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
 	}
 	if err != nil {
@@ -393,7 +395,7 @@ func (s *S3Storage) objectExists(ctx context.Context, key string) (bool, error) 
 
 	if _, err := s.client.HeadObject(ctx, input); err != nil {
 		var responseError *awshttp.ResponseError
-		if errors.As(err, &responseError) && responseError.ResponseError.HTTPStatusCode() == http.StatusNotFound {
+		if errors.As(err, &responseError) && responseError.HTTPStatusCode() == http.StatusNotFound {
 			return false, nil
 		}
 		return false, err
@@ -511,6 +513,7 @@ func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption
 	}
 
 	// The EndpointResolver is used for compatibility with MinIO
+	//nolint:staticcheck
 	customResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 		if s.bucketEndpoint != "" {
 			return aws.Endpoint{
@@ -527,7 +530,7 @@ func NewS3Storage(ctx context.Context, bucket string, options ...S3StorageOption
 	// Create the S3 client with conditional logging
 	configLoadOptions := []func(*config.LoadOptions) error{
 		config.WithRegion(s.bucketRegion),
-		config.WithEndpointResolverWithOptions(customResolver),
+		config.WithEndpointResolverWithOptions(customResolver), // nolint:staticcheck
 	}
 	if s.clientLogMode != 0 {
 		configLoadOptions = append(configLoadOptions, config.WithClientLogMode(s.clientLogMode))

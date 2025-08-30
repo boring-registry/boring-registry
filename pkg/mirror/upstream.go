@@ -36,7 +36,10 @@ func (u *upstreamProviderRegistry) listProviderVersions(ctx context.Context, pro
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// we ignore the error here, as there is not much we can do about it at this point
+		_ = resp.Body.Close()
+	}()
 
 	return decodeUpstreamListProviderVersionsResponse(resp)
 }
@@ -56,7 +59,10 @@ func (u *upstreamProviderRegistry) getProvider(ctx context.Context, provider *co
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// we ignore the error here, as there is not much we can do about it at this point
+		_ = resp.Body.Close()
+	}()
 
 	decoded, err := decodeUpstreamProviderResponse(resp)
 	if err != nil {
@@ -81,7 +87,9 @@ func (u *upstreamProviderRegistry) shaSums(ctx context.Context, provider *core.P
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	sha256Sums, err := core.NewSha256Sums(provider.ShasumFileName(), resp.Body)
 	if err != nil {

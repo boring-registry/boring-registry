@@ -70,7 +70,11 @@ func (c *copier) copy(provider *core.Provider) {
 		c.logger.Error("failed to download provider", logKeyValues(provider), slog.String("err", err.Error()))
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			c.logger.Warn("failed to close response body", logKeyValues(provider), slog.String("err", err.Error()))
+		}
+	}()
 
 	fileName := provider.ArchiveFileName()
 	if err = c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
@@ -110,7 +114,12 @@ func (c *copier) sha256SumsSignature(ctx context.Context, provider *core.Provide
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("failed to close response body", slog.String("url", provider.SHASumsSignatureURL), slog.String("error", err.Error()))
+		}
+	}()
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download SHA256SUMS.sig, statuscode is %v", resp.StatusCode)
 	}
@@ -128,7 +137,11 @@ func (c *copier) sha256Sums(ctx context.Context, provider *core.Provider) error 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Warn("failed to close response body", slog.String("url", provider.SHASumsURL), slog.String("error", err.Error()))
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download SHA256SUMS, statuscode is %v", resp.StatusCode)
 	}

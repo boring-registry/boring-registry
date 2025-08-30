@@ -122,7 +122,10 @@ func (r *RemoteServiceDiscovery) wellKnownEndpoint(ctx context.Context, host str
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve well known endpoint for %s: %w", u.String(), err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// We ignore the error here as there is not much we can do about it at this point
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to resolve well known endpoint for %s: status code is %d", u.String(), resp.StatusCode)
