@@ -25,3 +25,17 @@ Learn more about the installation [in our documentation](https://boring-registry
 ## Configuration
 
 Check out the full documentation at [boring-registry.github.io/boring-registry](https://boring-registry.github.io/boring-registry/latest/configuration/introduction/).
+
+## Contributing
+
+### Setup
+
+Tools:
+- `go`
+- [pre-commit](https://pre-commit.com/)
+- [golangci-lint](https://golangci-lint.run/)
+
+Install pre-commit hooks:
+```shell
+pre-commit install --install-hooks
+```
