@@ -193,8 +193,8 @@ github.com/mitchellh/go-wordwrap v1.0.1 h1:TLuKupo69TCn6TQSyGxwI1EblZZEsQ0vMlAFQ
 github.com/mitchellh/go-wordwrap v1.0.1/go.mod h1:R62XHJLzvMFRBbcrT7m7WgmE1eOyTSsCt+hzestvNj0=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/okta/okta-jwt-verifier-golang/v2 v2.1.0 h1:kxe6tAiUjp1mN5YIXtD1mlMD26scHADVFkXMrSLQJnI=
-github.com/okta/okta-jwt-verifier-golang/v2 v2.1.0/go.mod h1:04uFRId8OQLPVGkDhh4c1nMdEf67h1QFdLBcxM6G3Wg=
+github.com/okta/okta-jwt-verifier-golang/v2 v2.1.1 h1:0Z/lJ5P9FGix5/MasMU0iB/2HR+JHRYY500JC/w3x74=
+github.com/okta/okta-jwt-verifier-golang/v2 v2.1.1/go.mod h1:F12fuValkJzGay51EClq8sSyKT5cYJIzq6jO3mdztEA=
 github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 h1:pSCLCl6joCFRnjpeojzOpEYs4q7Vditq8fySFG5ap3Y=
 github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/pelletier/go-toml/v2 v2.2.4 h1:mye9XuhQ6gvn5h28+VilKrrPoQVanw5PMw/TB0t5Ec4=

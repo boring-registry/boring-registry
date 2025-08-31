@@ -1,3 +1,4 @@
+version: 2
 builds:
   -
     skip: true
@@ -7,4 +8,4 @@ release:
     name: okta-jwt-verifier-golang
   draft: true
 changelog:
-  skip: true
+  disable: true
