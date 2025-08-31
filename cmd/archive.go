@@ -75,12 +75,18 @@ func processModule(path string, storage module.Storage) error {
 	}
 
 	ctx := context.Background()
-	if res, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+	providerAttrs := []any{
+		slog.String("namespace", spec.Metadata.Namespace),
+		slog.String("name", spec.Metadata.Name),
+		slog.String("provider", spec.Metadata.Provider),
+		slog.String("version", spec.Metadata.Version),
+	}
+	if _, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
 		if flagIgnoreExistingModule {
-			slog.Info("module already exists", slog.String("download_url", res.DownloadURL))
+			slog.Info("module already exists", providerAttrs...)
 			return nil
 		} else {
-			slog.Error("module already exists", slog.String("download_url", res.DownloadURL))
+			slog.Error("module already exists", providerAttrs...)
 			return errors.New("module already exists")
 		}
 	}
@@ -92,13 +98,11 @@ func processModule(path string, storage module.Storage) error {
 		return err
 	}
 
-	res, err := storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf)
-	if err != nil {
+	if _, err := storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
 		return err
 	}
 
-	slog.Info("module successfully uploaded", slog.String("download_url", res.DownloadURL))
-
+	slog.Info("module successfully uploaded", providerAttrs...)
 	return nil
 
 }
