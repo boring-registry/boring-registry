@@ -75,14 +75,13 @@ func processModule(path string, storage module.Storage) error {
 	}
 
 	ctx := context.Background()
-	res, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version)
 	providerAttrs := []any{
-		slog.String("namespace", res.Namespace),
-		slog.String("name", res.Name),
-		slog.String("provider", res.Provider),
-		slog.String("version", res.Version),
+		slog.String("namespace", spec.Metadata.Namespace),
+		slog.String("name", spec.Metadata.Name),
+		slog.String("provider", spec.Metadata.Provider),
+		slog.String("version", spec.Metadata.Version),
 	}
-	if err == nil {
+	if _, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
 		if flagIgnoreExistingModule {
 			slog.Info("module already exists", providerAttrs...)
 			return nil
@@ -99,8 +98,7 @@ func processModule(path string, storage module.Storage) error {
 		return err
 	}
 
-	res, err = storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf)
-	if err != nil {
+	if _, err := storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
 		return err
 	}
 
