@@ -19,7 +19,6 @@ global_job_config:
   prologue:
     commands:
       - checkout
-      - sem-version go 1.23.10
 
 blocks:
   - name: Test & Build
@@ -31,6 +30,7 @@ blocks:
       jobs:
         - name: Test & Build
           commands:
+            - sem-version go 1.23.10
             - go test ./...
             - make build
 
@@ -68,9 +68,6 @@ blocks:
           value: "docker/prod/confluentinc/boring-registry"
         - name: BUILD_ARCH
           value: "amd64"
-      prologue:
-        commands:
-          - checkout
       jobs:
         - name: "Build and Push Production AMD64 Image"
           commands:
@@ -96,9 +93,6 @@ blocks:
           value: "docker/prod/confluentinc/boring-registry"
         - name: BUILD_ARCH
           value: "arm64"
-      prologue:
-        commands:
-          - checkout
       jobs:
         - name: "Build and Push Production ARM64 Image"
           commands:
@@ -108,9 +102,9 @@ blocks:
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
 
   - name: "Prod Helm"
-    dependencies: ["Test & Build"]
+    dependencies: ["Auto Release and Version Bump"]
     run:
-      when: "branch != 'main'"
+      when: "branch = 'main'"
     task:
       agent:
         machine:
@@ -133,9 +127,6 @@ blocks:
           value: "us-west-2"
         - name: IMAGE_REPOSITORY
           value: "docker/prod/confluentinc/boring-registry"
-      prologue:
-        commands:
-          - checkout
       jobs:
         - name: "Create Production Multi-Platform Manifest"
           commands:
@@ -161,14 +152,11 @@ blocks:
           value: "docker/dev/confluentinc/boring-registry"
         - name: PLATFORM
           value: "amd64"
-      prologue:
-        commands:
-          - checkout
       jobs:
         - name: "Build and Push AMD64 Image"
           commands:
-            - "echo \"Building AMD64 image for branch: $SEMAPHORE_GIT_BRANCH\""
-            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "echo \"Building AMD64 image for branch: $SEMAPHORE_GIT_WORKING_BRANCH\""
+            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker build --platform linux/amd64 -t \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" --build-arg VERSION=\"${INTERNAL_VERSION}\" --build-arg GIT_COMMIT=\"${SEMAPHORE_GIT_SHA}\" --build-arg BUILD_TIMESTAMP=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ."
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\""
 
@@ -189,14 +177,11 @@ blocks:
           value: "docker/dev/confluentinc/boring-registry"
         - name: PLATFORM
           value: "arm64"
-      prologue:
-        commands:
-          - checkout
       jobs:
         - name: "Build and Push ARM64 Image"
           commands:
-            - "echo \"Building ARM64 image for branch: $SEMAPHORE_GIT_BRANCH\""
-            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "echo \"Building ARM64 image for branch: $SEMAPHORE_GIT_WORKING_BRANCH\""
+            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker build --platform linux/arm64 -t \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\" --build-arg VERSION=\"${INTERNAL_VERSION}\" --build-arg GIT_COMMIT=\"${SEMAPHORE_GIT_SHA}\" --build-arg BUILD_TIMESTAMP=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ."
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
 
@@ -211,7 +196,7 @@ blocks:
       jobs:
         - name: "Dev Helm"
           commands:
-            - echo "dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)" > INTERNAL_VERSION
+            - echo "$(cat INTERNAL_VERSION)-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')+$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)" > INTERNAL_VERSION
             - export ENV=dev
             - ./helm-release.sh
 
@@ -230,7 +215,7 @@ blocks:
       jobs:
         - name: "Create Multi-Platform Manifest"
           commands:
-            - "echo \"Creating manifest for branch: $SEMAPHORE_GIT_BRANCH\""
-            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "echo \"Creating manifest for branch: $SEMAPHORE_GIT_WORKING_BRANCH\""
+            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker manifest create \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
             - "docker manifest push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\""
