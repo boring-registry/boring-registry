@@ -156,7 +156,7 @@ blocks:
         - name: "Build and Push AMD64 Image"
           commands:
             - "echo \"Building AMD64 image for branch: $SEMAPHORE_GIT_WORKING_BRANCH\""
-            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "export INTERNAL_VERSION=\"$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker build --platform linux/amd64 -t \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" --build-arg VERSION=\"${INTERNAL_VERSION}\" --build-arg GIT_COMMIT=\"${SEMAPHORE_GIT_SHA}\" --build-arg BUILD_TIMESTAMP=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ."
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\""
 
@@ -181,7 +181,7 @@ blocks:
         - name: "Build and Push ARM64 Image"
           commands:
             - "echo \"Building ARM64 image for branch: $SEMAPHORE_GIT_WORKING_BRANCH\""
-            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "export INTERNAL_VERSION=\"$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker build --platform linux/arm64 -t \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\" --build-arg VERSION=\"${INTERNAL_VERSION}\" --build-arg GIT_COMMIT=\"${SEMAPHORE_GIT_SHA}\" --build-arg BUILD_TIMESTAMP=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ."
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
 
@@ -216,6 +216,6 @@ blocks:
         - name: "Create Multi-Platform Manifest"
           commands:
             - "echo \"Creating manifest for branch: $SEMAPHORE_GIT_WORKING_BRANCH\""
-            - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
+            - "export INTERNAL_VERSION=\"$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker manifest create \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
             - "docker manifest push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\""
