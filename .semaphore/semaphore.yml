@@ -19,6 +19,7 @@ global_job_config:
   prologue:
     commands:
       - checkout
+      - sem-version go 1.23.10
 
 blocks:
   - name: Test & Build
