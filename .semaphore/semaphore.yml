@@ -19,7 +19,6 @@ global_job_config:
   prologue:
     commands:
       - checkout
-      - sem-version go 1.23.10
 
 blocks:
   - name: Test & Build
@@ -71,7 +70,6 @@ blocks:
       prologue:
         commands:
           - checkout
-          - sem-version go 1.23.10
       jobs:
         - name: "Build and Push Production AMD64 Image"
           commands:
@@ -100,7 +98,6 @@ blocks:
       prologue:
         commands:
           - checkout
-          - sem-version go 1.23.10
       jobs:
         - name: "Build and Push Production ARM64 Image"
           commands:
