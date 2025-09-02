@@ -107,6 +107,22 @@ blocks:
             - "docker build --platform linux/arm64 -t \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\" --build-arg VERSION=\"${INTERNAL_VERSION}\" --build-arg GIT_COMMIT=\"${SEMAPHORE_GIT_SHA}\" --build-arg BUILD_TIMESTAMP=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ."
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
 
+  - name: "Prod Helm"
+    dependencies: ["Test & Build"]
+    run:
+      when: "branch != 'main'"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-arm64-0
+      prologue:
+        commands:
+      jobs:
+        - name: "Prod Helm"
+          commands:
+            - export ENV=prod
+            - ./helm-release.sh
+
   - name: "Prod Create Manifest"
     dependencies: ["Prod Build AMD64", "Prod Build ARM64"]
     run:
@@ -129,8 +145,6 @@ blocks:
             - "export INTERNAL_VERSION=$(cat INTERNAL_VERSION)"
             - "docker manifest create \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
             - "docker manifest push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\""
-            - "echo \"Docker images published, updating Helm release\""
-            - ./helm-release.sh
 
   - name: "Dev Build AMD64"
     dependencies: ["Test & Build"]
@@ -187,6 +201,23 @@ blocks:
             - "export INTERNAL_VERSION=\"dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker build --platform linux/arm64 -t \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\" --build-arg VERSION=\"${INTERNAL_VERSION}\" --build-arg GIT_COMMIT=\"${SEMAPHORE_GIT_SHA}\" --build-arg BUILD_TIMESTAMP=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" ."
             - "docker push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
+
+  - name: "Dev Helm"
+    dependencies: ["Test & Build"]
+    run:
+      when: "branch != 'main'"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-arm64-0
+      prologue:
+        commands:
+      jobs:
+        - name: "Dev Helm"
+          commands:
+            - echo "dev-$(echo $SEMAPHORE_GIT_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)" > INTERNAL_VERSION
+            - export ENV=dev
+            - ./helm-release.sh
 
   - name: "Dev Create Manifest"
     dependencies: ["Dev Build AMD64", "Dev Build ARM64"]
