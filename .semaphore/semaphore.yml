@@ -115,8 +115,6 @@ blocks:
       agent:
         machine:
           type: s1-prod-ubuntu24-04-arm64-0
-      prologue:
-        commands:
       jobs:
         - name: "Prod Helm"
           commands:
@@ -210,8 +208,6 @@ blocks:
       agent:
         machine:
           type: s1-prod-ubuntu24-04-arm64-0
-      prologue:
-        commands:
       jobs:
         - name: "Dev Helm"
           commands:
