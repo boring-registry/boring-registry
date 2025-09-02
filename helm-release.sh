@@ -35,7 +35,7 @@ if [ "${real_chart_name}" != "${chart_name}" ]; then
   exit 1
 fi
 
-oci_path="oci://${ECR_REPO}/helm/${ENV}/confluentinc/${repo_name}"
+oci_path="oci://${ECR_REPO}/helm/${ENV}/confluentinc"
 
 if helm show chart "${oci_path}/${chart_name}" --version "${chart_version}" 1>/dev/null 2>&1; then
   echo "${chart_name}:${chart_version} already exists"
