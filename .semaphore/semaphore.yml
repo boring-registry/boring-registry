@@ -136,6 +136,7 @@ blocks:
             - "export INTERNAL_VERSION=$(cat INTERNAL_VERSION)"
             - "docker manifest create \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
             - "docker manifest push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\""
+            - docker pull "${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}"
             - sign-images "${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}"
 
   - name: "Dev Build AMD64"
@@ -224,4 +225,5 @@ blocks:
             - "export INTERNAL_VERSION=\"$(echo $SEMAPHORE_GIT_WORKING_BRANCH | sed 's/[^a-zA-Z0-9]/-/g')-$(echo $SEMAPHORE_GIT_SHA | cut -c1-8)\""
             - "docker manifest create \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-amd64\" \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}-arm64\""
             - "docker manifest push \"${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}\""
+            - docker pull "${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}"
             - sign-images "${ECR_REGISTRY}/${IMAGE_REPOSITORY}:${INTERNAL_VERSION}"
