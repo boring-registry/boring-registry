@@ -117,7 +117,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v5
-      - uses: azure/setup-helm@v3
+      - uses: azure/setup-helm@v4
 
       - name: Helm login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login https://ghcr.io --username boring-registry --password-stdin
