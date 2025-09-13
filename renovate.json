@@ -31,8 +31,12 @@
       ]
     },
     {
-      "matchManagers": ["gomod"],
-      "gomodTidy": true
+      "matchManagers": [
+        "gomod"
+      ],
+      "postUpdateOptions": [
+        "gomodTidy"
+      ]
     }
   ]
 }
