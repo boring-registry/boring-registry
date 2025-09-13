@@ -37,6 +37,14 @@
       "postUpdateOptions": [
         "gomodTidy"
       ]
+    },
+    {
+      "matchPackageNames": [
+        "go",
+        "golang"
+      ],
+      "groupName": "go version",
+      "groupSlug": "go-version"
     }
   ]
 }
