@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,10 +11,8 @@ import (
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
-	"github.com/boring-registry/boring-registry/pkg/module"
 	"github.com/boring-registry/boring-registry/pkg/provider"
 
-	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 )
 
@@ -25,20 +22,10 @@ const (
 )
 
 var (
-	flagRecursive                bool
-	flagIgnoreExistingModule     bool
-	flagVersionConstraintsRegex  string
-	flagVersionConstraintsSemver string
-
 	// upload provider flags
 	flagFileSha256Sums       string
 	flagProviderArchivePaths []string
 	flagProviderNamespace    string
-)
-
-var (
-	versionConstraintsRegex  *regexp.Regexp
-	versionConstraintsSemver version.Constraints
 )
 
 func init() {
@@ -64,23 +51,18 @@ Can be combined with the -version-constrained-regex flag`)
 }
 
 var (
-	moduleUploader = &moduleUploadRunner{}
-
 	// uploadCmd uploads modules for legacy reasons.
 	// It is recommended to use `upload module` instead.
 	// This will eventually be deprecated and replaced.
 	uploadCmd = &cobra.Command{
-		Use:          "upload [flags] MODULE",
+		Use:          "upload [flags] MODULE (WARNING: deprecated, use 'upload module' instead)",
 		Short:        "Upload modules and providers",
 		SilenceUsage: true,
-		PreRunE:      moduleUploader.preRun,
-		RunE:         moduleUploader.run,
-	}
-	uploadModuleCmd = &cobra.Command{
-		Use:          "module MODULE",
-		SilenceUsage: true,
-		PreRunE:      moduleUploader.preRun,
-		RunE:         moduleUploader.run,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			slog.Warn("using only the 'upload' command for modules is deprecated and will be removed in a future release. Please use 'upload module' instead.")
+			return moduleUploader.preRun(cmd, args)
+		},
+		RunE: moduleUploader.run,
 	}
 	uploadProviderCmd = &cobra.Command{
 		Use:          "provider PROVIDER",
@@ -88,55 +70,6 @@ var (
 		RunE:         uploadProvider,
 	}
 )
-
-// The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
-type moduleUploadRunner struct {
-	storage module.Storage
-	archive func(string, module.Storage) error
-}
-
-// preRun sets up the storage backend before running the upload command
-func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
-	storage, err := setupStorage(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to set up storage: %w", err)
-	}
-	m.storage = storage
-	m.archive = archiveModules
-	return nil
-}
-
-func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("missing path to module directory")
-	} else if len(args) > 1 {
-		return fmt.Errorf("only a single module is supported at a time")
-	}
-
-	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("failed to locate module directory: %w", err)
-	}
-
-	// Validate the semver version constraints
-	if flagVersionConstraintsSemver != "" {
-		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
-		if err != nil {
-			return err
-		}
-		versionConstraintsSemver = constraints
-	}
-
-	// Validate the regex version constraints
-	if flagVersionConstraintsRegex != "" {
-		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
-		if err != nil {
-			return fmt.Errorf("invalid regex given: %v", err)
-		}
-		versionConstraintsRegex = constraints
-	}
-
-	return m.archive(args[0], m.storage)
-}
 
 func uploadProvider(cmd *cobra.Command, args []string) error {
 	if !filepath.IsAbs(flagFileSha256Sums) {
