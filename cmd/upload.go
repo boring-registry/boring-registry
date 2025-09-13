@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/module"
 	"github.com/boring-registry/boring-registry/pkg/provider"
 
 	"github.com/hashicorp/go-version"
@@ -62,40 +63,58 @@ The version string has to be formatted as a string literal containing one or mor
 Can be combined with the -version-constrained-regex flag`)
 }
 
-// uploadCmd uploads modules for legacy reasons.
-// It is recommended to use `upload module` instead.
-// This will eventually be deprecated and replaced.
-var uploadCmd = &cobra.Command{
-	Use:          "upload [flags] MODULE",
-	Short:        "Upload modules and providers",
-	SilenceUsage: true,
-	RunE:         uploadModule,
+var (
+	moduleUploader = &moduleUploadRunner{}
+
+	// uploadCmd uploads modules for legacy reasons.
+	// It is recommended to use `upload module` instead.
+	// This will eventually be deprecated and replaced.
+	uploadCmd = &cobra.Command{
+		Use:          "upload [flags] MODULE",
+		Short:        "Upload modules and providers",
+		SilenceUsage: true,
+		PreRunE:      moduleUploader.preRun,
+		RunE:         moduleUploader.run,
+	}
+	uploadModuleCmd = &cobra.Command{
+		Use:          "module MODULE",
+		SilenceUsage: true,
+		PreRunE:      moduleUploader.preRun,
+		RunE:         moduleUploader.run,
+	}
+	uploadProviderCmd = &cobra.Command{
+		Use:          "provider PROVIDER",
+		SilenceUsage: true,
+		RunE:         uploadProvider,
+	}
+)
+
+// The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
+type moduleUploadRunner struct {
+	storage module.Storage
+	archive func(string, module.Storage) error
 }
 
-var uploadModuleCmd = &cobra.Command{
-	Use:          "module MODULE",
-	SilenceUsage: true,
-	RunE:         uploadModule,
-}
-
-var uploadProviderCmd = &cobra.Command{
-	Use:          "provider PROVIDER",
-	SilenceUsage: true,
-	RunE:         uploadProvider,
-}
-
-func uploadModule(cmd *cobra.Command, args []string) error {
-	storageBackend, err := setupStorage(context.Background())
+// preRun sets up the storage backend before running the upload command
+func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
+	storage, err := setupStorage(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to set up storage: %w", err)
 	}
+	m.storage = storage
+	m.archive = archiveModules
+	return nil
+}
 
+func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("missing argument")
+		return fmt.Errorf("missing path to module directory")
+	} else if len(args) > 1 {
+		return fmt.Errorf("only a single module is supported at a time")
 	}
 
 	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
-		return err
+		return fmt.Errorf("failed to locate module directory: %w", err)
 	}
 
 	// Validate the semver version constraints
@@ -116,7 +135,7 @@ func uploadModule(cmd *cobra.Command, args []string) error {
 		versionConstraintsRegex = constraints
 	}
 
-	return archiveModules(args[0], storageBackend)
+	return m.archive(args[0], m.storage)
 }
 
 func uploadProvider(cmd *cobra.Command, args []string) error {
