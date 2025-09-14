@@ -43,6 +43,9 @@
         "go",
         "golang"
       ],
+      "schedule": [
+        "38 2 * * 0"
+      ],
       "groupName": "go version",
       "groupSlug": "go-version"
     }
