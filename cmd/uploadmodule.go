@@ -99,25 +99,28 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 }
 
 func (m *moduleUploadRunner) walkModules(root string) error {
+	modulePaths := []string{} // holds paths to all discovered module spec files
 	if flagRecursive {
-		err := filepath.Walk(root, func(path string, fi os.FileInfo, _ error) error {
+		if err := filepath.Walk(root, func(path string, fi os.FileInfo, _ error) error {
 			// FYI we conciously ignore all walk-related errors
+			// TODO should we change that?
 
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			if processErr := m.processModule(path); processErr != nil {
-				return fmt.Errorf("failed to process module at %s: %w", path, processErr)
-			}
-
+			modulePaths = append(modulePaths, path)
 			return nil
-		})
-		return err
+		}); err != nil {
+			return err
+		}
+	} else {
+		modulePaths = append(modulePaths, filepath.Join(root, moduleSpecFileName))
 	}
 
-	path := filepath.Join(root, moduleSpecFileName)
-	if processErr := m.processModule(path); processErr != nil {
-		return fmt.Errorf("failed to process module at %s: %w", path, processErr)
+	for _, path := range modulePaths {
+		if processErr := m.processModule(path); processErr != nil {
+			return fmt.Errorf("failed to process module at %s: %w", path, processErr)
+		}
 	}
 	return nil
 }
