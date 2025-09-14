@@ -1,3 +1,111 @@
+# v1.19.6 (2025-09-10)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.5 (2025-09-08)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.4 (2025-08-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.3 (2025-08-28)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.2 (2025-08-27)
+
+* **Dependency Update**: Update to smithy-go v1.23.0.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.1 (2025-08-26)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.0 (2025-08-21)
+
+* **Feature**: Add control for request checksum calculation.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.18.5 (2025-08-20)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.18.4 (2025-08-11)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.18.3 (2025-08-04)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.18.2 (2025-07-30)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.18.1 (2025-07-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.18.0 (2025-07-28)
+
+* **Feature**: Add support for HTTP interceptors.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.85 (2025-07-19)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.84 (2025-07-15)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.83 (2025-07-02)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.82 (2025-06-25)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.81 (2025-06-18)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.80 (2025-06-17)
+
+* **Dependency Update**: Update to smithy-go v1.22.4.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.79 (2025-06-10)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.78 (2025-06-06)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.77 (2025-05-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.76 (2025-05-22)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.75 (2025-05-05)
+
+* **Bug Fix**: Enable user to call GetBucketRegion without credential config
+
+# v1.17.74 (2025-04-28)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.17.73 (2025-04-23)
+
+* **Bug Fix**: Abort multi part download if the object is modified during download
+
 # v1.17.72 (2025-04-10)
 
 * **Dependency Update**: Updated to the latest SDK module versions

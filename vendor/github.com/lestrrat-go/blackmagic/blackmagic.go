@@ -80,7 +80,17 @@ func AssignIfCompatible(dst, src interface{}) error {
 		return fmt.Errorf(`destination argument to AssignIfCompatible() must be a pointer: %T`, dst)
 	}
 
-	actualDst := rv.Elem()
+	actualDst := rv
+	for {
+		if !actualDst.IsValid() {
+			return fmt.Errorf(`could not find a valid destination for AssignIfCompatible() (%T)`, dst)
+		}
+		if actualDst.CanSet() {
+			break
+		}
+		actualDst = actualDst.Elem()
+	}
+
 	switch actualDst.Kind() {
 	case reflect.Interface:
 		// If it's an interface, we can just assign the pointer to the interface{}
@@ -95,6 +105,11 @@ func AssignIfCompatible(dst, src interface{}) error {
 	if !result.IsValid() {
 		// At this point there's nothing we can do. return an error
 		return fmt.Errorf(`source value is invalid (%T): %w`, src, InvalidValueError())
+	}
+
+	if actualDst.Kind() == reflect.Ptr {
+		actualDst.Set(result.Addr())
+		return nil
 	}
 
 	if !result.Type().AssignableTo(actualDst.Type()) {
