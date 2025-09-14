@@ -22,3 +22,6 @@ Chart.lock
 
 # mkdocs
 site
+
+# goreleaser
+dist/
