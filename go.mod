@@ -1,6 +1,6 @@
 module github.com/boring-registry/boring-registry
 
-go 1.24
+go 1.24.0
 
 require (
 	cloud.google.com/go/iam v1.5.2
@@ -25,7 +25,7 @@ require (
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/oauth2 v0.29.0
-	golang.org/x/sync v0.16.0
+	golang.org/x/sync v0.17.0
 	google.golang.org/api v0.229.0
 )
 
