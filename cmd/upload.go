@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/provider"
 
-	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 )
 
@@ -24,20 +22,10 @@ const (
 )
 
 var (
-	flagRecursive                bool
-	flagIgnoreExistingModule     bool
-	flagVersionConstraintsRegex  string
-	flagVersionConstraintsSemver string
-
 	// upload provider flags
 	flagFileSha256Sums       string
 	flagProviderArchivePaths []string
 	flagProviderNamespace    string
-)
-
-var (
-	versionConstraintsRegex  *regexp.Regexp
-	versionConstraintsSemver version.Constraints
 )
 
 func init() {
@@ -62,62 +50,26 @@ The version string has to be formatted as a string literal containing one or mor
 Can be combined with the -version-constrained-regex flag`)
 }
 
-// uploadCmd uploads modules for legacy reasons.
-// It is recommended to use `upload module` instead.
-// This will eventually be deprecated and replaced.
-var uploadCmd = &cobra.Command{
-	Use:          "upload [flags] MODULE",
-	Short:        "Upload modules and providers",
-	SilenceUsage: true,
-	RunE:         uploadModule,
-}
-
-var uploadModuleCmd = &cobra.Command{
-	Use:          "module MODULE",
-	SilenceUsage: true,
-	RunE:         uploadModule,
-}
-
-var uploadProviderCmd = &cobra.Command{
-	Use:          "provider PROVIDER",
-	SilenceUsage: true,
-	RunE:         uploadProvider,
-}
-
-func uploadModule(cmd *cobra.Command, args []string) error {
-	storageBackend, err := setupStorage(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to set up storage: %w", err)
+var (
+	// uploadCmd uploads modules for legacy reasons.
+	// It is recommended to use `upload module` instead.
+	// This will eventually be deprecated and replaced.
+	uploadCmd = &cobra.Command{
+		Use:          "upload [flags] MODULE (WARNING: deprecated, use 'upload module' instead)",
+		Short:        "Upload modules and providers",
+		SilenceUsage: true,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			slog.Warn("using only the 'upload' command for modules is deprecated and will be removed in a future release. Please use 'upload module' instead.")
+			return moduleUploader.preRun(cmd, args)
+		},
+		RunE: moduleUploader.run,
 	}
-
-	if len(args) == 0 {
-		return fmt.Errorf("missing argument")
+	uploadProviderCmd = &cobra.Command{
+		Use:          "provider PROVIDER",
+		SilenceUsage: true,
+		RunE:         uploadProvider,
 	}
-
-	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	// Validate the semver version constraints
-	if flagVersionConstraintsSemver != "" {
-		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
-		if err != nil {
-			return err
-		}
-		versionConstraintsSemver = constraints
-	}
-
-	// Validate the regex version constraints
-	if flagVersionConstraintsRegex != "" {
-		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
-		if err != nil {
-			return fmt.Errorf("invalid regex given: %v", err)
-		}
-		versionConstraintsRegex = constraints
-	}
-
-	return archiveModules(args[0], storageBackend)
-}
+)
 
 func uploadProvider(cmd *cobra.Command, args []string) error {
 	if !filepath.IsAbs(flagFileSha256Sums) {

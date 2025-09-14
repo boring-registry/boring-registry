@@ -11,7 +11,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/boring-registry/boring-registry/pkg/module"
 
@@ -22,31 +25,110 @@ const (
 	moduleSpecFileName = "boring-registry.hcl"
 )
 
-func archiveModules(root string, storage module.Storage) error {
+var (
+	flagRecursive                bool
+	flagIgnoreExistingModule     bool
+	flagVersionConstraintsRegex  string
+	flagVersionConstraintsSemver string
+)
+
+var (
+	versionConstraintsRegex  *regexp.Regexp
+	versionConstraintsSemver version.Constraints
+)
+
+var (
+	moduleUploader  = &moduleUploadRunner{}
+	uploadModuleCmd = &cobra.Command{
+		Use:          "module MODULE",
+		SilenceUsage: true,
+		PreRunE:      moduleUploader.preRun,
+		RunE:         moduleUploader.run,
+	}
+)
+
+// The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
+type moduleUploadRunner struct {
+	storage  module.Storage
+	discover func(string) error
+	archive  func(string) (io.Reader, error)
+	process  func(string) error
+}
+
+// preRun sets up the storage backend before running the upload command
+func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
+	storage, err := setupStorage(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to set up storage: %w", err)
+	}
+	m.storage = storage
+	m.discover = m.walkModules
+	m.archive = archiveModule
+	m.process = m.processModule
+	return nil
+}
+
+func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing path argument to module directory")
+	} else if len(args) > 1 {
+		return fmt.Errorf("only a single module path argument is supported at a time")
+	}
+
+	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to locate module directory: %w", err)
+	}
+
+	// Validate the semver version constraints
+	if flagVersionConstraintsSemver != "" {
+		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
+		if err != nil {
+			return fmt.Errorf("failed to upload module: %w", err)
+		}
+		versionConstraintsSemver = constraints
+	}
+
+	// Validate the regex version constraints
+	if flagVersionConstraintsRegex != "" {
+		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
+		if err != nil {
+			return fmt.Errorf("invalid regex given: %v", err)
+		}
+		versionConstraintsRegex = constraints
+	}
+
+	return m.discover(args[0])
+}
+
+func (m *moduleUploadRunner) walkModules(root string) error {
+	modulePaths := []string{} // holds paths to all discovered module spec files
 	if flagRecursive {
-		err := filepath.Walk(root, func(path string, fi os.FileInfo, _ error) error {
-			// FYI we conciously ignore all walk-related errors
+		if err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+			if err != nil {
+				return fmt.Errorf("walk-related error: %w", err)
+			}
 
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			if processErr := processModule(path, storage); processErr != nil {
-				return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
-			}
-
+			modulePaths = append(modulePaths, path)
 			return nil
-		})
-		return err
+		}); err != nil {
+			return err
+		}
+	} else {
+		modulePaths = append(modulePaths, filepath.Join(root, moduleSpecFileName))
 	}
 
-	path := filepath.Join(root, moduleSpecFileName)
-	if processErr := processModule(path, storage); processErr != nil {
-		return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
+	for _, path := range modulePaths {
+		if processErr := m.process(path); processErr != nil {
+			return fmt.Errorf("failed to process module at %s: %w", path, processErr)
+		}
 	}
 	return nil
 }
 
-func processModule(path string, storage module.Storage) error {
+func (m *moduleUploadRunner) processModule(path string) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
 		return err
@@ -81,24 +163,30 @@ func processModule(path string, storage module.Storage) error {
 		slog.String("provider", spec.Metadata.Provider),
 		slog.String("version", spec.Metadata.Version),
 	}
-	if _, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+	if _, err := m.storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err != nil {
+		if !errors.Is(err, module.ErrModuleNotFound) {
+			slog.Error("failed to check if module exists in storage provider", append(providerAttrs, slog.Any("error", err))...)
+			return fmt.Errorf("failed to check if module exists: %w", err)
+		}
+	} else {
 		if flagIgnoreExistingModule {
+			// We ignore the ErrModuleNotFound error, as it means the module version doesn't exist yet and we can proceed to upload it
 			slog.Info("module already exists", providerAttrs...)
 			return nil
 		} else {
 			slog.Error("module already exists", providerAttrs...)
-			return errors.New("module already exists")
+			return fmt.Errorf("module version %s already exists", spec.Metadata.Version)
 		}
 	}
 
 	moduleRoot := filepath.Dir(path)
 
-	buf, err := archiveModule(moduleRoot)
+	buf, err := m.archive(moduleRoot)
 	if err != nil {
 		return err
 	}
 
-	if _, err := storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
+	if _, err := m.storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
 		return err
 	}
 
@@ -111,7 +199,7 @@ func archiveModule(root string) (io.Reader, error) {
 	buf := new(bytes.Buffer)
 	// ensure the src actually exists before trying to tar it
 	if _, err := os.Stat(root); err != nil {
-		return buf, fmt.Errorf("unable to tar files - %v", err.Error())
+		return buf, fmt.Errorf("unable to tar files: %w", err)
 	}
 
 	gw := gzip.NewWriter(buf)
