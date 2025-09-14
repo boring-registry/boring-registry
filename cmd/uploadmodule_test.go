@@ -1,35 +1,41 @@
 package cmd
 
 import (
-	//"context"
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
-	//"github.com/boring-registry/boring-registry/pkg/core"
+	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/module"
+	"github.com/hashicorp/go-version"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
-//type Mock struct{}
-//
-//func (m *Mock) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
-//	return core.Module{}, nil
-//}
-//
-//func (m *Mock) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
-//	return nil, nil
-//}
-//
-//func (m *Mock) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
-//	return core.Module{}, nil
-//}
+type mockStorage struct {
+	getModuleErr error
+	uploadErr    error
+}
+
+func (m *mockStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
+	return core.Module{}, m.getModuleErr
+}
+
+func (m *mockStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
+	return nil, nil
+}
+
+func (m *mockStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
+	return core.Module{}, m.uploadErr
+}
 
 func TestModuleUploadRunner_Run(t *testing.T) {
 	validPath := t.TempDir()
@@ -278,6 +284,184 @@ func TestArchiveModule(t *testing.T) {
 			// Verify all test files are in archive
 			for fileName := range tt.files {
 				assert.True(t, foundFiles[fileName], fmt.Sprintf("file %s not found in archive", fileName))
+			}
+		})
+	}
+}
+
+// These tests cannot run in parallel because they modify global state
+func TestModuleUploadRunner_ProcessModule(t *testing.T) {
+	validArchive := func(string) (io.Reader, error) {
+		return bytes.NewReader([]byte("foo-bar")), nil
+	}
+	tests := []struct {
+		name                     string
+		specContent              string
+		storage                  module.Storage
+		setupArchive             func(string) (io.Reader, error)
+		ignoreExistingModule     bool
+		versionConstraintsSemver string
+		versionConstraintsRegex  string
+
+		wantErr bool
+	}{
+		{
+			name:        "invalid spec file",
+			specContent: "invalid content",
+			wantErr:     true,
+		},
+		{
+			name: "unexpected failure on GetModule",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example" 
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			storage: &mockStorage{
+				getModuleErr: fmt.Errorf("unexpected error"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "existing module with ignore flag",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example" 
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			storage:              &mockStorage{},
+			setupArchive:         validArchive,
+			ignoreExistingModule: true,
+			wantErr:              false,
+		},
+		{
+			name: "existing module without ignore flag",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example"
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			storage:              &mockStorage{},
+			setupArchive:         validArchive,
+			ignoreExistingModule: false,
+			wantErr:              true,
+		},
+		{
+			name: "version does not meet semver constraints",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example"
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			versionConstraintsSemver: ">2.0.0",
+			storage:                  &mockStorage{},
+			wantErr:                  false,
+		},
+		{
+			name: "version does not meet regex constraints",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example"
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			versionConstraintsRegex: "$2\\.0\\.\\d+",
+			storage:                 &mockStorage{},
+			wantErr:                 false,
+		},
+		{
+			name: "creating archive fails",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example"
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			storage: &mockStorage{
+				getModuleErr: module.ErrModuleNotFound,
+			},
+			setupArchive: func(string) (io.Reader, error) {
+				return nil, fmt.Errorf("failed to create archive")
+			},
+			wantErr: true,
+		},
+		{
+			name: "upload fails",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example"
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			storage: &mockStorage{
+				getModuleErr: module.ErrModuleNotFound,
+				uploadErr:    fmt.Errorf("upload failed"),
+			},
+			setupArchive: validArchive,
+			wantErr:      true,
+		},
+		{
+			name: "successful upload",
+			specContent: `
+				metadata {
+					namespace = "test"
+					name = "example"
+					provider = "aws"
+					version = "1.0.0"
+				}`,
+			storage: &mockStorage{
+				getModuleErr: module.ErrModuleNotFound,
+			},
+			setupArchive: validArchive,
+			wantErr:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clean up global state
+			versionConstraintsSemver = nil
+			versionConstraintsRegex = nil
+			flagIgnoreExistingModule = tt.ignoreExistingModule
+
+			dir := t.TempDir()
+			specPath := filepath.Join(dir, moduleSpecFileName)
+			err := os.WriteFile(specPath, []byte(tt.specContent), 0644)
+			assert.NoError(t, err)
+
+			m := &moduleUploadRunner{
+				storage: tt.storage,
+				archive: tt.setupArchive,
+			}
+
+			if tt.versionConstraintsSemver != "" {
+				constraints, err := version.NewConstraint(tt.versionConstraintsSemver)
+				assert.NoError(t, err)
+				versionConstraintsSemver = constraints
+			}
+
+			if tt.versionConstraintsRegex != "" {
+				constraints, err := regexp.Compile(tt.versionConstraintsRegex)
+				assert.NoError(t, err)
+				versionConstraintsRegex = constraints
+			}
+
+			err = m.processModule(specPath, m.storage)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}

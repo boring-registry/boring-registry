@@ -81,7 +81,7 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 	if flagVersionConstraintsSemver != "" {
 		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to upload module: %w", err)
 		}
 		versionConstraintsSemver = constraints
 	}
@@ -157,13 +157,19 @@ func (m *moduleUploadRunner) processModule(path string, storage module.Storage) 
 		slog.String("provider", spec.Metadata.Provider),
 		slog.String("version", spec.Metadata.Version),
 	}
-	if _, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err == nil {
+	if _, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err != nil {
+		if !errors.Is(err, module.ErrModuleNotFound) {
+			slog.Error("failed to check if module exists in storage provider", append(providerAttrs, slog.Any("error", err))...)
+			return fmt.Errorf("failed to check if module exists: %w", err)
+		}
+	} else {
 		if flagIgnoreExistingModule {
+			// We ignore the ErrModuleNotFound error, as it means the module version doesn't exist yet and we can proceed to upload it
 			slog.Info("module already exists", providerAttrs...)
 			return nil
 		} else {
 			slog.Error("module already exists", providerAttrs...)
-			return errors.New("module already exists")
+			return fmt.Errorf("failed to upload module: %w", module.ErrModuleAlreadyExists)
 		}
 	}
 

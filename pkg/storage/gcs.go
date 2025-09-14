@@ -36,10 +36,11 @@ func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, v
 	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleNotFound, err)
+		return core.Module{}, errors.Join(module.ErrModuleNotFound, err)
 	}
 	url, err := s.presignedURL(ctx, attrs.Name)
 	if err != nil {
+		// TODO: we might want to return a different error here to distinguish between "not found" and a failure to create a presigned url in other parts of the code base
 		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleNotFound, err)
 	}
 	return core.Module{
