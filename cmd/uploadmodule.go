@@ -68,9 +68,9 @@ func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
 
 func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("missing path to module directory")
+		return fmt.Errorf("missing path argument to module directory")
 	} else if len(args) > 1 {
-		return fmt.Errorf("only a single module is supported at a time")
+		return fmt.Errorf("only a single module path argument is supported at a time")
 	}
 
 	if _, err := os.Stat(args[0]); errors.Is(err, os.ErrNotExist) {
@@ -107,7 +107,7 @@ func (m *moduleUploadRunner) walkModules(root string) error {
 				return nil
 			}
 			if processErr := m.processModule(path); processErr != nil {
-				return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
+				return fmt.Errorf("failed to process module at %s: %w", path, processErr)
 			}
 
 			return nil
@@ -117,7 +117,7 @@ func (m *moduleUploadRunner) walkModules(root string) error {
 
 	path := filepath.Join(root, moduleSpecFileName)
 	if processErr := m.processModule(path); processErr != nil {
-		return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
+		return fmt.Errorf("failed to process module at %s: %w", path, processErr)
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 			return nil
 		} else {
 			slog.Error("module already exists", providerAttrs...)
-			return fmt.Errorf("failed to upload module: %w", module.ErrModuleAlreadyExists)
+			return fmt.Errorf("module version %s already exists", spec.Metadata.Version)
 		}
 	}
 
