@@ -50,7 +50,7 @@ var (
 // The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
 type moduleUploadRunner struct {
 	storage  module.Storage
-	discover func(string, module.Storage) error
+	discover func(string) error
 	archive  func(string) (io.Reader, error)
 }
 
@@ -95,10 +95,10 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 		versionConstraintsRegex = constraints
 	}
 
-	return m.discover(args[0], m.storage)
+	return m.discover(args[0])
 }
 
-func (m *moduleUploadRunner) walkModules(root string, storage module.Storage) error {
+func (m *moduleUploadRunner) walkModules(root string) error {
 	if flagRecursive {
 		err := filepath.Walk(root, func(path string, fi os.FileInfo, _ error) error {
 			// FYI we conciously ignore all walk-related errors
@@ -106,7 +106,7 @@ func (m *moduleUploadRunner) walkModules(root string, storage module.Storage) er
 			if fi.Name() != moduleSpecFileName {
 				return nil
 			}
-			if processErr := m.processModule(path, storage); processErr != nil {
+			if processErr := m.processModule(path); processErr != nil {
 				return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
 			}
 
@@ -116,13 +116,13 @@ func (m *moduleUploadRunner) walkModules(root string, storage module.Storage) er
 	}
 
 	path := filepath.Join(root, moduleSpecFileName)
-	if processErr := m.processModule(path, storage); processErr != nil {
+	if processErr := m.processModule(path); processErr != nil {
 		return fmt.Errorf("failed to process module at %s:\n%w", path, processErr)
 	}
 	return nil
 }
 
-func (m *moduleUploadRunner) processModule(path string, storage module.Storage) error {
+func (m *moduleUploadRunner) processModule(path string) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (m *moduleUploadRunner) processModule(path string, storage module.Storage) 
 		slog.String("provider", spec.Metadata.Provider),
 		slog.String("version", spec.Metadata.Version),
 	}
-	if _, err := storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err != nil {
+	if _, err := m.storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err != nil {
 		if !errors.Is(err, module.ErrModuleNotFound) {
 			slog.Error("failed to check if module exists in storage provider", append(providerAttrs, slog.Any("error", err))...)
 			return fmt.Errorf("failed to check if module exists: %w", err)
@@ -180,7 +180,7 @@ func (m *moduleUploadRunner) processModule(path string, storage module.Storage) 
 		return err
 	}
 
-	if _, err := storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
+	if _, err := m.storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
 		return err
 	}
 

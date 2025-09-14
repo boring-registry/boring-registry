@@ -40,8 +40,7 @@ func (m *mockStorage) UploadModule(ctx context.Context, namespace, name, provide
 func TestModuleUploadRunner_Run(t *testing.T) {
 	validPath := t.TempDir()
 	m := &moduleUploadRunner{
-		//storage: &Mock{},
-		discover: func(_ string, _ module.Storage) error { return nil },
+		discover: func(_ string) error { return nil },
 	}
 
 	tests := []struct {
@@ -118,28 +117,6 @@ func TestModuleUploadRunner_Run(t *testing.T) {
 		})
 	}
 }
-
-//func generateModuleDirectory(t *testing.T, specContent string) string {
-//	dir := t.TempDir()
-//	os.MkdirAll(dir, 0755)
-//	mf, err := os.OpenFile(filepath.Join(dir, "main.tf"), os.O_RDWR|os.O_CREATE, 0644)
-//	if err != nil {
-//		panic(err)
-//	}
-//	defer mf.Close()
-//	f, err := os.OpenFile(filepath.Join(dir, moduleSpecFileName), os.O_RDWR|os.O_CREATE, 0644)
-//	if err != nil {
-//		panic(err)
-//	}
-//	defer f.Close()
-//
-//	_, err = f.WriteString(specContent)
-//	if err != nil {
-//		panic(err)
-//	}
-//
-//	return dir
-//}
 
 func TestArchiveFileHeaderName(t *testing.T) {
 	t.Parallel()
@@ -457,7 +434,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 				versionConstraintsRegex = constraints
 			}
 
-			err = m.processModule(specPath, m.storage)
+			err = m.processModule(specPath)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
