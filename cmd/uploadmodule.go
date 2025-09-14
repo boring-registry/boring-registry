@@ -52,6 +52,7 @@ type moduleUploadRunner struct {
 	storage  module.Storage
 	discover func(string) error
 	archive  func(string) (io.Reader, error)
+	process  func(string) error
 }
 
 // preRun sets up the storage backend before running the upload command
@@ -63,6 +64,7 @@ func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
 	m.storage = storage
 	m.discover = m.walkModules
 	m.archive = archiveModule
+	m.process = m.processModule
 	return nil
 }
 
@@ -101,9 +103,10 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 func (m *moduleUploadRunner) walkModules(root string) error {
 	modulePaths := []string{} // holds paths to all discovered module spec files
 	if flagRecursive {
-		if err := filepath.Walk(root, func(path string, fi os.FileInfo, _ error) error {
-			// FYI we conciously ignore all walk-related errors
-			// TODO should we change that?
+		if err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+			if err != nil {
+				return fmt.Errorf("walk-related error: %w", err)
+			}
 
 			if fi.Name() != moduleSpecFileName {
 				return nil
@@ -118,7 +121,7 @@ func (m *moduleUploadRunner) walkModules(root string) error {
 	}
 
 	for _, path := range modulePaths {
-		if processErr := m.processModule(path); processErr != nil {
+		if processErr := m.process(path); processErr != nil {
 			return fmt.Errorf("failed to process module at %s: %w", path, processErr)
 		}
 	}

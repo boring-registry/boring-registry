@@ -20,6 +20,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type file struct {
+	content  string
+	fileMode os.FileMode
+}
+
 type mockStorage struct {
 	getModuleErr error
 	uploadErr    error
@@ -168,17 +173,11 @@ func TestArchiveFileHeaderName(t *testing.T) {
 }
 
 func TestArchiveModule(t *testing.T) {
-	t.Parallel()
-
-	type file struct {
-		content  string
-		fileMode os.FileMode
-	}
 	tests := []struct {
-		name               string
-		files              map[string]file
-		useNonExistentPath bool
-		wantErr            bool
+		name    string
+		files   map[string]file
+		root    string
+		wantErr bool
 	}{
 		{
 			name: "archive module directory successfully",
@@ -199,9 +198,9 @@ func TestArchiveModule(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:               "non-existent directory",
-			useNonExistentPath: true,
-			wantErr:            true,
+			name:    "non-existent directory",
+			root:    "/non/existent/path",
+			wantErr: true,
 		},
 	}
 
@@ -209,26 +208,7 @@ func TestArchiveModule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var dir string
-			if tt.useNonExistentPath {
-				dir = "/non/existent/path"
-			} else {
-				dir = t.TempDir()
-				// Create test files
-				for path, f := range tt.files {
-					fullPath := filepath.Join(dir, path)
-					err := os.MkdirAll(filepath.Dir(fullPath), 0755)
-					assert.NoError(t, err)
-
-					mode := os.FileMode(0644)
-					if f.fileMode != 0 {
-						mode = f.fileMode
-					}
-					err = os.WriteFile(fullPath, []byte(f.content), mode)
-					assert.NoError(t, err)
-				}
-			}
-
+			dir := createModuleDirStructure(t, tt.root, tt.files)
 			reader, err := archiveModule(dir)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -442,4 +422,118 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 			}
 		})
 	}
+}
+
+// These tests cannot run in parallel because they modify global state
+func TestModuleUploadRunner_WalkModules(t *testing.T) {
+	tests := []struct {
+		name          string
+		recursive     bool
+		root          string // if empty, a temporary dir will be created
+		files         map[string]file
+		processErr    error
+		expectedPaths int
+		wantErr       bool
+	}{
+		{
+			name:      "recursive with non-existent root path",
+			recursive: true,
+			root:      "/non/existent/path",
+			wantErr:   true,
+		},
+		{
+			name:      "single module non-recursive",
+			recursive: false,
+			files: map[string]file{
+				"boring-registry.hcl": {content: "content"},
+				"main.tf":             {content: "content"},
+			},
+			expectedPaths: 1,
+			wantErr:       false,
+		},
+		{
+			name:      "recursive with multiple modules",
+			recursive: true,
+			files: map[string]file{
+				"modules/foo/boring-registry.hcl":         {content: "content"},
+				"modules/foo/main.tf":                     {content: "content"},
+				"modules/bar/boring-registry.hcl":         {content: "content"},
+				"modules/bar/main.tf":                     {content: "content"},
+				"modules/ignored/not-boring-registry.hcl": {content: "ignored"},
+			},
+			expectedPaths: 2,
+			wantErr:       false,
+		},
+		{
+			name:      "processing error",
+			recursive: false,
+			files: map[string]file{
+				"boring-registry.hcl": {content: "content"},
+			},
+			processErr:    fmt.Errorf("process failed"),
+			expectedPaths: 1,
+			wantErr:       true,
+		},
+		{
+			name:          "no module file non-recursive",
+			recursive:     false,
+			files:         map[string]file{},
+			expectedPaths: 1,
+			wantErr:       false,
+		},
+		{
+			name:          "no module file recursive",
+			recursive:     true,
+			files:         map[string]file{},
+			expectedPaths: 0,
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := createModuleDirStructure(t, tt.root, tt.files)
+
+			var processedPaths []string
+			m := &moduleUploadRunner{
+				process: func(path string) error {
+					processedPaths = append(processedPaths, path)
+					return tt.processErr
+				},
+			}
+
+			flagRecursive = tt.recursive
+
+			err := m.walkModules(dir)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedPaths, len(processedPaths))
+			}
+		})
+	}
+}
+
+func createModuleDirStructure(t *testing.T, root string, files map[string]file) string {
+	dir := root
+	if root == "" {
+		dir = t.TempDir()
+	}
+
+	for path, f := range files {
+		fullPath := filepath.Join(dir, path)
+		err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+		assert.NoError(t, err)
+
+		mode := os.FileMode(0644) //default
+		if f.fileMode != 0 {
+			mode = f.fileMode
+		}
+		err = os.WriteFile(fullPath, []byte(f.content), mode)
+		assert.NoError(t, err)
+	}
+
+	return dir
 }
