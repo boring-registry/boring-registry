@@ -17,6 +17,9 @@ spec:
       {{- end }}
       labels:
         {{- include "boring-registry.selectorLabels" . | nindent 8 }}
+        {{- with .Values.server.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.server.imagePullSecrets }}
       imagePullSecrets:

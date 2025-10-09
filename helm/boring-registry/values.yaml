@@ -15,6 +15,7 @@ fullnameOverride: ""
 server:
   replicas: 1
   annotations: {}
+  labels: {}
   imagePullSecrets: []
   podSecurityContext:
     runAsNonRoot: true
@@ -52,11 +53,13 @@ server:
   serviceAccount:
     enabled: true
     annotations: {}
+    labels: {}
 
   ingress:
     enabled: false
     className: ""
     annotations: {}
+    labels: {}
     hosts:
       - host: chart-example.local
         paths: []
