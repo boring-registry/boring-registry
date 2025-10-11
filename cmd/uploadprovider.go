@@ -12,6 +12,7 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/provider"
+	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/spf13/cobra"
 )
@@ -75,7 +76,7 @@ func (u *uploadProviderRunner) run(cmd *cobra.Command, args []string) error {
 	defer cancelValidateCtx()
 	signingKeys, err := u.storage.SigningKeys(validateCtx, flagProviderNamespace)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to retrieve %s: %w", storage.SigningKeyFileName, err)
 	}
 
 	sumsBytes, err := os.ReadFile(flagFileSha256Sums)

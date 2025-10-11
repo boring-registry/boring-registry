@@ -18,9 +18,22 @@ var (
 	ErrInvalidToken = errors.New("failed to verify token") // Provider error
 
 	// Storage errors
-	ErrObjectNotFound      = errors.New("failed to locate object")
 	ErrObjectAlreadyExists = errors.New("object already exists")
 )
+
+type ObjectNotFoundError struct {
+	key string
+}
+
+func (p ObjectNotFoundError) Error() string {
+	return fmt.Sprintf("failed to locate object: %s", p.key)
+}
+
+func NewObjectNotFoundError(key string) *ObjectNotFoundError {
+	return &ObjectNotFoundError{
+		key: key,
+	}
+}
 
 type ProviderError struct {
 	Reason     string

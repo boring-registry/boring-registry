@@ -325,7 +325,7 @@ func (s *S3Storage) signingKeys(ctx context.Context, pt providerType, hostname, 
 	if err != nil {
 		return nil, err
 	} else if !exists {
-		return nil, core.ErrObjectNotFound
+		return nil, core.NewObjectNotFoundError(key)
 	}
 
 	signingKeysRaw, err := s.download(ctx, key)

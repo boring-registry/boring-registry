@@ -88,7 +88,8 @@ func (c *copier) signingKeys(ctx context.Context, provider *core.Provider) error
 	needsUpdate := true
 	storedKeys, err := c.storage.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
 	if err != nil {
-		if !errors.Is(err, core.ErrObjectNotFound) {
+		var objectNotFoundErr *core.ObjectNotFoundError
+		if !errors.As(err, &objectNotFoundErr) {
 			return err
 		}
 
