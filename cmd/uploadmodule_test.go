@@ -25,20 +25,20 @@ type file struct {
 	fileMode os.FileMode
 }
 
-type mockStorage struct {
+type mockModuleStorage struct {
 	getModuleErr error
 	uploadErr    error
 }
 
-func (m *mockStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
+func (m *mockModuleStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
 	return core.Module{}, m.getModuleErr
 }
 
-func (m *mockStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
+func (m *mockModuleStorage) ListModuleVersions(ctx context.Context, namespace, name, provider string) ([]core.Module, error) {
 	return nil, nil
 }
 
-func (m *mockStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
+func (m *mockModuleStorage) UploadModule(ctx context.Context, namespace, name, provider, version string, body io.Reader) (core.Module, error) {
 	return core.Module{}, m.uploadErr
 }
 
@@ -276,7 +276,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					provider = "aws"
 					version = "1.0.0"
 				}`,
-			storage: &mockStorage{
+			storage: &mockModuleStorage{
 				getModuleErr: fmt.Errorf("unexpected error"),
 			},
 			wantErr: true,
@@ -290,7 +290,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					provider = "aws"
 					version = "1.0.0"
 				}`,
-			storage:              &mockStorage{},
+			storage:              &mockModuleStorage{},
 			setupArchive:         validArchive,
 			ignoreExistingModule: true,
 			wantErr:              false,
@@ -304,7 +304,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					provider = "aws"
 					version = "1.0.0"
 				}`,
-			storage:              &mockStorage{},
+			storage:              &mockModuleStorage{},
 			setupArchive:         validArchive,
 			ignoreExistingModule: false,
 			wantErr:              true,
@@ -319,7 +319,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					version = "1.0.0"
 				}`,
 			versionConstraintsSemver: ">2.0.0",
-			storage:                  &mockStorage{},
+			storage:                  &mockModuleStorage{},
 			wantErr:                  false,
 		},
 		{
@@ -332,7 +332,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					version = "1.0.0"
 				}`,
 			versionConstraintsRegex: "$2\\.0\\.\\d+",
-			storage:                 &mockStorage{},
+			storage:                 &mockModuleStorage{},
 			wantErr:                 false,
 		},
 		{
@@ -344,7 +344,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					provider = "aws"
 					version = "1.0.0"
 				}`,
-			storage: &mockStorage{
+			storage: &mockModuleStorage{
 				getModuleErr: module.ErrModuleNotFound,
 			},
 			setupArchive: func(string) (io.Reader, error) {
@@ -361,7 +361,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					provider = "aws"
 					version = "1.0.0"
 				}`,
-			storage: &mockStorage{
+			storage: &mockModuleStorage{
 				getModuleErr: module.ErrModuleNotFound,
 				uploadErr:    fmt.Errorf("upload failed"),
 			},
@@ -377,7 +377,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 					provider = "aws"
 					version = "1.0.0"
 				}`,
-			storage: &mockStorage{
+			storage: &mockModuleStorage{
 				getModuleErr: module.ErrModuleNotFound,
 			},
 			setupArchive: validArchive,
