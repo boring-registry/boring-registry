@@ -14,6 +14,8 @@ const (
 	internalProviderType = providerType("providers")
 	mirrorProviderType   = providerType("mirror/providers")
 	internalModuleType   = moduleType("modules")
+
+	SigningKeyFileName = "signing-keys.json"
 )
 
 type providerType string
@@ -79,7 +81,7 @@ func signingKeysPath(prefix string, pt providerType, hostname, namespace string)
 		string(pt),
 		hostname,
 		namespace,
-		"signing-keys.json",
+		SigningKeyFileName,
 	)
 }
 
