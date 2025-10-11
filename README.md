@@ -35,7 +35,14 @@ Tools:
 - [pre-commit](https://pre-commit.com/)
 - [golangci-lint](https://golangci-lint.run/)
 
+#### pre-commit
+
 Install pre-commit hooks:
+
 ```shell
 pre-commit install --install-hooks
 ```
+
+### docs
+
+The docs can be rendered and served with `mkdocs serve` to preview changes live in the browser.
