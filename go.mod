@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/iam v1.5.2
-	cloud.google.com/go/storage v1.56.1
+	cloud.google.com/go/storage v1.57.2
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.2
 	github.com/ProtonMail/go-crypto v1.3.0
