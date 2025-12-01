@@ -16,6 +16,7 @@ apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: {{ $fullName }}
+  namespace: {{ include "boring-registry.namespace" . }}
   labels:
     {{- include "boring-registry.labels" . | nindent 4 }}
     {{- with .Values.server.ingress.labels }}
