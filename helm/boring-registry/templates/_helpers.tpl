@@ -27,9 +27,9 @@ If release name contains chart name it will be used as a full name.
 Create chart namespace */}}
 {{- define "boring-registry.namespace" -}}
 {{- if .Values.namespaceOverride }}
-{{- .Values.namespaceOverride | trunc 63 | trimSuffix "-" }}
+{{- .Values.namespaceOverride }}
 {{- else }}
-{{- .Release.Namespace | trunc 63 | trimSuffix "-" }}
+{{- .Release.Namespace  }}
 {{- end }}
 {{- end }}
 
