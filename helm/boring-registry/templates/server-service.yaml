@@ -6,6 +6,10 @@ metadata:
   namespace: {{ include "boring-registry.namespace" . }}
   labels:
     {{- include "boring-registry.labels" . | nindent 4 }}
+  {{- with .Values.server.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: {{ .Values.server.service.type }}
   ports:
@@ -15,8 +19,4 @@ spec:
       name: http
   selector:
     {{- include "boring-registry.selectorLabels" . | nindent 4 }}
-  {{- with .Values.server.service.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 {{- end }}
