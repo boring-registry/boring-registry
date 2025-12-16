@@ -15,4 +15,8 @@ spec:
       name: http
   selector:
     {{- include "boring-registry.selectorLabels" . | nindent 4 }}
+  {{- with .Values.server.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
