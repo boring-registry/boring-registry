@@ -50,6 +50,7 @@ server:
     enabled: true
     type: ClusterIP
     port: 80
+    annotations: {}
 
   serviceAccount:
     enabled: true
