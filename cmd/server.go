@@ -77,6 +77,11 @@ var (
 	// Provider Network Mirror
 	flagProviderNetworkMirrorEnabled            bool
 	flagProviderNetworkMirrorPullThroughEnabled bool
+
+	// Provider Network Mirror Cache options
+	flagProviderNetworkMirrorPullThroughCacheEnabled bool
+	flagProviderNetworkMirrorPullThroughCacheTTL     uint
+	flagProviderNetworkMirrorPullThroughCacheSize    uint
 )
 
 var serverCmd = &cobra.Command{
@@ -216,6 +221,9 @@ func init() {
 	// Provider Network Mirror options
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "network-mirror", true, "Enable the provider network mirror")
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughEnabled, "network-mirror-pull-through", false, "Enable the pull-through provider network mirror. This setting takes no effect if network-mirror is disabled")
+	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughCacheEnabled, "network-mirror-pull-through-cache-enabled", false, "Enable in-memory cache for pull-through mirror")
+	serverCmd.Flags().UintVar(&flagProviderNetworkMirrorPullThroughCacheTTL, "network-mirror-pull-through-cache-ttl", 24, "Cache TTL in hours")
+	serverCmd.Flags().UintVar(&flagProviderNetworkMirrorPullThroughCacheSize, "network-mirror-pull-through-cache-size", 16, "Cache maximum size in MB")
 }
 
 func serveMux(ctx context.Context) (*http.ServeMux, error) {
@@ -259,7 +267,15 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 		var svc mirror.Service
 		if flagProviderNetworkMirrorPullThroughEnabled {
 			copier := mirror.NewCopier(ctx, s)
-			svc = mirror.NewPullThroughMirror(s, copier)
+
+			// Prepare cache configuration
+			cacheConfig := mirror.CacheConfig{
+				Enabled:   flagProviderNetworkMirrorPullThroughCacheEnabled,
+				TTL:       time.Duration(flagProviderNetworkMirrorPullThroughCacheTTL) * time.Hour,
+				MaxSizeMB: uint64(flagProviderNetworkMirrorPullThroughCacheSize),
+			}
+
+			svc = mirror.NewPullThroughMirror(s, copier, cacheConfig)
 		} else {
 			svc = mirror.NewMirror(s)
 		}

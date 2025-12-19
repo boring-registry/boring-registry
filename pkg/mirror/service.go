@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -190,10 +191,29 @@ func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *co
 	return p.upstream.shaSums(ctx, providerUpstream)
 }
 
-func NewPullThroughMirror(s Storage, c Copier) Service {
+func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) Service {
 	remoteServiceDiscovery := discovery.NewRemoteServiceDiscovery(http.DefaultClient)
+
+	// Create the base upstream which consumes the remote API
+	var upstream upstreamProvider = newUpstreamProviderRegistry(remoteServiceDiscovery)
+
+	// Wrap with cache if enabled
+	if cacheConfig.Enabled {
+		cachedUpstream, err := newCachedUpstreamProvider(upstream, cacheConfig)
+		if err != nil {
+			// Graceful fallback: log warning and continue without cache
+			slog.Warn("failed to initialize cache, continuing without caching",
+				slog.String("error", err.Error()))
+		} else {
+			slog.Info("cache enabled for pull-through mirror",
+				slog.Duration("ttl", cacheConfig.TTL),
+				slog.Uint64("max_size_mb", cacheConfig.MaxSizeMB))
+			upstream = cachedUpstream
+		}
+	}
+
 	svc := &pullThroughMirror{
-		upstream: newUpstreamProviderRegistry(remoteServiceDiscovery),
+		upstream: upstream,
 		mirror: &mirror{
 			storage: s,
 		},
