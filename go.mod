@@ -29,6 +29,8 @@ require (
 	google.golang.org/api v0.249.0
 )
 
+require github.com/maypok86/otter/v2 v2.2.1
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.122.0 // indirect
