@@ -38,7 +38,7 @@ type moduleUploadConfig struct {
 	versionConstraintsRegex  *regexp.Regexp
 	versionConstraintsSemver version.Constraints
 	moduleVersion            *version.Version
-}
+)
 
 var (
 	moduleUploader  = &moduleUploadRunner{}
@@ -51,7 +51,7 @@ var (
 )
 
 func init() {
-	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive module discovery.")
+	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive discovery.")
 }
 
 // The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
@@ -119,20 +119,17 @@ func (m *moduleUploadRunner) parseFlags() error {
 
 	if flagModuleVersion != "" {
 		var err error
-		m.config.moduleVersion, err = version.NewSemver(flagModuleVersion)
+		moduleVersion, err = version.NewSemver(flagModuleVersion)
 		if err != nil {
-			return fmt.Errorf("failed to parse version flag %s: %w", flagModuleVersion, err)
+			return fmt.Errorf("failed to validate version %v: %w", flagModuleVersion, err)
 		}
 	}
 
-	if flagRecursive && m.config.moduleVersion != nil {
-		return errors.New("providing a module version is not supported when traversing recursively, only one of the two options can be provided")
+	if flagRecursive && moduleVersion != nil {
+		return errors.New("providing a module version is not supported when traversing recursively. You can only provide one of the two options")
 	}
 
-	m.config.recursive = flagRecursive
-	m.config.ignoreExistingModule = flagIgnoreExistingModule
-
-	return nil
+	return m.discover(args[0])
 }
 
 func (m *moduleUploadRunner) walkModules(root string) error {
@@ -169,7 +166,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 		return err
 	}
 
-	if m.config.moduleVersion == nil {
+	if moduleVersion == nil {
 		err = spec.ValidateWithVersion()
 	} else {
 		err = spec.ValidateWithoutVersion()
@@ -181,8 +178,8 @@ func (m *moduleUploadRunner) processModule(path string) error {
 	// The user can pass a flag that sets the version of the module.
 	// In that case, recursive traversal/discovery is not allowed and the boring-registry.hcl file does not contain
 	// the metadata.version attribute.
-	if m.config.moduleVersion != nil {
-		spec.Metadata.Version = m.config.moduleVersion.String()
+	if moduleVersion != nil {
+		spec.Metadata.Version = moduleVersion.String()
 	}
 
 	slog.Debug("parsed module spec", slog.String("path", path), slog.String("name", spec.Name()))
