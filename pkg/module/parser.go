@@ -24,8 +24,32 @@ type Metadata struct {
 	Version   string `hcl:"version" json:"version"`
 }
 
-// Validate ensures that a spec is valid.
-func (s *Spec) Validate() error {
+// ValidateWithVersion ensures that a spec that should contain a version is valid.
+func (s *Spec) ValidateWithVersion() error {
+	var errs []error
+
+	if s.Metadata.Version == "" {
+		errs = append(errs, errors.New("metadata.version cannot be empty"))
+	}
+
+	if _, err := version.NewVersion(s.Metadata.Version); err != nil {
+		errs = append(errs, fmt.Errorf("failed to parse version: %w", err))
+	}
+
+	return errors.Join(append(s.validate(), errs...)...)
+}
+
+func (s *Spec) ValidateWithoutVersion() error {
+	var errs []error
+
+	if s.Metadata.Version != "" {
+		errs = append(errs, errors.New("metadata.version must be empty"))
+	}
+
+	return errors.Join(append(s.validate(), errs...)...)
+}
+
+func (s *Spec) validate() []error {
 	var errs []error
 
 	if s.Metadata.Namespace == "" {
@@ -40,15 +64,7 @@ func (s *Spec) Validate() error {
 		errs = append(errs, errors.New("metadata.provider cannot be empty"))
 	}
 
-	if s.Metadata.Version == "" {
-		errs = append(errs, errors.New("metadata.version cannot be empty"))
-	}
-
-	if _, err := version.NewVersion(s.Metadata.Version); err != nil {
-		errs = append(errs, err)
-	}
-
-	return errors.Join(errs...)
+	return errs
 }
 
 func (s *Spec) Name() string {
@@ -80,10 +96,6 @@ func Parse(r io.Reader) (*Spec, error) {
 	}
 
 	if err := hclsimple.Decode("boring-registry.hcl", b, nil, spec); err != nil {
-		return nil, err
-	}
-
-	if err := spec.Validate(); err != nil {
 		return nil, err
 	}
 

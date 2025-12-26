@@ -14,11 +14,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/boring-registry/boring-registry/pkg/module"
 
 	"github.com/hashicorp/go-version"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -30,11 +29,13 @@ var (
 	flagIgnoreExistingModule     bool
 	flagVersionConstraintsRegex  string
 	flagVersionConstraintsSemver string
+	flagModuleVersion            string
 )
 
 var (
 	versionConstraintsRegex  *regexp.Regexp
 	versionConstraintsSemver version.Constraints
+	moduleVersion            *version.Version
 )
 
 var (
@@ -46,6 +47,10 @@ var (
 		RunE:         moduleUploader.run,
 	}
 )
+
+func init() {
+	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive discovery.")
+}
 
 // The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
 type moduleUploadRunner struct {
@@ -97,6 +102,18 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 		versionConstraintsRegex = constraints
 	}
 
+	if flagModuleVersion != "" {
+		var err error
+		moduleVersion, err = version.NewSemver(flagModuleVersion)
+		if err != nil {
+			return fmt.Errorf("failed to validate version %v: %w", flagModuleVersion, err)
+		}
+	}
+
+	if flagRecursive && moduleVersion != nil {
+		return errors.New("providing a module version is not supported when traversing recursively. You can only provide one of the two options")
+	}
+
 	return m.discover(args[0])
 }
 
@@ -134,6 +151,22 @@ func (m *moduleUploadRunner) processModule(path string) error {
 		return err
 	}
 
+	if moduleVersion == nil {
+		err = spec.ValidateWithVersion()
+	} else {
+		err = spec.ValidateWithoutVersion()
+	}
+	if err != nil {
+		return fmt.Errorf("module specification at path %s failed validation: %w", path, err)
+	}
+
+	// The user can pass a flag that sets the version of the module.
+	// In that case, recursive traversal/discovery is not allowed and the boring-registry.hcl file does not contain
+	// the metadata.version attribute.
+	if moduleVersion != nil {
+		spec.Metadata.Version = moduleVersion.String()
+	}
+
 	slog.Debug("parsed module spec", slog.String("path", path), slog.String("name", spec.Name()))
 
 	// Check if the module meets version constraints
@@ -143,7 +176,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 			return err
 		} else if !ok {
 			// Skip the module, as it didn't pass the version constraints
-			slog.Info("module doesn't meet semver version constraints, skipped", slog.String("name", spec.Name()))
+			slog.Info("module doesn't meet semver version constraints, skipped", slog.String("name", spec.Name()), slog.String("version", spec.Metadata.Version))
 			return nil
 		}
 	}
