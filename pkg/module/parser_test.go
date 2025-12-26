@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
@@ -143,7 +144,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestSpec_Validate(t *testing.T) {
+func TestValidate(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -239,9 +240,7 @@ func TestSpec_Validate(t *testing.T) {
 			err := tc.spec.ValidateWithVersion()
 
 			if tc.expectedError {
-				if err == nil {
-					t.Fatal("expected error but is nil instead")
-				}
+				require.Error(t, err)
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
@@ -252,7 +251,7 @@ func TestSpec_Validate(t *testing.T) {
 	}
 }
 
-func TestSpec_ValidateWithVersion(t *testing.T) {
+func TestValidateWithVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -381,9 +380,7 @@ func TestSpec_ValidateWithVersion(t *testing.T) {
 			err := tc.spec.ValidateWithVersion()
 
 			if tc.expectedError {
-				if err == nil {
-					t.Fatal("expected error but is nil instead")
-				}
+				require.Error(t, err)
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
@@ -394,7 +391,7 @@ func TestSpec_ValidateWithVersion(t *testing.T) {
 	}
 }
 
-func TestSpec_ValidateWithoutVersion(t *testing.T) {
+func TestValidateWithoutVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -437,9 +434,7 @@ func TestSpec_ValidateWithoutVersion(t *testing.T) {
 			err := tc.spec.ValidateWithoutVersion()
 
 			if tc.expectedError {
-				if err == nil {
-					t.Fatal("expected error but is nil instead")
-				}
+				require.Error(t, err)
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
