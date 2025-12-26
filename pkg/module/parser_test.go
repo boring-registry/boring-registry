@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
@@ -240,7 +239,9 @@ func TestValidate(t *testing.T) {
 			err := tc.spec.ValidateWithVersion()
 
 			if tc.expectedError {
-				require.Error(t, err)
+				if err == nil {
+					t.Fatal("expected error but is nil instead")
+				}
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
@@ -380,7 +381,9 @@ func TestValidateWithVersion(t *testing.T) {
 			err := tc.spec.ValidateWithVersion()
 
 			if tc.expectedError {
-				require.Error(t, err)
+				if err == nil {
+					t.Fatal("expected error but is nil instead")
+				}
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
@@ -434,7 +437,9 @@ func TestValidateWithoutVersion(t *testing.T) {
 			err := tc.spec.ValidateWithoutVersion()
 
 			if tc.expectedError {
-				require.Error(t, err)
+				if err == nil {
+					t.Fatal("expected error but is nil instead")
+				}
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
