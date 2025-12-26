@@ -21,7 +21,7 @@ type Metadata struct {
 	Namespace string `hcl:"namespace" json:"namespace"`
 	Name      string `hcl:"name" json:"name"`
 	Provider  string `hcl:"provider" json:"provider"`
-	Version   string `hcl:"version" json:"version"`
+	Version   string `hcl:"version,optional" json:"version,omitempty"`
 }
 
 // ValidateWithVersion ensures that a spec that should contain a version is valid.

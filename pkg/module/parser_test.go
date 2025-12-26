@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestParser(t *testing.T) {
+func TestParse(t *testing.T) {
 	t.Parallel()
-	assert := assert.New(t)
 
 	testCases := []struct {
 		name          string
@@ -19,7 +19,7 @@ func TestParser(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "valid spec",
+			name: "valid spec with version",
 			input: strings.NewReader(`
             metadata {
               name      = "s3"
@@ -36,52 +36,408 @@ func TestParser(t *testing.T) {
 					Provider:  "aws",
 				},
 			},
+			expectedError: false,
 		},
 		{
-			name:          "empty spec",
-			input:         strings.NewReader(``),
-			expectedError: true,
-		},
-		{
-			name:          "invalid spec",
-			input:         strings.NewReader(`foo: bar`),
-			expectedError: true,
-		},
-		{
-			name: "missing fields",
+			name: "valid spec without version",
 			input: strings.NewReader(`
-			metadata { name = "s3" }
+            metadata {
+              name      = "s3"
+              namespace = "example"
+              provider  = "aws"
+            }
+			`),
+			expected: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid spec with empty version",
+			input: strings.NewReader(`
+            metadata {
+              name      = "s3"
+              namespace = "example"
+              provider  = "aws"
+              version   = ""
+            }
+			`),
+			expected: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Version:   "", // default "null" value
+					Provider:  "aws",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "spec with complex version",
+			input: strings.NewReader(`
+            metadata {
+              name      = "s3"
+              namespace = "example"
+              version   = "1.0.0-beta+build.123"
+              provider  = "aws"
+            }
+			`),
+			expected: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Version:   "1.0.0-beta+build.123",
+					Provider:  "aws",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name:          "empty input",
+			input:         strings.NewReader(``),
+			expected:      nil,
+			expectedError: true,
+		},
+		{
+			name:          "invalid HCL syntax",
+			input:         strings.NewReader(`foo: bar`),
+			expected:      nil,
+			expectedError: true,
+		},
+		{
+			name: "invalid HCL with unclosed block",
+			input: strings.NewReader(`
+			metadata {
+			  name = "s3"
 			`),
 			expected:      nil,
 			expectedError: true,
 		},
 		{
-			name: "empty fields",
-			input: strings.NewReader(`
-            metadata {
-              name      = ""
-              namespace = ""
-              version   = ""
-              provider  = ""
-            }
-			`),
+			name:          "missing metadata block",
+			input:         strings.NewReader(`other_block { foo = "bar" }`),
 			expected:      nil,
 			expectedError: true,
 		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			spec, err := Parse(tc.input)
-			if tc.expectedError {
-				assert.Error(err)
-			} else {
-				assert.NoError(err)
-			}
+			t.Parallel()
 
-			if tc.expected != nil {
-				assert.Equal(tc.expected, spec)
+			spec, err := Parse(tc.input)
+
+			if tc.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, spec)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, spec)
+			}
+		})
+	}
+}
+
+func TestValidate(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		spec          *Spec
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name: "valid spec with all required fields",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "missing namespace",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "",
+					Provider:  "aws",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.namespace cannot be empty",
+		},
+		{
+			name: "missing name",
+			spec: &Spec{
+				Metadata{
+					Name:      "",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.name cannot be empty",
+		},
+		{
+			name: "missing provider",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.provider cannot be empty",
+		},
+		{
+			name: "missing multiple fields",
+			spec: &Spec{
+				Metadata{
+					Name:      "",
+					Namespace: "",
+					Provider:  "aws",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.namespace cannot be empty",
+		},
+		{
+			name: "missing all required fields",
+			spec: &Spec{
+				Metadata{
+					Name:      "",
+					Namespace: "",
+					Provider:  "",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.namespace cannot be empty",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Test using ValidateWithVersion since it calls the internal validate()
+			err := tc.spec.ValidateWithVersion()
+
+			if tc.expectedError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateWithVersion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		spec          *Spec
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name: "valid semantic version",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid prerelease version",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0-beta",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid version with build metadata",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0+build.123",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "valid version with prerelease and build metadata",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0-beta+build.123",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "version with v prefix is accepted",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "v1.0.0",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "short version format is accepted",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "missing version",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.version cannot be empty",
+		},
+		{
+			name: "invalid version format",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "not-a-version",
+				},
+			},
+			expectedError: true,
+			errorContains: "failed to parse version",
+		},
+		{
+			name: "version with leading whitespace",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "  1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "failed to parse version",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.spec.ValidateWithVersion()
+
+			if tc.expectedError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateWithoutVersion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		spec          *Spec
+		expectedError bool
+		errorContains string
+	}{
+		{
+			name: "valid spec without version",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "",
+				},
+			},
+			expectedError: false,
+		},
+		{
+			name: "reject spec with version present",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.0.0",
+				},
+			},
+			expectedError: true,
+			errorContains: "metadata.version must be empty",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.spec.ValidateWithoutVersion()
+
+			if tc.expectedError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
