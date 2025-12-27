@@ -1,6 +1,7 @@
 # Publish Modules
 
-Example HCL configuration using a module referenced from the registry:
+Modules can be published to the boring-registry using the `upload module` command.
+Published modules can be referenced in code, for example like the following example configuration:
 
 ```hcl
 module "tls-private-key" {
