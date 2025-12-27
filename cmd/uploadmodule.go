@@ -51,7 +51,7 @@ var (
 )
 
 func init() {
-	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive discovery.")
+	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive module discovery.")
 }
 
 // The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
