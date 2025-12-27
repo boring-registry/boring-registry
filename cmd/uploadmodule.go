@@ -38,7 +38,7 @@ type moduleUploadConfig struct {
 	versionConstraintsRegex  *regexp.Regexp
 	versionConstraintsSemver version.Constraints
 	moduleVersion            *version.Version
-)
+}
 
 var (
 	moduleUploader  = &moduleUploadRunner{}
@@ -119,17 +119,20 @@ func (m *moduleUploadRunner) parseFlags() error {
 
 	if flagModuleVersion != "" {
 		var err error
-		moduleVersion, err = version.NewSemver(flagModuleVersion)
+		m.config.moduleVersion, err = version.NewSemver(flagModuleVersion)
 		if err != nil {
-			return fmt.Errorf("failed to validate version %v: %w", flagModuleVersion, err)
+			return fmt.Errorf("failed to parse version flag %s: %w", flagModuleVersion, err)
 		}
 	}
 
-	if flagRecursive && moduleVersion != nil {
-		return errors.New("providing a module version is not supported when traversing recursively. You can only provide one of the two options")
+	if flagRecursive && m.config.moduleVersion != nil {
+		return errors.New("providing a module version is not supported when traversing recursively, only one of the two options can be provided")
 	}
 
-	return m.discover(args[0])
+	m.config.recursive = flagRecursive
+	m.config.ignoreExistingModule = flagIgnoreExistingModule
+
+	return nil
 }
 
 func (m *moduleUploadRunner) walkModules(root string) error {
@@ -166,7 +169,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 		return err
 	}
 
-	if moduleVersion == nil {
+	if m.config.moduleVersion == nil {
 		err = spec.ValidateWithVersion()
 	} else {
 		err = spec.ValidateWithoutVersion()
@@ -178,8 +181,8 @@ func (m *moduleUploadRunner) processModule(path string) error {
 	// The user can pass a flag that sets the version of the module.
 	// In that case, recursive traversal/discovery is not allowed and the boring-registry.hcl file does not contain
 	// the metadata.version attribute.
-	if moduleVersion != nil {
-		spec.Metadata.Version = moduleVersion.String()
+	if m.config.moduleVersion != nil {
+		spec.Metadata.Version = m.config.moduleVersion.String()
 	}
 
 	slog.Debug("parsed module spec", slog.String("path", path), slog.String("name", spec.Name()))
@@ -197,10 +200,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 	}
 
 	if m.config.versionConstraintsRegex != nil {
-		ok, err := spec.MeetsRegexConstraints(m.config.versionConstraintsRegex)
-		if err != nil {
-			return err
-		} else if !ok {
+		if !spec.MeetsRegexConstraints(m.config.versionConstraintsRegex) {
 			// Skip the module, as it didn't pass the regex version constraints
 			slog.Info("module doesn't meet regex version constraints, skipped", slog.String("name", spec.Name()))
 			return nil
