@@ -32,11 +32,13 @@ var (
 	flagModuleVersion            string
 )
 
-var (
+type moduleUploadConfig struct {
+	recursive                bool
+	ignoreExistingModule     bool
 	versionConstraintsRegex  *regexp.Regexp
 	versionConstraintsSemver version.Constraints
 	moduleVersion            *version.Version
-)
+}
 
 var (
 	moduleUploader  = &moduleUploadRunner{}
@@ -54,7 +56,9 @@ func init() {
 
 // The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
 type moduleUploadRunner struct {
-	storage  module.Storage
+	storage module.Storage
+	config  *moduleUploadConfig
+
 	discover func(string) error
 	archive  func(string) (io.Reader, error)
 	process  func(string) error
@@ -66,6 +70,9 @@ func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to set up storage: %w", err)
 	}
+
+	m.config = &moduleUploadConfig{}
+
 	m.storage = storage
 	m.discover = m.walkModules
 	m.archive = archiveModule
@@ -84,42 +91,53 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to locate module directory: %w", err)
 	}
 
+	if err := m.parseFlags(); err != nil {
+		return err
+	}
+
+	return m.discover(args[0])
+}
+
+func (m *moduleUploadRunner) parseFlags() error {
 	// Validate the semver version constraints
 	if flagVersionConstraintsSemver != "" {
 		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
 		if err != nil {
-			return fmt.Errorf("failed to upload module: %w", err)
+			return fmt.Errorf("failed to parse version-constraints-semver flag: %w", err)
 		}
-		versionConstraintsSemver = constraints
+		m.config.versionConstraintsSemver = constraints
 	}
 
 	// Validate the regex version constraints
 	if flagVersionConstraintsRegex != "" {
 		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
 		if err != nil {
-			return fmt.Errorf("invalid regex given: %v", err)
+			return fmt.Errorf("failed to parse version-constraints-regex flag: %w", err)
 		}
-		versionConstraintsRegex = constraints
+		m.config.versionConstraintsRegex = constraints
 	}
 
 	if flagModuleVersion != "" {
 		var err error
-		moduleVersion, err = version.NewSemver(flagModuleVersion)
+		m.config.moduleVersion, err = version.NewSemver(flagModuleVersion)
 		if err != nil {
-			return fmt.Errorf("failed to validate version %v: %w", flagModuleVersion, err)
+			return fmt.Errorf("failed to parse version flag %s: %w", flagModuleVersion, err)
 		}
 	}
 
-	if flagRecursive && moduleVersion != nil {
-		return errors.New("providing a module version is not supported when traversing recursively. You can only provide one of the two options")
+	if flagRecursive && m.config.moduleVersion != nil {
+		return errors.New("providing a module version is not supported when traversing recursively, only one of the two options can be provided")
 	}
 
-	return m.discover(args[0])
+	m.config.recursive = flagRecursive
+	m.config.ignoreExistingModule = flagIgnoreExistingModule
+
+	return nil
 }
 
 func (m *moduleUploadRunner) walkModules(root string) error {
 	modulePaths := []string{} // holds paths to all discovered module spec files
-	if flagRecursive {
+	if m.config.recursive {
 		if err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 			if err != nil {
 				return fmt.Errorf("walk-related error: %w", err)
@@ -151,7 +169,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 		return err
 	}
 
-	if moduleVersion == nil {
+	if m.config.moduleVersion == nil {
 		err = spec.ValidateWithVersion()
 	} else {
 		err = spec.ValidateWithoutVersion()
@@ -163,15 +181,15 @@ func (m *moduleUploadRunner) processModule(path string) error {
 	// The user can pass a flag that sets the version of the module.
 	// In that case, recursive traversal/discovery is not allowed and the boring-registry.hcl file does not contain
 	// the metadata.version attribute.
-	if moduleVersion != nil {
-		spec.Metadata.Version = moduleVersion.String()
+	if m.config.moduleVersion != nil {
+		spec.Metadata.Version = m.config.moduleVersion.String()
 	}
 
 	slog.Debug("parsed module spec", slog.String("path", path), slog.String("name", spec.Name()))
 
 	// Check if the module meets version constraints
-	if versionConstraintsSemver != nil {
-		ok, err := meetsSemverConstraints(spec)
+	if m.config.versionConstraintsSemver != nil {
+		ok, err := spec.MeetsSemverConstraints(m.config.versionConstraintsSemver)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -181,8 +199,8 @@ func (m *moduleUploadRunner) processModule(path string) error {
 		}
 	}
 
-	if versionConstraintsRegex != nil {
-		if !meetsRegexConstraints(spec) {
+	if m.config.versionConstraintsRegex != nil {
+		if !spec.MeetsRegexConstraints(m.config.versionConstraintsRegex) {
 			// Skip the module, as it didn't pass the regex version constraints
 			slog.Info("module doesn't meet regex version constraints, skipped", slog.String("name", spec.Name()))
 			return nil
@@ -202,7 +220,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 			return fmt.Errorf("failed to check if module exists: %w", err)
 		}
 	} else {
-		if flagIgnoreExistingModule {
+		if m.config.ignoreExistingModule {
 			// We ignore the ErrModuleNotFound error, as it means the module version doesn't exist yet and we can proceed to upload it
 			slog.Info("module already exists", providerAttrs...)
 			return nil
@@ -225,7 +243,6 @@ func (m *moduleUploadRunner) processModule(path string) error {
 
 	slog.Info("module successfully uploaded", providerAttrs...)
 	return nil
-
 }
 
 func archiveModule(root string) (io.Reader, error) {
@@ -292,24 +309,6 @@ func archiveModule(root string) (io.Reader, error) {
 	})
 
 	return buf, err
-}
-
-// meetsSemverConstraints checks whether a module version matches the semver version constraints.
-// Returns an unrecoverable error if there's an internal error.
-// Otherwise, it returns a boolean indicating if the module meets the constraints
-func meetsSemverConstraints(spec *module.Spec) (bool, error) {
-	v, err := version.NewSemver(spec.Metadata.Version)
-	if err != nil {
-		return false, err
-	}
-
-	return versionConstraintsSemver.Check(v), nil
-}
-
-// meetsRegexConstraints checks whether a module version matches the regex.
-// Returns a boolean indicating if the module meets the constraints
-func meetsRegexConstraints(spec *module.Spec) bool {
-	return versionConstraintsRegex.MatchString(spec.Metadata.Version)
 }
 
 func archiveFileHeaderName(path, root string) string {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"regexp"
 
 	"github.com/hashicorp/go-version"
 	"github.com/hashicorp/hcl/v2/hclsimple"
@@ -69,6 +70,24 @@ func (s *Spec) validate() []error {
 
 func (s *Spec) Name() string {
 	return fmt.Sprintf("%s/%s/%s/%s", s.Metadata.Namespace, s.Metadata.Name, s.Metadata.Provider, s.Metadata.Version)
+}
+
+// MeetsSemverConstraints checks whether a module version matches the given semver version constraints.
+// Returns an unrecoverable error if there's an internal error.
+// Otherwise, it returns a boolean indicating if the module meets the constraints
+func (s *Spec) MeetsSemverConstraints(constraints version.Constraints) (bool, error) {
+	v, err := version.NewSemver(s.Metadata.Version)
+	if err != nil {
+		return false, err
+	}
+
+	return constraints.Check(v), nil
+}
+
+// MeetsRegexConstraints checks whether a module version matches the regex.
+// Returns a boolean indicating if the module meets the constraints
+func (s *Spec) MeetsRegexConstraints(re *regexp.Regexp) bool {
+	return re.MatchString(s.Metadata.Version)
 }
 
 // ParseFile parses a module spec file.
