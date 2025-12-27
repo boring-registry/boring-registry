@@ -1,6 +1,5 @@
 # Publish Modules
 
-
 Example HCL configuration using a module referenced from the registry:
 
 ```hcl

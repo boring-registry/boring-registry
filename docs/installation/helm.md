@@ -2,7 +2,6 @@
 
 The project provides a Helm chart as the supported method of installation for Kubernetes.
 
-
 To install the `boring-registry` Helm chart, use the upgrade command as shown below:
 
 ```console
