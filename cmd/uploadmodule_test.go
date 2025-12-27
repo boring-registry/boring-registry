@@ -141,6 +141,11 @@ func TestModuleUploadRunner_ParseFlags(t *testing.T) {
 			recursive:     true,
 			wantErr:       true,
 		},
+		{
+			name:          "invalid module version",
+			moduleVersion: "a1.2.3",
+			wantErr:       true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
