@@ -3,3 +3,5 @@ FROM squidfunk/mkdocs-material:9.6.21@sha256:00f9276315990b82f5af8c47bb2b71e2c69
 WORKDIR /docs
 COPY docs/requirements.txt /docs/requirements.txt
 RUN pip install --no-cache-dir -r /docs/requirements.txt
+
+CMD ["serve", "--dev-addr=0.0.0.0:8000", "--livereload"]

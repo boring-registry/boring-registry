@@ -50,5 +50,5 @@ The docs can be rendered and served with `mkdocs serve` to preview changes live 
 
 ```shell
 docker build -f docs/Dockerfile -t boring-registry-docs .
-docker run --rm -it -p 8000:8000 -v ${PWD}:/docs boring-registry-docs serve -a 0.0.0.0:8000 --livereload
+docker run --rm -it -p 8000:8000 -v ${PWD}:/docs boring-registry-docs
 ```
