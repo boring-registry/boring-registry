@@ -2,9 +2,11 @@ package module
 
 import (
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -141,7 +143,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestValidate(t *testing.T) {
+func TestSpec_Validate(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -250,7 +252,7 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestValidateWithVersion(t *testing.T) {
+func TestSpec_ValidateWithVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -392,7 +394,7 @@ func TestValidateWithVersion(t *testing.T) {
 	}
 }
 
-func TestValidateWithoutVersion(t *testing.T) {
+func TestSpec_ValidateWithoutVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -444,6 +446,221 @@ func TestValidateWithoutVersion(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestSpec_Name(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name   string
+		spec   *Spec
+		expect string
+	}{
+		{
+			name: "valid spec",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.2.3",
+				},
+			},
+			expect: "example/s3/aws/1.2.3",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tc.expect, tc.spec.Name())
+		})
+	}
+}
+
+func TestSpec_MeetsSemverConstraints(t *testing.T) {
+	t.Parallel()
+	constraintsHelper := func(constraints string) version.Constraints {
+		c, err := version.NewConstraint(constraints)
+		if err != nil {
+			t.Fatalf("failed to construct constraint: %v", err)
+		}
+		return c
+	}
+
+	testCases := []struct {
+		name        string
+		spec        *Spec
+		constraints version.Constraints
+		expect      bool
+		wantErr     bool
+	}{
+		{
+			name: "valid spec which meets constraints",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.2.3",
+				},
+			},
+			constraints: constraintsHelper(">=1.0"),
+			expect:      true,
+		},
+		{
+			name: "invalid spec with version unset",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+				},
+			},
+			constraints: constraintsHelper(">=1.0"),
+			expect:      false,
+			wantErr:     true,
+		},
+		{
+			name: "valid spec with non-matching constraint",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.2.3",
+				},
+			},
+			constraints: constraintsHelper(">=2.0"),
+			expect:      false,
+			wantErr:     false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ok, err := tc.spec.MeetsSemverConstraints(tc.constraints)
+
+			assert.Equal(t, tc.wantErr, err != nil)
+			assert.Equal(t, tc.expect, ok)
+		})
+	}
+}
+
+func TestSpec_MeetsRegexConstraints(t *testing.T) {
+	t.Parallel()
+	regexHelper := func(regex string) *regexp.Regexp {
+		re, err := regexp.Compile(regex)
+		if err != nil {
+			t.Fatalf("failed to construct constraint: %v", err)
+		}
+		return re
+	}
+
+	testCases := []struct {
+		name        string
+		spec        *Spec
+		constraints *regexp.Regexp
+		expect      bool
+		wantErr     bool
+	}{
+		{
+			name: "valid spec which meets constraints",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.2.3",
+				},
+			},
+			constraints: regexHelper("1\\.\\d+\\.\\d+"),
+			expect:      true,
+		},
+		{
+			name: "invalid spec with version unset",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+				},
+			},
+			constraints: regexHelper("1\\.\\d+\\.\\d+"),
+			expect:      false,
+			wantErr:     true,
+		},
+		{
+			name: "valid spec with non-matching constraint",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.2.3",
+				},
+			},
+			constraints: regexHelper("2\\.\\d+\\.\\d+"),
+			expect:      false,
+			wantErr:     false,
+		},
+		{
+			name: "valid spec with regex matching pre-releases",
+			spec: &Spec{
+				Metadata{
+					Name:      "s3",
+					Namespace: "example",
+					Provider:  "aws",
+					Version:   "1.2.3-rc1",
+				},
+			},
+			constraints: regexHelper("^[0-9]+\\.[0-9]+\\.[0-9]+-|\\d*[a-zA-Z-][0-9a-zA-Z-]*$"),
+			expect:      true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ok, err := tc.spec.MeetsRegexConstraints(tc.constraints)
+
+			assert.Equal(t, tc.wantErr, err != nil)
+			assert.Equal(t, tc.expect, ok)
+		})
+	}
+}
+
+func TestParseFile(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name    string
+		path    string
+		expect  *Spec
+		wantErr bool
+	}{
+		{
+			name:    "non-existant path",
+			path:    "/does/not/exist",
+			wantErr: true,
+		},
+		{
+			name:    "existing path",
+			path:    "",
+			wantErr: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var path string
+			if tc.path == "" {
+				path = t.TempDir()
+			}
+			result, err := ParseFile(path)
+
+			assert.Equal(t, tc.wantErr, err != nil)
+			assert.Equal(t, tc.expect, result)
 		})
 	}
 }
