@@ -45,15 +45,14 @@ func (m *mockModuleStorage) UploadModule(ctx context.Context, namespace, name, p
 func TestModuleUploadRunner_Run(t *testing.T) {
 	validPath := t.TempDir()
 	m := &moduleUploadRunner{
+		config:   &moduleUploadConfig{},
 		discover: func(_ string) error { return nil },
 	}
 
 	tests := []struct {
-		name                     string
-		args                     []string
-		versionConstraintsSemver string
-		versionConstraintsRegex  string
-		wantErr                  bool
+		name    string
+		args    []string
+		wantErr bool
 	}{
 		{
 			name:    "no args returns error",
@@ -71,36 +70,6 @@ func TestModuleUploadRunner_Run(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:                     "invalid semver constraint returns error",
-			args:                     []string{validPath},
-			versionConstraintsSemver: "invalid-semver",
-			wantErr:                  true,
-		},
-		{
-			name:                     "valid semver constraint",
-			args:                     []string{validPath},
-			versionConstraintsSemver: ">1.0.0",
-			wantErr:                  false,
-		},
-		{
-			name:                     "multiple valid semver constraint",
-			args:                     []string{validPath},
-			versionConstraintsSemver: ">1.0.0,<3.0.0",
-			wantErr:                  false,
-		},
-		{
-			name:                    "invalid regex constraint returns error",
-			args:                    []string{validPath},
-			versionConstraintsRegex: "[invalid-regex",
-			wantErr:                 true,
-		},
-		{
-			name:                    "valid regex constraint",
-			args:                    []string{validPath},
-			versionConstraintsRegex: "1\\.0\\.\\d+",
-			wantErr:                 false,
-		},
-		{
 			name:    "valid path",
 			args:    []string{validPath},
 			wantErr: false,
@@ -109,10 +78,6 @@ func TestModuleUploadRunner_Run(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset global flags
-			flagVersionConstraintsSemver = tt.versionConstraintsSemver
-			flagVersionConstraintsRegex = tt.versionConstraintsRegex
-
 			cmd := &cobra.Command{}
 			err := m.run(cmd, tt.args)
 
@@ -121,6 +86,104 @@ func TestModuleUploadRunner_Run(t *testing.T) {
 			}
 		})
 	}
+}
+
+// These tests cannot run in parallel because they modify global state
+func TestModuleUploadRunner_ParseFlags(t *testing.T) {
+	tests := []struct {
+		name                     string
+		versionConstraintsSemver string
+		versionConstraintsRegex  string
+		moduleVersion            string
+		recursive                bool
+		wantErr                  bool
+	}{
+		{
+			name:                     "invalid semver constraint returns error",
+			versionConstraintsSemver: "invalid-semver",
+			wantErr:                  true,
+		},
+		{
+			name:                     "valid semver constraint",
+			versionConstraintsSemver: ">1.0.0",
+			wantErr:                  false,
+		},
+		{
+			name:                     "multiple valid semver constraint",
+			versionConstraintsSemver: ">1.0.0,<3.0.0",
+			wantErr:                  false,
+		},
+		{
+			name:                    "invalid regex constraint returns error",
+			versionConstraintsRegex: "[invalid-regex",
+			wantErr:                 true,
+		},
+		{
+			name:                    "valid regex constraint",
+			versionConstraintsRegex: "1\\.0\\.\\d+",
+			wantErr:                 false,
+		},
+		{
+			name:          "no module version with recursive discovery disabled",
+			moduleVersion: "",
+			recursive:     false,
+			wantErr:       false,
+		},
+		{
+			name:          "no module version with recursive discovery enabled",
+			moduleVersion: "",
+			recursive:     true,
+			wantErr:       false,
+		},
+		{
+			name:          "module version with recursive discovery enabled",
+			moduleVersion: "1.2.3",
+			recursive:     true,
+			wantErr:       true,
+		},
+		{
+			name:          "invalid module version",
+			moduleVersion: "a1.2.3",
+			wantErr:       true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &moduleUploadRunner{
+				config: &moduleUploadConfig{},
+			}
+
+			// Reset global flags
+			flagVersionConstraintsSemver = tt.versionConstraintsSemver
+			flagVersionConstraintsRegex = tt.versionConstraintsRegex
+			flagModuleVersion = tt.moduleVersion
+			flagRecursive = tt.recursive
+
+			err := m.parseFlags()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("run() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.versionConstraintsSemver != "" && !tt.wantErr {
+				assert.NotNil(t, m.config.versionConstraintsSemver)
+			}
+
+			if tt.versionConstraintsRegex != "" && !tt.wantErr {
+				assert.NotNil(t, m.config.versionConstraintsRegex)
+			}
+
+			if tt.moduleVersion != "" && !tt.wantErr {
+				assert.NotNil(t, m.config.moduleVersion)
+			}
+		})
+	}
+
+	// Set global flags to default value after tests.
+	// This is not pretty and could be done better
+	flagVersionConstraintsSemver = ""
+	flagVersionConstraintsRegex = ""
+	flagModuleVersion = ""
+	flagRecursive = true
 }
 
 func TestArchiveFileHeaderName(t *testing.T) {
@@ -246,7 +309,6 @@ func TestArchiveModule(t *testing.T) {
 	}
 }
 
-// These tests cannot run in parallel because they modify global state
 func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 	validArchive := func(string) (io.Reader, error) {
 		return bytes.NewReader([]byte("foo-bar")), nil
@@ -387,10 +449,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up global state
-			versionConstraintsSemver = nil
-			versionConstraintsRegex = nil
-			flagIgnoreExistingModule = tt.ignoreExistingModule
+			t.Parallel()
 
 			dir := t.TempDir()
 			specPath := filepath.Join(dir, moduleSpecFileName)
@@ -399,19 +458,22 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 
 			m := &moduleUploadRunner{
 				storage: tt.storage,
+				config: &moduleUploadConfig{
+					ignoreExistingModule: tt.ignoreExistingModule,
+				},
 				archive: tt.setupArchive,
 			}
 
 			if tt.versionConstraintsSemver != "" {
 				constraints, err := version.NewConstraint(tt.versionConstraintsSemver)
 				assert.NoError(t, err)
-				versionConstraintsSemver = constraints
+				m.config.versionConstraintsSemver = constraints
 			}
 
 			if tt.versionConstraintsRegex != "" {
 				constraints, err := regexp.Compile(tt.versionConstraintsRegex)
 				assert.NoError(t, err)
-				versionConstraintsRegex = constraints
+				m.config.versionConstraintsRegex = constraints
 			}
 
 			err = m.processModule(specPath)
@@ -424,7 +486,6 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 	}
 }
 
-// These tests cannot run in parallel because they modify global state
 func TestModuleUploadRunner_WalkModules(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -492,17 +553,20 @@ func TestModuleUploadRunner_WalkModules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dir := createModuleDirStructure(t, tt.root, tt.files)
 
 			var processedPaths []string
 			m := &moduleUploadRunner{
+				config: &moduleUploadConfig{
+					recursive: tt.recursive,
+				},
 				process: func(path string) error {
 					processedPaths = append(processedPaths, path)
 					return tt.processErr
 				},
 			}
-
-			flagRecursive = tt.recursive
 
 			err := m.walkModules(dir)
 
