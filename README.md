@@ -34,6 +34,7 @@ Tools:
 - `go`
 - [pre-commit](https://pre-commit.com/)
 - [golangci-lint](https://golangci-lint.run/)
+- `mkdocs`
 
 #### pre-commit
 
@@ -46,3 +47,8 @@ pre-commit install --install-hooks
 ### docs
 
 The docs can be rendered and served with `mkdocs serve` to preview changes live in the browser.
+
+```shell
+docker build -f docs/Dockerfile -t boring-registry-docs .
+docker run --rm -it -p 8000:8000 -v ${PWD}:/docs boring-registry-docs
+```
