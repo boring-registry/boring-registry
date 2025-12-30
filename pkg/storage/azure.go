@@ -31,6 +31,10 @@ type AzureStorage struct {
 	prefix              string
 	moduleArchiveFormat string
 	signedURLExpiry     time.Duration
+
+	// sharedKeyCred is used to connect to Azurite in integration tests.
+	// This should only be set for testing!
+	sharedKeyCred *azblob.SharedKeyCredential
 }
 
 // GetModule retrieves information about a module from the Azure Storage.
@@ -118,7 +122,11 @@ func (s *AzureStorage) UploadModule(ctx context.Context, namespace, name, provid
 		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleUploadFailed, err)
 	}
 
-	return s.GetModule(ctx, namespace, name, provider, version)
+	m, err := s.GetModule(ctx, namespace, name, provider, version)
+	if err != nil {
+		return core.Module{}, fmt.Errorf("retrieving module after upload failed: %w", err)
+	}
+	return m, nil
 }
 
 // GetProvider retrieves information about a provider from the Azure Storage.
@@ -330,20 +338,31 @@ func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, er
 		Expiry: to.Ptr(time.Now().UTC().Add(4 * time.Hour).Format(sas.TimeFormat)),
 	}
 
-	udc, err := s.client.ServiceClient().GetUserDelegationCredential(ctx, info, nil)
-	if err != nil {
-		return "", err
-	}
-
-	params, err := sas.BlobSignatureValues{
+	blobSignatureValues := sas.BlobSignatureValues{
 		Protocol:      sas.ProtocolHTTPS,
 		ExpiryTime:    time.Now().Add(s.signedURLExpiry),
 		Permissions:   to.Ptr(sas.BlobPermissions{Read: true}).String(),
 		ContainerName: s.container,
 		BlobName:      key,
-	}.SignWithUserDelegation(udc)
-	if err != nil {
-		return "", err
+	}
+
+	var params sas.QueryParameters
+	if s.sharedKeyCred == nil {
+		udc, err := s.client.ServiceClient().GetUserDelegationCredential(ctx, info, nil)
+		if err != nil {
+			return "", fmt.Errorf("failed to get user delegation credentials: %w", err)
+		}
+		params, err = blobSignatureValues.SignWithUserDelegation(udc)
+		if err != nil {
+			return "", fmt.Errorf("failed to sign with user delegation: %w", err)
+		}
+	} else {
+		// We generate a presigned URL using SharedKey-based SAS which is compatible with Azurite's authentication model
+		var err error
+		params, err = blobSignatureValues.SignWithSharedKey(s.sharedKeyCred)
+		if err != nil {
+			return "", fmt.Errorf("failed to sign with shared key: %w", err)
+		}
 	}
 
 	url := fmt.Sprintf("%s?%s", s.client.ServiceClient().NewContainerClient(s.container).NewBlobClient(key).URL(), params.Encode())
@@ -449,4 +468,18 @@ func NewAzureStorage(account string, container string, options ...AzureStorageOp
 	s.client = client
 
 	return s, nil
+}
+
+// NewAzuriteStorage creates a storage instance for testing with Azurite.
+// It uses SharedKeyCredential instead of OAuth, which is required for Azurite compatibility.
+func NewAzuriteStorage(client *azblob.Client, sharedKeyCred *azblob.SharedKeyCredential, account, container, prefix, moduleArchiveFormat string, signedURLExpiry time.Duration) Storage {
+	return &AzureStorage{
+		client:              client,
+		account:             account,
+		container:           container,
+		prefix:              prefix,
+		moduleArchiveFormat: moduleArchiveFormat,
+		signedURLExpiry:     signedURLExpiry,
+		sharedKeyCred:       sharedKeyCred,
+	}
 }
