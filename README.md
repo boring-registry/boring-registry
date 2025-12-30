@@ -44,6 +44,11 @@ Install pre-commit hooks:
 pre-commit install --install-hooks
 ```
 
+### Running tests
+
+Unit tests can be executed by running `go test ./...`.
+The integration tests don't run by default, but can be included by running `go test ./... --tags=integration`
+
 ### docs
 
 The docs can be rendered and served with `mkdocs serve` to preview changes live in the browser.
