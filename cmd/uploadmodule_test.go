@@ -96,7 +96,6 @@ func TestNewModuleUploadConfigFromFlags(t *testing.T) {
 		versionConstraintsRegex  string
 		moduleVersion            string
 		recursive                bool
-		result                   *ModuleUploadConfig
 		wantErr                  bool
 	}{
 		{
