@@ -164,8 +164,6 @@ type ModuleUploadRunner struct {
 	Process  func(string) error
 }
 
-// This method matches the method signature required by cobra
-// It's entire purpose is wrap the upload() method
 func (m *ModuleUploadRunner) Run(cmd *cobra.Command, args []string) error {
 	if err := m.Config.Validate(); err != nil {
 		return err
