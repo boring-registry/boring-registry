@@ -567,6 +567,46 @@ func TestModuleUploadRunner_WalkModules(t *testing.T) {
 	}
 }
 
+func TestModuleUploadConfig_Validate(t *testing.T) {
+	parseVersion := func(t *testing.T, v string) *version.Version {
+		moduleVersion, err := version.NewSemver(v)
+		if err != nil {
+			t.Fatalf("failed to parse version: %v", err)
+		}
+
+		return moduleVersion
+	}
+
+	testCases := []struct {
+		name    string
+		config  *ModuleUploadConfig
+		isValid bool
+	}{
+		{
+			name:    "valid configuration",
+			config:  NewModuleUploadConfig(),
+			isValid: true,
+		},
+		{
+			name: "both version and recursive are invalid",
+			config: NewModuleUploadConfig(
+				WithModuleUploadConfigRecursive(true),
+				WithModuleUploadConfigModuleVersion(parseVersion(t, "1.2.3")),
+			),
+			isValid: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.config.Validate()
+			assert.Equal(t, tc.isValid, err == nil)
+		})
+	}
+}
+
 func createModuleDirStructure(t *testing.T, root string, files map[string]file) string {
 	dir := root
 	if root == "" {
