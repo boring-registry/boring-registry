@@ -49,6 +49,8 @@ func (d *dir) create(root string) error {
 	return nil
 }
 
+// fsStructure holds a representation of a filesystem which can be "rendered" to a temporary directory.
+// This functionality is used to create test data on which to test the upload commands against.
 type fsStructure struct {
 	rootPath string
 	dirs     []dir
