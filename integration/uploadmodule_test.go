@@ -447,9 +447,7 @@ func TestUploadModule(t *testing.T) {
 					t.Fatalf("failed to create test filesystem: %v", err)
 				}
 
-				moduleUploadRunner := cmd.NewModuleUploadRunnerWithDefaultConfig()
-				moduleUploadRunner.Config = tc.config
-				moduleUploadRunner.Storage = instance.setupStorage()
+				moduleUploadRunner := cmd.NewModuleUploadRunner(tc.config, instance.setupStorage())
 				moduleUploadRunner.InitializeMethods()
 
 				p := filepath.Join(tc.fs.rootPath, tc.path)
