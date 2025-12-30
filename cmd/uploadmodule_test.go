@@ -45,7 +45,7 @@ func (m *mockModuleStorage) UploadModule(ctx context.Context, namespace, name, p
 func TestModuleUploadRunner_Run(t *testing.T) {
 	validPath := t.TempDir()
 	m := &ModuleUploadRunner{
-		Config:   NewModuleUploadConfig(),
+		config:   NewModuleUploadConfig(),
 		Discover: func(_ string) error { return nil },
 	}
 
@@ -448,21 +448,21 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 			assert.NoError(t, err)
 
 			m := &ModuleUploadRunner{
-				Storage: tt.storage,
-				Config:  NewModuleUploadConfig(WithModuleUploadConfigIgnoreExistingModule(tt.ignoreExistingModule)),
+				storage: tt.storage,
+				config:  NewModuleUploadConfig(WithModuleUploadConfigIgnoreExistingModule(tt.ignoreExistingModule)),
 				Archive: tt.setupArchive,
 			}
 
 			if tt.versionConstraintsSemver != "" {
 				constraints, err := version.NewConstraint(tt.versionConstraintsSemver)
 				assert.NoError(t, err)
-				m.Config.VersionConstraintsSemver = constraints
+				m.config.VersionConstraintsSemver = constraints
 			}
 
 			if tt.versionConstraintsRegex != "" {
 				constraints, err := regexp.Compile(tt.versionConstraintsRegex)
 				assert.NoError(t, err)
-				m.Config.VersionConstraintsRegex = constraints
+				m.config.VersionConstraintsRegex = constraints
 			}
 
 			err = m.processModule(specPath)
@@ -548,7 +548,7 @@ func TestModuleUploadRunner_WalkModules(t *testing.T) {
 
 			var processedPaths []string
 			m := &ModuleUploadRunner{
-				Config: NewModuleUploadConfig(WithModuleUploadConfigRecursive(tt.recursive)),
+				config: NewModuleUploadConfig(WithModuleUploadConfigRecursive(tt.recursive)),
 				Process: func(path string) error {
 					processedPaths = append(processedPaths, path)
 					return tt.processErr

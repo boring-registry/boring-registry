@@ -155,8 +155,8 @@ func WithModuleUploadConfigModuleVersion(v *version.Version) ModuleUploadConfigO
 
 // The main idea of ModuleUploadRunner is to have a struct that can be mocked more easily in tests
 type ModuleUploadRunner struct {
-	Storage module.Storage
-	Config  *ModuleUploadConfig
+	storage module.Storage
+	config  *ModuleUploadConfig
 
 	// The following functions can be overridden for mocking
 	Discover func(string) error
@@ -165,7 +165,7 @@ type ModuleUploadRunner struct {
 }
 
 func (m *ModuleUploadRunner) Run(cmd *cobra.Command, args []string) error {
-	if err := m.Config.Validate(); err != nil {
+	if err := m.config.Validate(); err != nil {
 		return err
 	}
 
@@ -190,7 +190,7 @@ func (m *ModuleUploadRunner) InitializeMethods() {
 
 func (m *ModuleUploadRunner) walkModules(root string) error {
 	modulePaths := []string{} // holds paths to all discovered module spec files
-	if m.Config.Recursive {
+	if m.config.Recursive {
 		if err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 			if err != nil {
 				return fmt.Errorf("walk-related error: %w", err)
@@ -222,7 +222,7 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 		return err
 	}
 
-	if m.Config.ModuleVersion == nil {
+	if m.config.ModuleVersion == nil {
 		err = spec.ValidateWithVersion()
 	} else {
 		err = spec.ValidateWithoutVersion()
@@ -234,15 +234,15 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 	// The user can pass a flag that sets the version of the module.
 	// In that case, recursive traversal/discovery is not allowed and the boring-registry.hcl file does not contain
 	// the metadata.version attribute.
-	if m.Config.ModuleVersion != nil {
-		spec.Metadata.Version = m.Config.ModuleVersion.String()
+	if m.config.ModuleVersion != nil {
+		spec.Metadata.Version = m.config.ModuleVersion.String()
 	}
 
 	slog.Debug("parsed module spec", slog.String("path", path), slog.String("name", spec.Name()))
 
 	// Check if the module meets version constraints
-	if m.Config.VersionConstraintsSemver != nil {
-		ok, err := spec.MeetsSemverConstraints(m.Config.VersionConstraintsSemver)
+	if m.config.VersionConstraintsSemver != nil {
+		ok, err := spec.MeetsSemverConstraints(m.config.VersionConstraintsSemver)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -252,8 +252,8 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 		}
 	}
 
-	if m.Config.VersionConstraintsRegex != nil {
-		ok, err := spec.MeetsRegexConstraints(m.Config.VersionConstraintsRegex)
+	if m.config.VersionConstraintsRegex != nil {
+		ok, err := spec.MeetsRegexConstraints(m.config.VersionConstraintsRegex)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -270,13 +270,13 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 		slog.String("provider", spec.Metadata.Provider),
 		slog.String("version", spec.Metadata.Version),
 	}
-	if _, err := m.Storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err != nil {
+	if _, err := m.storage.GetModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version); err != nil {
 		if !errors.Is(err, module.ErrModuleNotFound) {
 			slog.Error("failed to check if module exists in storage provider", append(providerAttrs, slog.Any("error", err))...)
 			return fmt.Errorf("failed to check if module exists: %w", err)
 		}
 	} else {
-		if m.Config.IgnoreExistingModule {
+		if m.config.IgnoreExistingModule {
 			// We ignore the ErrModuleNotFound error, as it means the module version doesn't exist yet and we can proceed to upload it
 			slog.Info("module already exists", providerAttrs...)
 			return nil
@@ -293,7 +293,7 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 		return err
 	}
 
-	if _, err := m.Storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
+	if _, err := m.storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
 		return fmt.Errorf("failed to upload module: %w", err)
 	}
 
@@ -303,13 +303,14 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 
 func NewModuleUploadRunnerWithDefaultConfig() *ModuleUploadRunner {
 	return &ModuleUploadRunner{
-		Config: NewModuleUploadConfig(),
+		config: NewModuleUploadConfig(),
 	}
 }
 
 func NewModuleUploadRunner(config *ModuleUploadConfig, s storage.Storage) *ModuleUploadRunner {
 	return &ModuleUploadRunner{
-		Config: config,
+		config:  config,
+		storage: s,
 	}
 }
 
