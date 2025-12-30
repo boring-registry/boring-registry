@@ -39,8 +39,8 @@ var (
 		SilenceUsage: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			slog.Warn("using only the 'upload' command for modules is deprecated and will be removed in a future release. Please use 'upload module' instead.")
-			return moduleUploader.preRun(cmd, args)
+			return moduleUploadPreRun(cmd, args)
 		},
-		RunE: moduleUploader.run,
+		RunE: moduleUploader.Run,
 	}
 )
