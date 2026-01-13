@@ -27,6 +27,9 @@ Can be combined with the -version-constraints-semver flag`)
 	uploadCmd.PersistentFlags().StringVar(&flagVersionConstraintsSemver, "version-constraints-semver", "", `Limit the module versions that are eligible for upload with version constraints.
 The version string has to be formatted as a string literal containing one or more conditions, which are separated by commas.
 Can be combined with the -version-constrained-regex flag`)
+	uploadCmd.PersistentFlags().StringSliceVar(&flagExcludePatterns, "exclude", []string{}, `Exclude files or directories matching the given patterns from the module archive.
+Patterns can be exact names (e.g., ".terraform") or glob patterns (e.g., "*.log").
+Can be specified multiple times to exclude multiple patterns.`)
 }
 
 var (

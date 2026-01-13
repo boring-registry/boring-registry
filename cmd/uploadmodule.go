@@ -31,6 +31,7 @@ var (
 	flagVersionConstraintsRegex  string
 	flagVersionConstraintsSemver string
 	flagModuleVersion            string
+	flagExcludePatterns          []string
 )
 
 var (
@@ -164,7 +165,7 @@ type ModuleUploadRunner struct {
 
 	// The following functions can be overridden for mocking
 	Discover func(string) error
-	Archive  func(string) (io.Reader, error)
+	Archive  func(string, []string) (io.Reader, error)
 	Process  func(string) error
 }
 
@@ -290,7 +291,7 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 
 	moduleRoot := filepath.Dir(path)
 
-	buf, err := m.Archive(moduleRoot)
+	buf, err := m.Archive(moduleRoot, flagExcludePatterns)
 	if err != nil {
 		return err
 	}
@@ -331,7 +332,7 @@ func moduleUploadPreRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func archiveModule(root string) (io.Reader, error) {
+func archiveModule(root string, excludePatterns []string) (io.Reader, error) {
 	buf := new(bytes.Buffer)
 	// ensure the src actually exists before trying to tar it
 	if _, err := os.Stat(root); err != nil {
@@ -356,6 +357,16 @@ func archiveModule(root string) (io.Reader, error) {
 		// return on any error
 		if err != nil {
 			return err
+		}
+
+		// Check if the path should be excluded
+		if shouldExclude(path, root, fi.IsDir(), excludePatterns) {
+			if fi.IsDir() {
+				slog.Debug("excluding directory from archive", slog.String("path", path))
+				return filepath.SkipDir
+			}
+			slog.Debug("excluding file from archive", slog.String("path", path))
+			return nil
 		}
 
 		// return on non-regular files
@@ -395,6 +406,50 @@ func archiveModule(root string) (io.Reader, error) {
 	})
 
 	return buf, err
+}
+
+// shouldExclude checks if a path matches any of the exclusion patterns.
+// It supports both exact directory/file name matching and glob patterns.
+func shouldExclude(path, root string, isDir bool, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+
+	// Get the relative path from root
+	relativePath := archiveFileHeaderName(path, root)
+	if relativePath == "" {
+		return false
+	}
+
+	// Get just the base name for simple pattern matching
+	baseName := filepath.Base(path)
+
+	for _, pattern := range patterns {
+		// Check if the base name matches the pattern exactly (e.g., ".terraform")
+		if baseName == pattern {
+			return true
+		}
+
+		// Check if any path component matches the pattern
+		// This handles cases like "modules/.terraform/providers"
+		for _, component := range strings.Split(relativePath, string(filepath.Separator)) {
+			if component == pattern {
+				return true
+			}
+		}
+
+		// Check glob pattern match against the relative path
+		if matched, _ := filepath.Match(pattern, relativePath); matched {
+			return true
+		}
+
+		// Check glob pattern match against the base name
+		if matched, _ := filepath.Match(pattern, baseName); matched {
+			return true
+		}
+	}
+
+	return false
 }
 
 func archiveFileHeaderName(path, root string) string {
