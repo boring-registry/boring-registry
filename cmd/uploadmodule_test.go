@@ -209,7 +209,7 @@ func TestArchiveModule(t *testing.T) {
 			t.Parallel()
 
 			dir := createModuleDirStructure(t, tt.root, tt.files)
-			reader, err := archiveModule(dir)
+			reader, err := archiveModule(dir, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -246,16 +246,330 @@ func TestArchiveModule(t *testing.T) {
 	}
 }
 
+func TestArchiveModuleWithExclusions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		files           map[string]file
+		excludePatterns []string
+		expectedFiles   []string
+		excludedFiles   []string
+	}{
+		{
+			name: "exclude .terraform directory",
+			files: map[string]file{
+				"main.tf":                                           {content: "test content"},
+				"variables.tf":                                      {content: "test content"},
+				".terraform/providers/provider.exe":                 {content: "binary content"},
+				".terraform/modules/modules.json":                   {content: "json content"},
+				".terraform/terraform.tfstate":                      {content: "state content"},
+				"modules/submodule/.terraform/providers/cached.exe": {content: "nested binary"},
+			},
+			excludePatterns: []string{".terraform"},
+			expectedFiles:   []string{"main.tf", "variables.tf"},
+			excludedFiles:   []string{".terraform/providers/provider.exe", ".terraform/modules/modules.json", ".terraform/terraform.tfstate", "modules/submodule/.terraform/providers/cached.exe"},
+		},
+		{
+			name: "exclude multiple patterns",
+			files: map[string]file{
+				"main.tf":                      {content: "test content"},
+				"variables.tf":                 {content: "test content"},
+				".terraform/providers/p.exe":  {content: "binary"},
+				"debug.log":                   {content: "log content"},
+				"nested/error.log":            {content: "nested log"},
+				".git/config":                 {content: "git config"},
+				"modules/example/terraform.tf": {content: "example"},
+			},
+			excludePatterns: []string{".terraform", "*.log", ".git"},
+			expectedFiles:   []string{"main.tf", "variables.tf", "modules/example/terraform.tf"},
+			excludedFiles:   []string{".terraform/providers/p.exe", "debug.log", "nested/error.log", ".git/config"},
+		},
+		{
+			name: "exclude with glob pattern",
+			files: map[string]file{
+				"main.tf":       {content: "test content"},
+				"test_main.go":  {content: "test file"},
+				"test_utils.go": {content: "test utils"},
+				"utils.go":      {content: "utils"},
+			},
+			excludePatterns: []string{"test_*.go"},
+			expectedFiles:   []string{"main.tf", "utils.go"},
+			excludedFiles:   []string{"test_main.go", "test_utils.go"},
+		},
+		{
+			name: "no exclusions",
+			files: map[string]file{
+				"main.tf":      {content: "test content"},
+				"variables.tf": {content: "test content"},
+			},
+			excludePatterns: nil,
+			expectedFiles:   []string{"main.tf", "variables.tf"},
+			excludedFiles:   []string{},
+		},
+		{
+			name: "empty exclusion list",
+			files: map[string]file{
+				"main.tf":      {content: "test content"},
+				"variables.tf": {content: "test content"},
+			},
+			excludePatterns: []string{},
+			expectedFiles:   []string{"main.tf", "variables.tf"},
+			excludedFiles:   []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := createModuleDirStructure(t, "", tt.files)
+			reader, err := archiveModule(dir, tt.excludePatterns)
+			assert.NoError(t, err)
+			assert.NotNil(t, reader)
+
+			// Verify archive contents
+			gzr, err := gzip.NewReader(reader)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, gzr.Close())
+			}()
+
+			tr := tar.NewReader(gzr)
+			foundFiles := make(map[string]bool)
+
+			for {
+				header, err := tr.Next()
+				if err == io.EOF {
+					break
+				}
+				assert.NoError(t, err)
+				foundFiles[header.Name] = true
+			}
+
+			// Verify expected files are in archive
+			for _, expectedFile := range tt.expectedFiles {
+				assert.True(t, foundFiles[expectedFile], "expected file %s not found in archive", expectedFile)
+			}
+
+			// Verify excluded files are NOT in archive
+			for _, excludedFile := range tt.excludedFiles {
+				assert.False(t, foundFiles[excludedFile], "excluded file %s should not be in archive", excludedFile)
+			}
+		})
+	}
+}
+
+func TestShouldExclude(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		path     string
+		root     string
+		isDir    bool
+		patterns []string
+		expected bool
+	}{
+		{
+			name:     "exact directory name match",
+			path:     "/tmp/module/.terraform",
+			root:     "/tmp/module",
+			isDir:    true,
+			patterns: []string{".terraform"},
+			expected: true,
+		},
+		{
+			name:     "nested directory match",
+			path:     "/tmp/module/submodule/.terraform",
+			root:     "/tmp/module",
+			isDir:    true,
+			patterns: []string{".terraform"},
+			expected: true,
+		},
+		{
+			name:     "file inside excluded directory",
+			path:     "/tmp/module/.terraform/providers/file.exe",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{".terraform"},
+			expected: true,
+		},
+		{
+			name:     "glob pattern match",
+			path:     "/tmp/module/debug.log",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{"*.log"},
+			expected: true,
+		},
+		{
+			name:     "no match",
+			path:     "/tmp/module/main.tf",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{".terraform", "*.log"},
+			expected: false,
+		},
+		{
+			name:     "empty patterns",
+			path:     "/tmp/module/.terraform",
+			root:     "/tmp/module",
+			isDir:    true,
+			patterns: []string{},
+			expected: false,
+		},
+		{
+			name:     "nil patterns",
+			path:     "/tmp/module/.terraform",
+			root:     "/tmp/module",
+			isDir:    true,
+			patterns: nil,
+			expected: false,
+		},
+		{
+			name:     "path component match in nested path",
+			path:     "/tmp/module/modules/auth/.terraform/cache/file.json",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{".terraform"},
+			expected: true,
+		},
+		{
+			name:     "partial name should not match",
+			path:     "/tmp/module/terraform.tf",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{".terraform"},
+			expected: false,
+		},
+		{
+			name:     "multiple patterns first matches",
+			path:     "/tmp/module/.git/config",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{".git", ".terraform", "*.log"},
+			expected: true,
+		},
+		{
+			name:     "multiple patterns last matches",
+			path:     "/tmp/module/app.log",
+			root:     "/tmp/module",
+			isDir:    false,
+			patterns: []string{".git", ".terraform", "*.log"},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := shouldExclude(tt.path, tt.root, tt.isDir, tt.patterns)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestArchiveModuleIntegration demonstrates the real-world impact of --exclude flag
+// by creating a module with large .terraform directory and comparing archive sizes
+func TestArchiveModuleIntegration(t *testing.T) {
+	t.Parallel()
+
+	// Create a realistic module structure with .terraform directory
+	dir := t.TempDir()
+	files := map[string]struct {
+		content string
+		size    int // if > 0, creates a file of this size with random data
+	}{
+		"main.tf":                                      {content: `resource "aws_instance" "example" {}`},
+		"variables.tf":                                 {content: `variable "region" { type = string }`},
+		"outputs.tf":                                   {content: `output "id" { value = aws_instance.example.id }`},
+		".terraform/providers/registry/aws/provider":  {size: 1024 * 100}, // 100KB fake provider binary
+		".terraform/modules/modules.json":             {content: `{"Modules": []}`},
+		".terraform/terraform.tfstate":                {content: `{"version": 4}`},
+		"modules/auth/.terraform/plugins/cached.json": {content: `{"cached": true}`},
+	}
+
+	for path, f := range files {
+		fullPath := filepath.Join(dir, path)
+		err := os.MkdirAll(filepath.Dir(fullPath), 0755)
+		assert.NoError(t, err)
+
+		var content []byte
+		if f.size > 0 {
+			content = make([]byte, f.size)
+			for i := range content {
+				content[i] = byte(i % 256)
+			}
+		} else {
+			content = []byte(f.content)
+		}
+		err = os.WriteFile(fullPath, content, 0644)
+		assert.NoError(t, err)
+	}
+
+	// Archive WITHOUT exclusions
+	readerWithoutExclude, err := archiveModule(dir, nil)
+	assert.NoError(t, err)
+
+	bufWithout := new(bytes.Buffer)
+	_, err = io.Copy(bufWithout, readerWithoutExclude)
+	assert.NoError(t, err)
+	sizeWithout := bufWithout.Len()
+
+	// Archive WITH .terraform exclusion
+	readerWithExclude, err := archiveModule(dir, []string{".terraform"})
+	assert.NoError(t, err)
+
+	bufWith := new(bytes.Buffer)
+	_, err = io.Copy(bufWith, readerWithExclude)
+	assert.NoError(t, err)
+	sizeWith := bufWith.Len()
+
+	// Verify the archive with exclusions is significantly smaller
+	t.Logf("Archive size WITHOUT exclusions: %d bytes", sizeWithout)
+	t.Logf("Archive size WITH .terraform exclusion: %d bytes", sizeWith)
+	t.Logf("Size reduction: %.1f%%", float64(sizeWithout-sizeWith)/float64(sizeWithout)*100)
+
+	assert.Greater(t, sizeWithout, sizeWith, "archive with exclusions should be smaller")
+
+	// Verify the excluded archive only contains the expected files
+	gzr, err := gzip.NewReader(bufWith)
+	assert.NoError(t, err)
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+	foundFiles := make(map[string]bool)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		assert.NoError(t, err)
+		foundFiles[header.Name] = true
+	}
+
+	// These files should be present
+	assert.True(t, foundFiles["main.tf"], "main.tf should be in archive")
+	assert.True(t, foundFiles["variables.tf"], "variables.tf should be in archive")
+	assert.True(t, foundFiles["outputs.tf"], "outputs.tf should be in archive")
+
+	// These files should NOT be present (excluded)
+	assert.False(t, foundFiles[".terraform/providers/registry/aws/provider"], ".terraform content should be excluded")
+	assert.False(t, foundFiles[".terraform/modules/modules.json"], ".terraform content should be excluded")
+	assert.False(t, foundFiles["modules/auth/.terraform/plugins/cached.json"], "nested .terraform should be excluded")
+}
+
 // These tests cannot run in parallel because they modify global state
 func TestModuleUploadRunner_ProcessModule(t *testing.T) {
-	validArchive := func(string) (io.Reader, error) {
+	validArchive := func(string, []string) (io.Reader, error) {
 		return bytes.NewReader([]byte("foo-bar")), nil
 	}
 	tests := []struct {
 		name                     string
 		specContent              string
 		storage                  module.Storage
-		setupArchive             func(string) (io.Reader, error)
+		setupArchive             func(string, []string) (io.Reader, error)
 		ignoreExistingModule     bool
 		versionConstraintsSemver string
 		versionConstraintsRegex  string
@@ -347,7 +661,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 			storage: &mockModuleStorage{
 				getModuleErr: module.ErrModuleNotFound,
 			},
-			setupArchive: func(string) (io.Reader, error) {
+			setupArchive: func(string, []string) (io.Reader, error) {
 				return nil, fmt.Errorf("failed to create archive")
 			},
 			wantErr: true,
