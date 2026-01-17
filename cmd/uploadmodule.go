@@ -257,10 +257,8 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 	}
 
 	if m.config.VersionConstraintsRegex != nil {
-		ok, err := spec.MeetsRegexConstraints(m.config.VersionConstraintsRegex)
-		if err != nil {
-			return err
-		} else if !ok {
+		ok := spec.MeetsRegexConstraints(m.config.VersionConstraintsRegex)
+		if !ok {
 			// Skip the module, as it didn't pass the regex version constraints
 			slog.Info("module doesn't meet regex version constraints, skipped", slog.String("name", spec.Name()))
 			return nil
