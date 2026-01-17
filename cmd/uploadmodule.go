@@ -39,7 +39,11 @@ var (
 		Use:          "module MODULE",
 		SilenceUsage: true,
 		PreRunE:      moduleUploadPreRun,
-		RunE:         moduleUploader.Run,
+
+		// The moduleUploader variable is initially nil, so we need this wrapper hack to make sure we reference it when it has been initialized
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return moduleUploader.Run(cmd, args)
+		},
 	}
 )
 
