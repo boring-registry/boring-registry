@@ -1,6 +1,5 @@
 # Publish Providers
 
-
 For general information on how to build and publish providers for Terraform see the [official documentation](https://developer.hashicorp.com/terraform/registry/providers).
 
 ## GPG Public Keys
