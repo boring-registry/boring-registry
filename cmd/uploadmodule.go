@@ -15,13 +15,14 @@ import (
 	"strings"
 
 	"github.com/boring-registry/boring-registry/pkg/module"
+	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 )
 
 const (
-	moduleSpecFileName = "boring-registry.hcl"
+	ModuleSpecFileName = "boring-registry.hcl"
 )
 
 var (
@@ -32,21 +33,17 @@ var (
 	flagModuleVersion            string
 )
 
-type moduleUploadConfig struct {
-	recursive                bool
-	ignoreExistingModule     bool
-	versionConstraintsRegex  *regexp.Regexp
-	versionConstraintsSemver version.Constraints
-	moduleVersion            *version.Version
-}
-
 var (
-	moduleUploader  = &moduleUploadRunner{}
+	moduleUploader  *ModuleUploadRunner
 	uploadModuleCmd = &cobra.Command{
 		Use:          "module MODULE",
 		SilenceUsage: true,
-		PreRunE:      moduleUploader.preRun,
-		RunE:         moduleUploader.run,
+		PreRunE:      moduleUploadPreRun,
+
+		// The moduleUploader variable is initially nil, so we need this wrapper hack to make sure we reference it when it has been initialized
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return moduleUploader.Run(cmd, args)
+		},
 	}
 )
 
@@ -54,33 +51,128 @@ func init() {
 	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive module discovery.")
 }
 
-// The main idea of moduleUploadRunner is to have a struct that can be mocked more easily in tests
-type moduleUploadRunner struct {
-	storage module.Storage
-	config  *moduleUploadConfig
-
-	discover func(string) error
-	archive  func(string) (io.Reader, error)
-	process  func(string) error
+type ModuleUploadConfig struct {
+	Recursive                bool
+	IgnoreExistingModule     bool
+	VersionConstraintsRegex  *regexp.Regexp
+	VersionConstraintsSemver version.Constraints
+	ModuleVersion            *version.Version
 }
 
-// preRun sets up the storage backend before running the upload command
-func (m *moduleUploadRunner) preRun(cmd *cobra.Command, args []string) error {
-	storage, err := setupStorage(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to set up storage: %w", err)
+func (m *ModuleUploadConfig) Validate() error {
+	errs := []error{}
+	if m.Recursive && m.ModuleVersion != nil {
+		errs = append(errs, errors.New("providing a module version is not supported when traversing recursively, only one of the two options can be provided"))
 	}
 
-	m.config = &moduleUploadConfig{}
-
-	m.storage = storage
-	m.discover = m.walkModules
-	m.archive = archiveModule
-	m.process = m.processModule
-	return nil
+	return errors.Join(errs...)
 }
 
-func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
+func NewModuleUploadConfig(opts ...ModuleUploadConfigOption) *ModuleUploadConfig {
+	// The following are the default configuration settings
+	m := &ModuleUploadConfig{
+		Recursive:                true,
+		IgnoreExistingModule:     true,
+		VersionConstraintsRegex:  nil,
+		VersionConstraintsSemver: nil,
+		ModuleVersion:            nil,
+	}
+
+	for _, option := range opts {
+		option(m)
+	}
+
+	return m
+}
+
+func NewModuleUploadConfigFromFlags() (*ModuleUploadConfig, error) {
+	errs := []error{}
+	opts := []ModuleUploadConfigOption{
+		WithModuleUploadConfigIgnoreExistingModule(flagIgnoreExistingModule),
+		WithModuleUploadConfigRecursive(flagRecursive),
+	}
+
+	// Validate the semver version constraints
+	if flagVersionConstraintsSemver != "" {
+		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to parse version-constraints-semver flag: %w", err))
+		}
+		opts = append(opts, WithModuleUploadConfigVersionConstraintsSemver(constraints))
+	}
+
+	// Validate the regex version constraints
+	if flagVersionConstraintsRegex != "" {
+		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to parse version-constraints-regex flag: %w", err))
+		}
+		opts = append(opts, WithModuleUploadConfigVersionConstraintsRegex(constraints))
+	}
+
+	if flagModuleVersion != "" {
+		v, err := version.NewSemver(flagModuleVersion)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to parse version flag %s: %w", flagModuleVersion, err))
+		}
+		opts = append(opts, WithModuleUploadConfigModuleVersion(v))
+	}
+
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return NewModuleUploadConfig(opts...), nil
+}
+
+type ModuleUploadConfigOption func(*ModuleUploadConfig)
+
+func WithModuleUploadConfigRecursive(recursive bool) ModuleUploadConfigOption {
+	return func(m *ModuleUploadConfig) {
+		m.Recursive = recursive
+	}
+}
+
+func WithModuleUploadConfigIgnoreExistingModule(ignore bool) ModuleUploadConfigOption {
+	return func(m *ModuleUploadConfig) {
+		m.IgnoreExistingModule = ignore
+	}
+}
+
+func WithModuleUploadConfigVersionConstraintsRegex(re *regexp.Regexp) ModuleUploadConfigOption {
+	return func(m *ModuleUploadConfig) {
+		m.VersionConstraintsRegex = re
+	}
+}
+
+func WithModuleUploadConfigVersionConstraintsSemver(constraints version.Constraints) ModuleUploadConfigOption {
+	return func(m *ModuleUploadConfig) {
+		m.VersionConstraintsSemver = constraints
+	}
+}
+
+func WithModuleUploadConfigModuleVersion(v *version.Version) ModuleUploadConfigOption {
+	return func(m *ModuleUploadConfig) {
+		m.ModuleVersion = v
+	}
+}
+
+// The main idea of ModuleUploadRunner is to have a struct that can be mocked more easily in tests
+type ModuleUploadRunner struct {
+	storage module.Storage
+	config  *ModuleUploadConfig
+
+	// The following functions can be overridden for mocking
+	Discover func(string) error
+	Archive  func(string) (io.Reader, error)
+	Process  func(string) error
+}
+
+func (m *ModuleUploadRunner) Run(cmd *cobra.Command, args []string) error {
+	if err := m.config.Validate(); err != nil {
+		return err
+	}
+
 	if len(args) == 0 {
 		return fmt.Errorf("missing path argument to module directory")
 	} else if len(args) > 1 {
@@ -91,59 +183,24 @@ func (m *moduleUploadRunner) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to locate module directory: %w", err)
 	}
 
-	if err := m.parseFlags(); err != nil {
-		return err
-	}
-
-	return m.discover(args[0])
+	return m.Discover(args[0])
 }
 
-func (m *moduleUploadRunner) parseFlags() error {
-	// Validate the semver version constraints
-	if flagVersionConstraintsSemver != "" {
-		constraints, err := version.NewConstraint(flagVersionConstraintsSemver)
-		if err != nil {
-			return fmt.Errorf("failed to parse version-constraints-semver flag: %w", err)
-		}
-		m.config.versionConstraintsSemver = constraints
-	}
-
-	// Validate the regex version constraints
-	if flagVersionConstraintsRegex != "" {
-		constraints, err := regexp.Compile(flagVersionConstraintsRegex)
-		if err != nil {
-			return fmt.Errorf("failed to parse version-constraints-regex flag: %w", err)
-		}
-		m.config.versionConstraintsRegex = constraints
-	}
-
-	if flagModuleVersion != "" {
-		var err error
-		m.config.moduleVersion, err = version.NewSemver(flagModuleVersion)
-		if err != nil {
-			return fmt.Errorf("failed to parse version flag %s: %w", flagModuleVersion, err)
-		}
-	}
-
-	if flagRecursive && m.config.moduleVersion != nil {
-		return errors.New("providing a module version is not supported when traversing recursively, only one of the two options can be provided")
-	}
-
-	m.config.recursive = flagRecursive
-	m.config.ignoreExistingModule = flagIgnoreExistingModule
-
-	return nil
+func (m *ModuleUploadRunner) InitializeMethods() {
+	m.Discover = m.walkModules
+	m.Archive = archiveModule
+	m.Process = m.processModule
 }
 
-func (m *moduleUploadRunner) walkModules(root string) error {
+func (m *ModuleUploadRunner) walkModules(root string) error {
 	modulePaths := []string{} // holds paths to all discovered module spec files
-	if m.config.recursive {
+	if m.config.Recursive {
 		if err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 			if err != nil {
 				return fmt.Errorf("walk-related error: %w", err)
 			}
 
-			if fi.Name() != moduleSpecFileName {
+			if fi.Name() != ModuleSpecFileName {
 				return nil
 			}
 			modulePaths = append(modulePaths, path)
@@ -152,24 +209,24 @@ func (m *moduleUploadRunner) walkModules(root string) error {
 			return err
 		}
 	} else {
-		modulePaths = append(modulePaths, filepath.Join(root, moduleSpecFileName))
+		modulePaths = append(modulePaths, filepath.Join(root, ModuleSpecFileName))
 	}
 
 	for _, path := range modulePaths {
-		if processErr := m.process(path); processErr != nil {
+		if processErr := m.Process(path); processErr != nil {
 			return fmt.Errorf("failed to process module at %s: %w", path, processErr)
 		}
 	}
 	return nil
 }
 
-func (m *moduleUploadRunner) processModule(path string) error {
+func (m *ModuleUploadRunner) processModule(path string) error {
 	spec, err := module.ParseFile(path)
 	if err != nil {
 		return err
 	}
 
-	if m.config.moduleVersion == nil {
+	if m.config.ModuleVersion == nil {
 		err = spec.ValidateWithVersion()
 	} else {
 		err = spec.ValidateWithoutVersion()
@@ -181,15 +238,15 @@ func (m *moduleUploadRunner) processModule(path string) error {
 	// The user can pass a flag that sets the version of the module.
 	// In that case, recursive traversal/discovery is not allowed and the boring-registry.hcl file does not contain
 	// the metadata.version attribute.
-	if m.config.moduleVersion != nil {
-		spec.Metadata.Version = m.config.moduleVersion.String()
+	if m.config.ModuleVersion != nil {
+		spec.Metadata.Version = m.config.ModuleVersion.String()
 	}
 
 	slog.Debug("parsed module spec", slog.String("path", path), slog.String("name", spec.Name()))
 
 	// Check if the module meets version constraints
-	if m.config.versionConstraintsSemver != nil {
-		ok, err := spec.MeetsSemverConstraints(m.config.versionConstraintsSemver)
+	if m.config.VersionConstraintsSemver != nil {
+		ok, err := spec.MeetsSemverConstraints(m.config.VersionConstraintsSemver)
 		if err != nil {
 			return err
 		} else if !ok {
@@ -199,11 +256,9 @@ func (m *moduleUploadRunner) processModule(path string) error {
 		}
 	}
 
-	if m.config.versionConstraintsRegex != nil {
-		ok, err := spec.MeetsRegexConstraints(m.config.versionConstraintsRegex)
-		if err != nil {
-			return err
-		} else if !ok {
+	if m.config.VersionConstraintsRegex != nil {
+		ok := spec.MeetsRegexConstraints(m.config.VersionConstraintsRegex)
+		if !ok {
 			// Skip the module, as it didn't pass the regex version constraints
 			slog.Info("module doesn't meet regex version constraints, skipped", slog.String("name", spec.Name()))
 			return nil
@@ -223,7 +278,7 @@ func (m *moduleUploadRunner) processModule(path string) error {
 			return fmt.Errorf("failed to check if module exists: %w", err)
 		}
 	} else {
-		if m.config.ignoreExistingModule {
+		if m.config.IgnoreExistingModule {
 			// We ignore the ErrModuleNotFound error, as it means the module version doesn't exist yet and we can proceed to upload it
 			slog.Info("module already exists", providerAttrs...)
 			return nil
@@ -235,16 +290,44 @@ func (m *moduleUploadRunner) processModule(path string) error {
 
 	moduleRoot := filepath.Dir(path)
 
-	buf, err := m.archive(moduleRoot)
+	buf, err := m.Archive(moduleRoot)
 	if err != nil {
 		return err
 	}
 
 	if _, err := m.storage.UploadModule(ctx, spec.Metadata.Namespace, spec.Metadata.Name, spec.Metadata.Provider, spec.Metadata.Version, buf); err != nil {
-		return err
+		return fmt.Errorf("failed to upload module: %w", err)
 	}
 
 	slog.Info("module successfully uploaded", providerAttrs...)
+	return nil
+}
+
+func NewModuleUploadRunnerWithDefaultConfig() *ModuleUploadRunner {
+	return &ModuleUploadRunner{
+		config: NewModuleUploadConfig(),
+	}
+}
+
+func NewModuleUploadRunner(config *ModuleUploadConfig, s storage.Storage) *ModuleUploadRunner {
+	return &ModuleUploadRunner{
+		config:  config,
+		storage: s,
+	}
+}
+
+func moduleUploadPreRun(cmd *cobra.Command, args []string) error {
+	storage, err := setupStorage(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to set up storage: %w", err)
+	}
+
+	cfg, err := NewModuleUploadConfigFromFlags()
+	if err != nil {
+		return fmt.Errorf("failed to parse flags: %w", err)
+	}
+	moduleUploader = NewModuleUploadRunner(cfg, storage)
+	moduleUploader.InitializeMethods()
 	return nil
 }
 

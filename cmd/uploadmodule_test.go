@@ -44,9 +44,9 @@ func (m *mockModuleStorage) UploadModule(ctx context.Context, namespace, name, p
 
 func TestModuleUploadRunner_Run(t *testing.T) {
 	validPath := t.TempDir()
-	m := &moduleUploadRunner{
-		config:   &moduleUploadConfig{},
-		discover: func(_ string) error { return nil },
+	m := &ModuleUploadRunner{
+		config:   NewModuleUploadConfig(),
+		Discover: func(_ string) error { return nil },
 	}
 
 	tests := []struct {
@@ -79,7 +79,7 @@ func TestModuleUploadRunner_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := &cobra.Command{}
-			err := m.run(cmd, tt.args)
+			err := m.Run(cmd, tt.args)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("run() error = %v, wantErr %v", err, tt.wantErr)
@@ -89,7 +89,7 @@ func TestModuleUploadRunner_Run(t *testing.T) {
 }
 
 // These tests cannot run in parallel because they modify global state
-func TestModuleUploadRunner_ParseFlags(t *testing.T) {
+func TestNewModuleUploadConfigFromFlags(t *testing.T) {
 	tests := []struct {
 		name                     string
 		versionConstraintsSemver string
@@ -136,12 +136,6 @@ func TestModuleUploadRunner_ParseFlags(t *testing.T) {
 			wantErr:       false,
 		},
 		{
-			name:          "module version with recursive discovery enabled",
-			moduleVersion: "1.2.3",
-			recursive:     true,
-			wantErr:       true,
-		},
-		{
 			name:          "invalid module version",
 			moduleVersion: "a1.2.3",
 			wantErr:       true,
@@ -149,31 +143,27 @@ func TestModuleUploadRunner_ParseFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := &moduleUploadRunner{
-				config: &moduleUploadConfig{},
-			}
-
 			// Reset global flags
 			flagVersionConstraintsSemver = tt.versionConstraintsSemver
 			flagVersionConstraintsRegex = tt.versionConstraintsRegex
 			flagModuleVersion = tt.moduleVersion
 			flagRecursive = tt.recursive
 
-			err := m.parseFlags()
+			config, err := NewModuleUploadConfigFromFlags()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("run() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			if tt.versionConstraintsSemver != "" && !tt.wantErr {
-				assert.NotNil(t, m.config.versionConstraintsSemver)
+				assert.NotNil(t, config.VersionConstraintsSemver)
 			}
 
 			if tt.versionConstraintsRegex != "" && !tt.wantErr {
-				assert.NotNil(t, m.config.versionConstraintsRegex)
+				assert.NotNil(t, config.VersionConstraintsRegex)
 			}
 
 			if tt.moduleVersion != "" && !tt.wantErr {
-				assert.NotNil(t, m.config.moduleVersion)
+				assert.NotNil(t, config.ModuleVersion)
 			}
 		})
 	}
@@ -452,28 +442,26 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 			t.Parallel()
 
 			dir := t.TempDir()
-			specPath := filepath.Join(dir, moduleSpecFileName)
+			specPath := filepath.Join(dir, ModuleSpecFileName)
 			err := os.WriteFile(specPath, []byte(tt.specContent), 0644)
 			assert.NoError(t, err)
 
-			m := &moduleUploadRunner{
+			m := &ModuleUploadRunner{
 				storage: tt.storage,
-				config: &moduleUploadConfig{
-					ignoreExistingModule: tt.ignoreExistingModule,
-				},
-				archive: tt.setupArchive,
+				config:  NewModuleUploadConfig(WithModuleUploadConfigIgnoreExistingModule(tt.ignoreExistingModule)),
+				Archive: tt.setupArchive,
 			}
 
 			if tt.versionConstraintsSemver != "" {
 				constraints, err := version.NewConstraint(tt.versionConstraintsSemver)
 				assert.NoError(t, err)
-				m.config.versionConstraintsSemver = constraints
+				m.config.VersionConstraintsSemver = constraints
 			}
 
 			if tt.versionConstraintsRegex != "" {
 				constraints, err := regexp.Compile(tt.versionConstraintsRegex)
 				assert.NoError(t, err)
-				m.config.versionConstraintsRegex = constraints
+				m.config.VersionConstraintsRegex = constraints
 			}
 
 			err = m.processModule(specPath)
@@ -558,11 +546,9 @@ func TestModuleUploadRunner_WalkModules(t *testing.T) {
 			dir := createModuleDirStructure(t, tt.root, tt.files)
 
 			var processedPaths []string
-			m := &moduleUploadRunner{
-				config: &moduleUploadConfig{
-					recursive: tt.recursive,
-				},
-				process: func(path string) error {
+			m := &ModuleUploadRunner{
+				config: NewModuleUploadConfig(WithModuleUploadConfigRecursive(tt.recursive)),
+				Process: func(path string) error {
 					processedPaths = append(processedPaths, path)
 					return tt.processErr
 				},
@@ -576,6 +562,46 @@ func TestModuleUploadRunner_WalkModules(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedPaths, len(processedPaths))
 			}
+		})
+	}
+}
+
+func TestModuleUploadConfig_Validate(t *testing.T) {
+	parseVersion := func(t *testing.T, v string) *version.Version {
+		moduleVersion, err := version.NewSemver(v)
+		if err != nil {
+			t.Fatalf("failed to parse version: %v", err)
+		}
+
+		return moduleVersion
+	}
+
+	testCases := []struct {
+		name    string
+		config  *ModuleUploadConfig
+		isValid bool
+	}{
+		{
+			name:    "valid configuration",
+			config:  NewModuleUploadConfig(),
+			isValid: true,
+		},
+		{
+			name: "both version and recursive are invalid",
+			config: NewModuleUploadConfig(
+				WithModuleUploadConfigRecursive(true),
+				WithModuleUploadConfigModuleVersion(parseVersion(t, "1.2.3")),
+			),
+			isValid: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.config.Validate()
+			assert.Equal(t, tc.isValid, err == nil)
 		})
 	}
 }

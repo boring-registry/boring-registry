@@ -86,11 +86,8 @@ func (s *Spec) MeetsSemverConstraints(constraints version.Constraints) (bool, er
 
 // MeetsRegexConstraints checks whether a module version matches the regex.
 // Returns a boolean indicating if the module meets the constraints
-func (s *Spec) MeetsRegexConstraints(re *regexp.Regexp) (bool, error) {
-	if s.Metadata.Version == "" {
-		return false, errors.New("version is unset")
-	}
-	return re.MatchString(s.Metadata.Version), nil
+func (s *Spec) MeetsRegexConstraints(re *regexp.Regexp) bool {
+	return re.MatchString(s.Metadata.Version)
 }
 
 // ParseFile parses a module spec file.

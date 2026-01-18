@@ -143,7 +143,7 @@ func TestParse(t *testing.T) {
 	}
 }
 
-func TestSpec_Validate(t *testing.T) {
+func TestValidate(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -252,7 +252,7 @@ func TestSpec_Validate(t *testing.T) {
 	}
 }
 
-func TestSpec_ValidateWithVersion(t *testing.T) {
+func TestValidateWithVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -394,7 +394,7 @@ func TestSpec_ValidateWithVersion(t *testing.T) {
 	}
 }
 
-func TestSpec_ValidateWithoutVersion(t *testing.T) {
+func TestValidateWithoutVersion(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -622,9 +622,8 @@ func TestSpec_MeetsRegexConstraints(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ok, err := tc.spec.MeetsRegexConstraints(tc.constraints)
+			ok := tc.spec.MeetsRegexConstraints(tc.constraints)
 
-			assert.Equal(t, tc.wantErr, err != nil)
 			assert.Equal(t, tc.expect, ok)
 		})
 	}
