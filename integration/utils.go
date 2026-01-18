@@ -11,6 +11,7 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/azure/azurite"
 )
 
@@ -46,7 +47,14 @@ func (s *storageHarness) setupClient(ctx context.Context, t *testing.T) {
 }
 
 func (s *storageHarness) createAzuriteContainer(ctx context.Context, t *testing.T) func() {
-	azuriteContainer, err := azurite.Run(ctx, "mcr.microsoft.com/azure-storage/azurite:3.35.0")
+	azuriteContainer, err := azurite.Run(ctx,
+		"mcr.microsoft.com/azure-storage/azurite:3.35.0",
+
+		// The Azurite release schedule sometimes lags behind the release schedule of azure-sdk-for-go.
+		// This can result in situations where the API schema in azure-sdk-for-go is more recent as azurite's.
+		// THerefore we skip the API version check
+		testcontainers.WithCmdArgs("--skipApiVersionCheck"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
