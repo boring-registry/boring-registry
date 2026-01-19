@@ -24,12 +24,13 @@ import (
 // GCSStorage is a Storage implementation backed by GCS.
 // GCSStorage implements module.Storage, provider.Storage, and mirror.Storage
 type GCSStorage struct {
-	sc                  *storage.Client
-	bucket              string
-	bucketPrefix        string
-	signedURLExpiry     time.Duration
-	serviceAccount      string
-	moduleArchiveFormat string
+	sc                   *storage.Client
+	iamCredentialsClient *credentials.IamCredentialsClient
+	bucket               string
+	bucketPrefix         string
+	signedURLExpiry      time.Duration
+	serviceAccount       string
+	moduleArchiveFormat  string
 }
 
 func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
@@ -381,11 +382,6 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 	var url string
 	if s.serviceAccount != "" {
 		// needs Service Account Token Creator role
-		c, err := credentials.NewIamCredentialsClient(ctx)
-		if err != nil {
-			return "", fmt.Errorf("credentials.NewIamCredentialsClient: %v", err)
-		}
-
 		url, err = storage.SignedURL(s.bucket, object, &storage.SignedURLOptions{
 			Scheme:         storage.SigningSchemeV4,
 			Method:         "GET",
@@ -396,7 +392,7 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 					Payload: b,
 					Name:    s.serviceAccount,
 				}
-				resp, err := c.SignBlob(ctx, req)
+				resp, err := s.iamCredentialsClient.SignBlob(ctx, req)
 				if err != nil {
 					return nil, fmt.Errorf("storage.signedURL.SignBytes: %v", err)
 				}
@@ -440,6 +436,25 @@ func (s *GCSStorage) objectExists(ctx context.Context, key string) (bool, error)
 
 func (s *GCSStorage) GetDownloadUrl(ctx context.Context, url string) (string, error) {
 	return fmt.Sprintf("https://storage.googleapis.com/%s", url), nil
+}
+
+// Close releases any resources held by the GCSStorage
+func (s *GCSStorage) Close() error {
+	var errs []error
+	if s.iamCredentialsClient != nil {
+		if err := s.iamCredentialsClient.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close IAM credentials client: %w", err))
+		}
+	}
+	if s.sc != nil {
+		if err := s.sc.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close storage client: %w", err))
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 // GCSStorageOption provides additional options for the GCSStorage.
@@ -486,6 +501,15 @@ func NewGCSStorage(bucket string, options ...GCSStorageOption) (*GCSStorage, err
 
 	for _, option := range options {
 		option(s)
+	}
+
+	// Initialize IAM credentials client if service account is configured
+	if s.serviceAccount != "" {
+		iamClient, err := credentials.NewIamCredentialsClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create IAM credentials client: %w", err)
+		}
+		s.iamCredentialsClient = iamClient
 	}
 
 	return s, nil
