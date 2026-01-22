@@ -178,7 +178,7 @@ func newCachedUpstreamProvider(upstream upstreamProvider, config CacheConfig) (*
 			return uint32(len(key) + value.sizeBytes)
 		},
 		ExpiryCalculator: otter.ExpiryWriting[string, *cacheEntry](config.TTL),
-		InitialCapacity:  1000,
+		InitialCapacity:  100,
 	}
 
 	cache, err := otter.New(opts)
