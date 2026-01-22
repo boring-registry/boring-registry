@@ -18,6 +18,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/maypok86/otter/v2 v2.2.1
 	github.com/okta/okta-jwt-verifier-golang/v2 v2.1.1
 	github.com/maypok86/otter/v2 v2.2.1
 	github.com/prometheus/client_golang v1.23.2
@@ -31,7 +32,6 @@ require (
 	golang.org/x/sync v0.19.0
 	google.golang.org/api v0.260.0
 )
-
 
 require (
 	cel.dev/expr v0.25.1 // indirect
