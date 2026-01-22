@@ -207,7 +207,7 @@ func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) Service 
 		} else {
 			slog.Info("cache enabled for pull-through mirror",
 				slog.Duration("ttl", cacheConfig.TTL),
-				slog.Uint64("max_size_mb", cacheConfig.MaxSizeMB))
+				slog.Int("max_size_mb", cacheConfig.MaxSizeMB))
 			upstream = cachedUpstream
 		}
 	}

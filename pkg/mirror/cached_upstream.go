@@ -14,7 +14,7 @@ import (
 type CacheConfig struct {
 	Enabled   bool
 	TTL       time.Duration
-	MaxSizeMB uint64
+	MaxSizeMB int
 }
 
 // Represents a cache entry
@@ -150,7 +150,7 @@ func newCachedUpstreamProvider(upstream upstreamProvider, config CacheConfig) (*
 
 	// Configure otter cache
 	opts := &otter.Options[string, *cacheEntry]{
-		MaximumWeight: maxWeightBytes,
+		MaximumWeight: uint64(maxWeightBytes),
 		Weigher: func(key string, value *cacheEntry) uint32 {
 			// Weight = size of key + size of value
 			return uint32(len(key) + value.sizeBytes)
