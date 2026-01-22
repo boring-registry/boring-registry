@@ -191,7 +191,7 @@ func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *co
 	return p.upstream.shaSums(ctx, providerUpstream)
 }
 
-func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) Service {
+func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) (Service, error) {
 	remoteServiceDiscovery := discovery.NewRemoteServiceDiscovery(http.DefaultClient)
 
 	// Create the base upstream which consumes the remote API
@@ -201,9 +201,7 @@ func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) Service 
 	if cacheConfig.Enabled {
 		cachedUpstream, err := newCachedUpstreamProvider(upstream, cacheConfig)
 		if err != nil {
-			// Graceful fallback: log warning and continue without cache
-			slog.Warn("failed to initialize cache, continuing without caching",
-				slog.String("error", err.Error()))
+			return nil, err
 		} else {
 			slog.Info("cache enabled for pull-through mirror",
 				slog.Duration("ttl", cacheConfig.TTL),
@@ -220,7 +218,7 @@ func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) Service 
 		copier: c,
 	}
 
-	return svc
+	return svc, nil
 }
 
 func mergePlatforms(provider *core.Provider, platforms []core.Platform, sha256Sums *core.Sha256Sums) (*ListProviderInstallationResponse, error) {

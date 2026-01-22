@@ -275,7 +275,10 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 				MaxSizeMB: flagProviderNetworkMirrorPullThroughCacheSize,
 			}
 
-			svc = mirror.NewPullThroughMirror(s, copier, cacheConfig)
+			svc, err = mirror.NewPullThroughMirror(s, copier, cacheConfig)
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			svc = mirror.NewMirror(s)
 		}
