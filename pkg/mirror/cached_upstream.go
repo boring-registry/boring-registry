@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
@@ -51,12 +52,12 @@ func buildShaSumsKey(provider *core.Provider) string {
 }
 
 // Estimates the size in bytes of an object via JSON marshaling (usefull for cache Weigther func)
-func estimateSize(data interface{}) int {
+func estimateSize(data interface{}) (int, error) {
 	bytes, err := json.Marshal(data)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return len(bytes)
+	return len(bytes), nil
 }
 
 // Implements upstreamProvider's listProviderVersions method, with caching
@@ -76,11 +77,18 @@ func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provi
 		return nil, err
 	}
 
+	// Estimate cache entry size
+	sizeBytes, err := estimateSize(versions)
+	if err != nil {
+		slog.Warn("failed to estimate the byte size of provider's versions list. Cache set will be skipped", slog.String("error", err.Error()))
+		return versions, nil
+	}
+
 	// Store in cache
 	entry := &cacheEntry{
 		data:      versions,
 		timestamp: time.Now(),
-		sizeBytes: estimateSize(versions),
+		sizeBytes: sizeBytes,
 	}
 	c.cache.Set(key, entry)
 
@@ -104,11 +112,18 @@ func (c *cachedUpstreamProvider) getProvider(ctx context.Context, provider *core
 		return nil, err
 	}
 
+	// Estimate cache entry size
+	sizeBytes, err := estimateSize(prov)
+	if err != nil {
+		slog.Warn("failed to estimate the byte size of provider's list. Cache set will be skipped", slog.String("error", err.Error()))
+		return prov, nil
+	}
+
 	// Store in cache
 	entry := &cacheEntry{
 		data:      prov,
 		timestamp: time.Now(),
-		sizeBytes: estimateSize(prov),
+		sizeBytes: sizeBytes,
 	}
 	c.cache.Set(key, entry)
 
@@ -132,11 +147,18 @@ func (c *cachedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 		return nil, err
 	}
 
+	// Estimate cache entry size
+	sizeBytes, err := estimateSize(sums)
+	if err != nil {
+		slog.Warn("failed to estimate the byte size of provider's SHA sums. Cache set will be skipped", slog.String("error", err.Error()))
+		return sums, nil
+	}
+
 	// Store in cache
 	entry := &cacheEntry{
 		data:      sums,
 		timestamp: time.Now(),
-		sizeBytes: estimateSize(sums),
+		sizeBytes: sizeBytes,
 	}
 	c.cache.Set(key, entry)
 
