@@ -28,9 +28,12 @@ type ServerMetrics struct {
 	Http     *HttpMetrics
 }
 type MirrorMetrics struct {
-	ListProviderVersions     *prometheus.CounterVec
-	ListProviderInstallation *prometheus.CounterVec
-	RetrieveProviderArchive  *prometheus.CounterVec
+	ListProviderVersions         *prometheus.CounterVec
+	ListProviderInstallation     *prometheus.CounterVec
+	RetrieveProviderArchive      *prometheus.CounterVec
+	ListProviderVersionsCacheHit *prometheus.CounterVec
+	GetProviderCacheHit          *prometheus.CounterVec
+	GetShaSumsCacheHit           *prometheus.CounterVec
 }
 type ModuleMetrics struct {
 	ListVersions *prometheus.CounterVec
@@ -77,6 +80,15 @@ func NewMetrics(buckets []float64) *ServerMetrics {
 				},
 				[]string{HostnameLabel, NamespaceLabel, NameLabel},
 			),
+			ListProviderVersionsCacheHit: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "list_provider_versions_cache_hit_total",
+					Help:      "The total number of cache hit for provider versions requests by mirror",
+				},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel},
+			),
 			ListProviderInstallation: promauto.NewCounterVec(
 				prometheus.CounterOpts{
 					Namespace: boringNamespace,
@@ -94,6 +106,24 @@ func NewMetrics(buckets []float64) *ServerMetrics {
 					Help:      "The total number of provider retreive requests by mirror",
 				},
 				[]string{HostnameLabel, NamespaceLabel, NameLabel, VersionLabel, OsLabel, ArchLabel},
+			),
+			GetProviderCacheHit: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "download_version_cache_hit_total",
+					Help:      "The total number of cache hit for provider retreive requests by mirror",
+				},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel, VersionLabel, OsLabel, ArchLabel},
+			),
+			GetShaSumsCacheHit: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "download_sha_sums_cache_hit_total",
+					Help:      "The total number of cache hit for provider version's SHA sums file",
+				},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel, VersionLabel},
 			),
 		},
 		Provider: &ProviderMetrics{

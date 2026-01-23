@@ -18,7 +18,9 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/maypok86/otter/v2 v2.2.1
 	github.com/okta/okta-jwt-verifier-golang/v2 v2.1.1
+	github.com/maypok86/otter/v2 v2.2.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -30,8 +32,6 @@ require (
 	golang.org/x/sync v0.19.0
 	google.golang.org/api v0.260.0
 )
-
-require github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 
 require (
 	cel.dev/expr v0.25.1 // indirect
@@ -62,6 +62,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.17 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.6 // indirect
