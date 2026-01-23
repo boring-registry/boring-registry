@@ -11,6 +11,7 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 )
 
 // Service implements the Provider Network Mirror Protocol.
@@ -191,7 +192,7 @@ func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *co
 	return p.upstream.shaSums(ctx, providerUpstream)
 }
 
-func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) (Service, error) {
+func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig, metrics *o11y.MirrorMetrics) (Service, error) {
 	remoteServiceDiscovery := discovery.NewRemoteServiceDiscovery(http.DefaultClient)
 
 	// Create the base upstream which consumes the remote API
@@ -199,7 +200,7 @@ func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig) (Service
 
 	// Wrap with cache if enabled
 	if cacheConfig.Enabled {
-		cachedUpstream, err := newCachedUpstreamProvider(upstream, cacheConfig)
+		cachedUpstream, err := newCachedUpstreamProvider(upstream, cacheConfig, metrics)
 		if err != nil {
 			return nil, err
 		} else {

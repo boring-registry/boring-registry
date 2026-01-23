@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 	"github.com/maypok86/otter/v2"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Contains the cache configuration
@@ -30,6 +32,7 @@ type cachedUpstreamProvider struct {
 	upstream upstreamProvider
 	cache    *otter.Cache[string, *cacheEntry]
 	config   CacheConfig
+	metrics  *o11y.MirrorMetrics
 }
 
 // Builds a cache key for listProviderVersions
@@ -67,6 +70,11 @@ func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provi
 	// Try to get from cache
 	if entry, ok := c.cache.GetIfPresent(key); ok {
 		if versions, ok := entry.data.(*core.ProviderVersions); ok {
+			c.metrics.ListProviderVersionsCacheHit.With(prometheus.Labels{
+				o11y.HostnameLabel:  provider.Hostname,
+				o11y.NamespaceLabel: provider.Namespace,
+				o11y.NameLabel:      provider.Name,
+			}).Inc()
 			return versions, nil
 		}
 	}
@@ -102,6 +110,14 @@ func (c *cachedUpstreamProvider) getProvider(ctx context.Context, provider *core
 	// Try to get from cache
 	if entry, ok := c.cache.GetIfPresent(key); ok {
 		if prov, ok := entry.data.(*core.Provider); ok {
+			c.metrics.GetProviderCacheHit.With(prometheus.Labels{
+				o11y.HostnameLabel:  provider.Hostname,
+				o11y.NamespaceLabel: provider.Namespace,
+				o11y.NameLabel:      provider.Name,
+				o11y.VersionLabel:   provider.Version,
+				o11y.OsLabel:        provider.OS,
+				o11y.ArchLabel:      provider.Arch,
+			}).Inc()
 			return prov, nil
 		}
 	}
@@ -137,6 +153,12 @@ func (c *cachedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 	// Try to get from cache
 	if entry, ok := c.cache.GetIfPresent(key); ok {
 		if sums, ok := entry.data.(*core.Sha256Sums); ok {
+			c.metrics.GetShaSumsCacheHit.With(prometheus.Labels{
+				o11y.HostnameLabel:  provider.Hostname,
+				o11y.NamespaceLabel: provider.Namespace,
+				o11y.NameLabel:      provider.Name,
+				o11y.VersionLabel:   provider.Version,
+			}).Inc()
 			return sums, nil
 		}
 	}
@@ -166,7 +188,7 @@ func (c *cachedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 }
 
 // Creates a new upstream provider wrapper with caching
-func newCachedUpstreamProvider(upstream upstreamProvider, config CacheConfig) (*cachedUpstreamProvider, error) {
+func newCachedUpstreamProvider(upstream upstreamProvider, config CacheConfig, metrics *o11y.MirrorMetrics) (*cachedUpstreamProvider, error) {
 	// Convert MB to bytes
 	maxWeightBytes := config.MaxSizeMB * 1024 * 1024
 
@@ -190,5 +212,6 @@ func newCachedUpstreamProvider(upstream upstreamProvider, config CacheConfig) (*
 		upstream: upstream,
 		cache:    cache,
 		config:   config,
+		metrics:  metrics,
 	}, nil
 }
