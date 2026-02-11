@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/audit"
+	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/coreos/go-oidc/v3/oidc"
 )
 
@@ -64,7 +65,7 @@ func (o *OidcProvider) Verify(ctx context.Context, token string) error {
 
 	idToken, err := verifier.Verify(ctx, token)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", core.ErrInvalidToken, err)
 	}
 
 	userCtx, err := o.extractUserContext(idToken)

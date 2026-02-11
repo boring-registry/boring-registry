@@ -116,6 +116,18 @@ func isLikelyJWT(token string) bool {
 	return len(parts) == 3
 }
 
+// logTokenAttrs returns slog attributes with token claim details for debugging auth failures.
+func logTokenAttrs(token string, baseAttrs ...any) []any {
+	if claims, err := parseJWTClaims(token); err == nil {
+		baseAttrs = append(baseAttrs,
+			slog.String("subject", claims.Subject),
+			slog.String("email", claims.UserEmail),
+			slog.String("client_id", claims.ClientID),
+		)
+	}
+	return baseAttrs
+}
+
 func Middleware(providers ...Provider) endpoint.Middleware {
 	return func(next endpoint.Endpoint) endpoint.Endpoint {
 		return func(ctx context.Context, request interface{}) (interface{}, error) {
@@ -136,8 +148,13 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 							slog.Debug("found matching provider for issuer", slog.String("issuer", issuer))
 							err := matchingProvider.Verify(ctx, token)
 							if err != nil {
-								slog.Debug("failed to verify token with matching provider", slog.String("issuer", issuer), slog.String("err", err.Error()))
-								return nil, fmt.Errorf("failed to verify token: %w", err)
+								slog.Warn("failed to verify token with matching provider",
+									logTokenAttrs(token,
+										slog.String("issuer", issuer),
+										slog.String("err", err.Error()),
+									)...,
+								)
+								return nil, err
 							} else {
 								slog.Debug("successfully verified token with matching provider", slog.String("issuer", issuer))
 
@@ -174,7 +191,10 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 						return next(ctx, request)
 					}
 				}
-				return nil, fmt.Errorf("failed to verify token: %w", lastError)
+				slog.Warn("all providers failed to verify token",
+					logTokenAttrs(token, slog.String("err", lastError.Error()))...,
+				)
+				return nil, fmt.Errorf("%w: %w", core.ErrInvalidToken, lastError)
 			} else {
 				return nil, fmt.Errorf("%w: request does not contain a token", core.ErrUnauthorized)
 			}
