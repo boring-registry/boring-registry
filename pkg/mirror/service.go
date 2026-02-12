@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
+	o11y "github.com/boring-registry/boring-registry/pkg/observability"
 )
 
 // Service implements the Provider Network Mirror Protocol.
@@ -190,17 +192,34 @@ func (p *pullThroughMirror) upstreamSha256Sums(ctx context.Context, provider *co
 	return p.upstream.shaSums(ctx, providerUpstream)
 }
 
-func NewPullThroughMirror(s Storage, c Copier) Service {
+func NewPullThroughMirror(s Storage, c Copier, cacheConfig CacheConfig, metrics *o11y.MirrorMetrics) (Service, error) {
 	remoteServiceDiscovery := discovery.NewRemoteServiceDiscovery(http.DefaultClient)
+
+	// Create the base upstream which consumes the remote API
+	var upstream upstreamProvider = newUpstreamProviderRegistry(remoteServiceDiscovery)
+
+	// Wrap with cache if enabled
+	if cacheConfig.Enabled {
+		cachedUpstream, err := newCachedUpstreamProvider(upstream, cacheConfig, metrics)
+		if err != nil {
+			return nil, err
+		} else {
+			slog.Info("cache enabled for pull-through mirror",
+				slog.Duration("ttl", cacheConfig.TTL),
+				slog.Int("max_size_mb", cacheConfig.MaxSizeMB))
+			upstream = cachedUpstream
+		}
+	}
+
 	svc := &pullThroughMirror{
-		upstream: newUpstreamProviderRegistry(remoteServiceDiscovery),
+		upstream: upstream,
 		mirror: &mirror{
 			storage: s,
 		},
 		copier: c,
 	}
 
-	return svc
+	return svc, nil
 }
 
 func mergePlatforms(provider *core.Provider, platforms []core.Platform, sha256Sums *core.Sha256Sums) (*ListProviderInstallationResponse, error) {
