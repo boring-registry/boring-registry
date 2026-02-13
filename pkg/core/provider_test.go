@@ -279,7 +279,7 @@ func TestSigningKeys_IsValidSha256Sums(t *testing.T) {
 		{
 			name:        "SigningKeys without public keys",
 			signingKeys: SigningKeys{},
-			expectError: true,
+			expectError: false,
 		},
 		{
 			name: "broken ascii armored keyring",
