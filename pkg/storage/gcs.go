@@ -438,7 +438,9 @@ func (s *GCSStorage) GetDownloadUrl(ctx context.Context, url string) (string, er
 	return fmt.Sprintf("https://storage.googleapis.com/%s", url), nil
 }
 
-// Close releases any resources held by the GCSStorage
+// Close releases any resources held by the GCSStorage.
+// Note: This is not currently called anywhere in the codebase, but it should 
+// be invoked during process termination to ensure all clients are closed gracefully.
 func (s *GCSStorage) Close() error {
 	var errs []error
 	if s.iamCredentialsClient != nil {
