@@ -45,4 +45,4 @@ To further improve `terraform init` performance, you can enable an in-memory cac
 Once enabled, two parameters can be configured:
 
 - Metadata Time-to-Live (TTL), defined as a duration using `--network-mirror-pull-through-cache-ttl=24h`. The default value is 24 hours.
-- Maximum cache size, expressed in megabytes per upstream registry, using `--network-mirror-pull-through-cache-size=10`. The default value is 16 MB.
+- Maximum cache size, expressed in megabytes for all upstream registries, using `--network-mirror-pull-through-cache-size=10`. The default value is 16 MB.
