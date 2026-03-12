@@ -222,7 +222,7 @@ func init() {
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorEnabled, "network-mirror", true, "Enable the provider network mirror")
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughEnabled, "network-mirror-pull-through", false, "Enable the pull-through provider network mirror. This setting takes no effect if network-mirror is disabled")
 	serverCmd.Flags().BoolVar(&flagProviderNetworkMirrorPullThroughCacheEnabled, "network-mirror-pull-through-cache-enabled", false, "Enable in-memory cache for pull-through mirror")
-	serverCmd.Flags().DurationVar(&flagProviderNetworkMirrorPullThroughCacheTTL, "network-mirror-pull-through-cache-ttl", 24*time.Hour, "Cache TTL in hours")
+	serverCmd.Flags().DurationVar(&flagProviderNetworkMirrorPullThroughCacheTTL, "network-mirror-pull-through-cache-ttl", 24*time.Hour, "Cache TTL in \"s\", \"m\", \"h\"")
 	serverCmd.Flags().IntVar(&flagProviderNetworkMirrorPullThroughCacheSize, "network-mirror-pull-through-cache-size", 16, "Cache maximum size in MB by upstream registry")
 }
 
