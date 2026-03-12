@@ -23,7 +23,6 @@ type CacheConfig struct {
 // Represents a cache entry
 type cacheEntry struct {
 	data      interface{}
-	timestamp time.Time
 	sizeBytes int
 }
 
@@ -95,7 +94,6 @@ func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provi
 	// Store in cache
 	entry := &cacheEntry{
 		data:      versions,
-		timestamp: time.Now(),
 		sizeBytes: sizeBytes,
 	}
 	c.cache.Set(key, entry)
@@ -138,7 +136,6 @@ func (c *cachedUpstreamProvider) getProvider(ctx context.Context, provider *core
 	// Store in cache
 	entry := &cacheEntry{
 		data:      prov,
-		timestamp: time.Now(),
 		sizeBytes: sizeBytes,
 	}
 	c.cache.Set(key, entry)
@@ -179,7 +176,6 @@ func (c *cachedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 	// Store in cache
 	entry := &cacheEntry{
 		data:      sums,
-		timestamp: time.Now(),
 		sizeBytes: sizeBytes,
 	}
 	c.cache.Set(key, entry)
