@@ -20,7 +20,6 @@ require (
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/maypok86/otter/v2 v2.2.1
 	github.com/okta/okta-jwt-verifier-golang/v2 v2.1.1
-	github.com/maypok86/otter/v2 v2.2.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
