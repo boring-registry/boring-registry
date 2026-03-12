@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
@@ -192,6 +193,10 @@ func newCachedUpstreamProvider(upstream upstreamProvider, config CacheConfig, me
 	opts := &otter.Options[string, *cacheEntry]{
 		MaximumWeight: uint64(maxWeightBytes),
 		Weigher: func(key string, value *cacheEntry) uint32 {
+			// Check for uint32 overflow before doing the addition
+			if value.sizeBytes > math.MaxUint32-len(key) {
+				return math.MaxUint32
+			}
 			// Weight = size of key + size of value
 			return uint32(len(key) + value.sizeBytes)
 		},
