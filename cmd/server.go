@@ -271,7 +271,7 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 			// Prepare cache configuration
 			cacheConfig := mirror.CacheConfig{
 				Enabled:   flagProviderNetworkMirrorPullThroughCacheEnabled,
-				TTL:       time.Duration(flagProviderNetworkMirrorPullThroughCacheTTL) * time.Hour,
+				TTL:       flagProviderNetworkMirrorPullThroughCacheTTL,
 				MaxSizeMB: flagProviderNetworkMirrorPullThroughCacheSize,
 			}
 
