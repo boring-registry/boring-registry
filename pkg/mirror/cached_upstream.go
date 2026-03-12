@@ -54,7 +54,7 @@ func buildShaSumsKey(provider *core.Provider) string {
 }
 
 // Estimates the size in bytes of an object via JSON marshaling (usefull for cache Weigther func)
-func estimateSize(data interface{}) (int, error) {
+func estimateSize(data any) (int, error) {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		return 0, err
