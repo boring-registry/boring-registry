@@ -22,7 +22,7 @@ type CacheConfig struct {
 
 // Represents a cache entry
 type cacheEntry struct {
-	data      interface{}
+	data      any
 	sizeBytes int
 }
 
