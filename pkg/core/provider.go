@@ -144,9 +144,7 @@ func (s *SigningKeys) IsValidSha256Sums(sha256Sums, sha256SumsSig []byte) error 
 			return err
 		}
 
-		if err == nil {
-			return nil
-		}
+		return nil
 	}
 
 	return errors.New("no valid key found for signature")

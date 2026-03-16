@@ -37,7 +37,7 @@ func Test_copier_signingKeys(t *testing.T) {
 			fields: fields{
 				storage: &mockedStorage{
 					mirroredSigningKeys: func(ctx context.Context, hostname, namespace string) (*core.SigningKeys, error) {
-						return nil, errors.New("this is not an ErrObjectNotFound")
+						return nil, errors.New("this is not an ObjectNotFoundError")
 					},
 				},
 			},
@@ -52,7 +52,7 @@ func Test_copier_signingKeys(t *testing.T) {
 			fields: fields{
 				storage: &mockedStorage{
 					mirroredSigningKeys: func(ctx context.Context, hostname, namespace string) (*core.SigningKeys, error) {
-						return nil, core.ErrObjectNotFound
+						return nil, core.NewObjectNotFoundError("/object/does/not/exist/signing-keys.json")
 					},
 					uploadMirroredSigningKeys: func(ctx context.Context, hostname, namespace string, signingKeys *core.SigningKeys) error {
 						return nil
@@ -64,6 +64,7 @@ func Test_copier_signingKeys(t *testing.T) {
 				Namespace:   "example",
 				SigningKeys: exampleSigningKeys,
 			},
+			wantErr: false,
 		},
 		{
 			name: "existing keys needs updating",
@@ -90,6 +91,7 @@ func Test_copier_signingKeys(t *testing.T) {
 					},
 				},
 			},
+			wantErr: false,
 		},
 		{
 			name: "signing keys exist already",
@@ -108,6 +110,7 @@ func Test_copier_signingKeys(t *testing.T) {
 				Namespace:   "example",
 				SigningKeys: exampleSigningKeys,
 			},
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {

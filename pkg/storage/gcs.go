@@ -24,22 +24,24 @@ import (
 // GCSStorage is a Storage implementation backed by GCS.
 // GCSStorage implements module.Storage, provider.Storage, and mirror.Storage
 type GCSStorage struct {
-	sc                  *storage.Client
-	bucket              string
-	bucketPrefix        string
-	signedURLExpiry     time.Duration
-	serviceAccount      string
-	moduleArchiveFormat string
+	sc                   *storage.Client
+	iamCredentialsClient *credentials.IamCredentialsClient
+	bucket               string
+	bucketPrefix         string
+	signedURLExpiry      time.Duration
+	serviceAccount       string
+	moduleArchiveFormat  string
 }
 
 func (s *GCSStorage) GetModule(ctx context.Context, namespace, name, provider, version string) (core.Module, error) {
 	o := s.sc.Bucket(s.bucket).Object(modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat))
 	attrs, err := o.Attrs(ctx)
 	if err != nil {
-		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleNotFound, err)
+		return core.Module{}, errors.Join(module.ErrModuleNotFound, err)
 	}
 	url, err := s.presignedURL(ctx, attrs.Name)
 	if err != nil {
+		// TODO: we might want to return a different error here to distinguish between "not found" and a failure to create a presigned url in other parts of the code base
 		return core.Module{}, fmt.Errorf("%v: %w", module.ErrModuleNotFound, err)
 	}
 	return core.Module{
@@ -117,9 +119,10 @@ func (s *GCSStorage) UploadModule(ctx context.Context, namespace, name, provider
 // GetProvider implements provider.Storage
 func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider *core.Provider) (*core.Provider, error) {
 	var archivePath, shasumPath, shasumSigPath string
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		archivePath, shasumPath, shasumSigPath = internalProviderPath(s.bucketPrefix, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		archivePath, shasumPath, shasumSigPath = mirrorProviderPath(s.bucketPrefix, provider.Hostname, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
 	}
 
@@ -154,9 +157,10 @@ func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider 
 	}
 
 	var signingKeys *core.SigningKeys
-	if pt == internalProviderType {
+	switch pt {
+	case internalProviderType:
 		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
-	} else if pt == mirrorProviderType {
+	case mirrorProviderType:
 		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
 	}
 	if err != nil {
@@ -286,7 +290,7 @@ func (s *GCSStorage) signingKeys(ctx context.Context, pt providerType, hostname,
 	if err != nil {
 		return nil, err
 	} else if !exists {
-		return nil, core.ErrObjectNotFound
+		return nil, core.NewObjectNotFoundError(key)
 	}
 	signingKeysRaw, err := s.download(ctx, key)
 	if err != nil {
@@ -378,11 +382,6 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 	var url string
 	if s.serviceAccount != "" {
 		// needs Service Account Token Creator role
-		c, err := credentials.NewIamCredentialsClient(ctx)
-		if err != nil {
-			return "", fmt.Errorf("credentials.NewIamCredentialsClient: %v", err)
-		}
-
 		url, err = storage.SignedURL(s.bucket, object, &storage.SignedURLOptions{
 			Scheme:         storage.SigningSchemeV4,
 			Method:         "GET",
@@ -393,7 +392,7 @@ func (s *GCSStorage) presignedURL(ctx context.Context, object string) (string, e
 					Payload: b,
 					Name:    s.serviceAccount,
 				}
-				resp, err := c.SignBlob(ctx, req)
+				resp, err := s.iamCredentialsClient.SignBlob(ctx, req)
 				if err != nil {
 					return nil, fmt.Errorf("storage.signedURL.SignBytes: %v", err)
 				}
@@ -437,6 +436,27 @@ func (s *GCSStorage) objectExists(ctx context.Context, key string) (bool, error)
 
 func (s *GCSStorage) GetDownloadUrl(ctx context.Context, url string) (string, error) {
 	return fmt.Sprintf("https://storage.googleapis.com/%s", url), nil
+}
+
+// Close releases any resources held by the GCSStorage.
+// Note: This is not currently called anywhere in the codebase, but it should
+// be invoked during process termination to ensure all clients are closed gracefully.
+func (s *GCSStorage) Close() error {
+	var errs []error
+	if s.iamCredentialsClient != nil {
+		if err := s.iamCredentialsClient.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close IAM credentials client: %w", err))
+		}
+	}
+	if s.sc != nil {
+		if err := s.sc.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close storage client: %w", err))
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 // GCSStorageOption provides additional options for the GCSStorage.
@@ -483,6 +503,15 @@ func NewGCSStorage(bucket string, options ...GCSStorageOption) (*GCSStorage, err
 
 	for _, option := range options {
 		option(s)
+	}
+
+	// Initialize IAM credentials client if service account is configured
+	if s.serviceAccount != "" {
+		iamClient, err := credentials.NewIamCredentialsClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create IAM credentials client: %w", err)
+		}
+		s.iamCredentialsClient = iamClient
 	}
 
 	return s, nil

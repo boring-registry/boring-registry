@@ -37,6 +37,8 @@ func (m *mockProvider) GetIssuer() string {
 	return m.issuer
 }
 
+func (m *mockProvider) String() string { return m.name }
+
 type mockOidcProvider struct {
 	*mockProvider
 }
@@ -44,6 +46,8 @@ type mockOidcProvider struct {
 func (m *mockOidcProvider) GetIssuer() string {
 	return m.issuer
 }
+
+func (m *mockOidcProvider) String() string { return m.mockProvider.name }
 
 func createJWTWithIssuer(issuer string) string {
 	header := `{"alg":"HS256","typ":"JWT"}`

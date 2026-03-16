@@ -33,6 +33,8 @@ func (o *OidcProvider) GetIssuer() string {
 	return o.issuer
 }
 
+func (o *OidcProvider) String() string { return "oidc" }
+
 func (o *OidcProvider) validateNonJWTToken(token string) error {
 	if token == "" {
 		return fmt.Errorf("empty token")

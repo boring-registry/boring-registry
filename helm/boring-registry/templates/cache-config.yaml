@@ -3,6 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nginx-config
+  namespace: {{ include "boring-registry.namespace" . }}
   labels:
     {{- include "boring-registry.labels" . | nindent 4 }}
 data:

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "boring-registry.fullname" . }}
+  namespace: {{ include "boring-registry.namespace" . }}
   labels:
     {{- include "boring-registry.labels" . | nindent 4 }}
 spec:
@@ -17,6 +18,9 @@ spec:
       {{- end }}
       labels:
         {{- include "boring-registry.selectorLabels" . | nindent 8 }}
+        {{- with .Values.server.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.server.imagePullSecrets }}
       imagePullSecrets:
@@ -89,6 +93,10 @@ spec:
             {{- if .pathStyle }}
             - name: BORING_REGISTRY_STORAGE_S3_PATHSTYLE
               value:  {{ .pathStyle | quote }}
+            {{- end }}
+            {{- if .clientLogMode }}
+            - name: BORING_REGISTRY_STORAGE_S3_CLIENT_LOG_MODE
+              value:  {{ .clientLogMode | quote }}
             {{- end }}
             {{- end }}
 
@@ -218,5 +226,9 @@ spec:
       {{- end }}
       {{- with .Values.server.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}

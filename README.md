@@ -26,3 +26,35 @@ Learn more about the installation [in our documentation](https://boring-registry
 ## Configuration
 
 Check out the full documentation at [boring-registry.github.io/boring-registry](https://boring-registry.github.io/boring-registry/latest/configuration/introduction/).
+
+## Contributing
+
+### Setup
+
+Tools:
+- `go`
+- [pre-commit](https://pre-commit.com/)
+- [golangci-lint](https://golangci-lint.run/)
+- `mkdocs`
+
+#### pre-commit
+
+Install pre-commit hooks:
+
+```shell
+pre-commit install --install-hooks
+```
+
+### Running tests
+
+Unit tests can be executed by running `go test ./...`.
+The integration tests don't run by default, but can be included by running `go test ./... --tags=integration`
+
+### docs
+
+The docs can be rendered and served with `mkdocs serve` to preview changes live in the browser.
+
+```shell
+docker build -f docs/Dockerfile -t boring-registry-docs .
+docker run --rm -it -p 8000:8000 -v ${PWD}:/docs boring-registry-docs
+```

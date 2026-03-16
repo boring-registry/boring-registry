@@ -66,16 +66,17 @@ func copyHeadersAndBody(_ context.Context, w http.ResponseWriter, response inter
 		w.Header()[k] = v
 	}
 
-	// Copy  status code
+	// Copy status code
 	w.WriteHeader(resp.StatusCode)
 
-	// And the copy the body
+	// And then copy the body
 	_, err := io.Copy(w, resp.Body)
+	if err != nil {
+		return nil
+	}
 
 	// Close the body reader
-	resp.Body.Close()
-
-	return err
+	return resp.Body.Close()
 }
 
 // ErrorEncoder translates domain specific errors to HTTP status codes

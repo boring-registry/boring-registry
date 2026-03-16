@@ -44,7 +44,7 @@ func TestProviderPath(t *testing.T) {
 			expectedPanic: true,
 		},
 		{
-			annotation:    "mirror type and hostname is missing",
+			annotation:    "mirror type",
 			prefix:        "storage",
 			providerType:  mirrorProviderType,
 			hostname:      "registry.terraform.io",

@@ -1,9 +1,10 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: goreleaser
 
 on:
   push:
     tags:
-      - '*'
+      - "*"
 
 jobs:
   goreleaser:
@@ -11,21 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      
     steps:
-
-      - name: Set up Go 1.x
-        uses: actions/setup-go@v5
-        with:
-          go-version: ^1.24
-
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: actions/checkout@v6
+      - name: Set up Go 1.x
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          version: latest
-          args: release --rm-dist
+          go-version-file: "go.mod"
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
