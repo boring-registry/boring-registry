@@ -10,6 +10,8 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // Service implements the Provider Network Mirror Protocol.
@@ -79,9 +81,10 @@ func NewMirror(s Storage) Service {
 }
 
 type pullThroughMirror struct {
-	upstream upstreamProvider
-	mirror   Service
-	copier   Copier
+	upstream  upstreamProvider
+	mirror    Service
+	copier    Copier
+	copyGroup singleflight.Group
 }
 
 func (p *pullThroughMirror) ListProviderVersions(ctx context.Context, provider *core.Provider) (*ListProviderVersionsResponse, error) {
@@ -151,8 +154,13 @@ func (p *pullThroughMirror) RetrieveProviderArchive(ctx context.Context, provide
 		return nil, err
 	}
 
-	// Download the provider from upstream and upload to the mirror
-	go p.copier.copy(upstream)
+	// Download the provider from upstream and upload to the mirror.
+	// Use singleflight to deduplicate concurrent copy operations for the same provider,
+	// preventing redundant downloads and uploads under thundering herd conditions.
+	copyKey := fmt.Sprintf("%s/%s/%s/%s/%s/%s", provider.Hostname, provider.Namespace, provider.Name, provider.Version, provider.OS, provider.Arch)
+	go p.copyGroup.Do(copyKey, func() (interface{}, error) {
+		return nil, p.copier.copy(upstream)
+	})
 
 	return &retrieveProviderArchiveResponse{
 		location:     upstream.DownloadURL,
