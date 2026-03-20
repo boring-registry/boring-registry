@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/discovery"
@@ -104,6 +105,7 @@ func newUpstreamProviderRegistry(remoteServiceDiscovery discovery.ServiceDiscove
 	return &upstreamProviderRegistry{
 		client: &http.Client{
 			Transport: transport,
+			Timeout:   30 * time.Second,
 		},
 		remoteServiceDiscovery: remoteServiceDiscovery,
 	}
