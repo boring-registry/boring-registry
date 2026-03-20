@@ -13,7 +13,7 @@ import (
 
 type Copier interface {
 	// copy copies the artifacts of a provider to the pull-through cache/mirror
-	copy(provider *core.Provider)
+	copy(provider *core.Provider) error
 }
 
 // copier implements Copier and ensures that requested providers are replicated to the internal storage asynchronously
@@ -27,7 +27,7 @@ type copier struct {
 }
 
 // copy should be started in a separate goroutine
-func (c *copier) copy(provider *core.Provider) {
+func (c *copier) copy(provider *core.Provider) error {
 	begin := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -46,29 +46,29 @@ func (c *copier) copy(provider *core.Provider) {
 	// We download the files from upstream and mirror them to our storage
 	if err := c.signingKeys(ctx, provider); err != nil {
 		c.logger.Error("failed to copy signing keys", logKeyValues(provider), slog.String("err", err.Error()))
-		return
+		return fmt.Errorf("failed to copy signing keys: %w", err)
 	}
 
 	if err := c.sha256Sums(ctx, provider); err != nil {
 		c.logger.Error("failed to copy SHA256SUMS", logKeyValues(provider), slog.String("err", err.Error()))
-		return
+		return fmt.Errorf("failed to copy SHA256SUMS: %w", err)
 	}
 
 	if err := c.sha256SumsSignature(ctx, provider); err != nil {
 		c.logger.Error("failed to copy SHA256SUMS.sig", logKeyValues(provider), slog.String("err", err.Error()))
-		return
+		return fmt.Errorf("failed to copy SHA256SUMS.sig: %w", err)
 	}
 
 	// Request the provider archive
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, provider.DownloadURL, nil)
 	if err != nil {
 		c.logger.Error("failed to create provider download request", logKeyValues(provider), slog.String("err", err.Error()))
-		return
+		return fmt.Errorf("failed to create provider download request: %w", err)
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
 		c.logger.Error("failed to download provider", logKeyValues(provider), slog.String("err", err.Error()))
-		return
+		return fmt.Errorf("failed to download provider: %w", err)
 	}
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
@@ -79,8 +79,10 @@ func (c *copier) copy(provider *core.Provider) {
 	fileName := provider.ArchiveFileName()
 	if err = c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
 		c.logger.Error("failed to upload provider to mirror", logKeyValues(provider), slog.String("err", err.Error()))
+		return fmt.Errorf("failed to upload provider to mirror: %w", err)
 	}
 	c.logger.Info("successfully copied provider", logKeyValues(provider), slog.String("took", time.Since(begin).String()))
+	return nil
 }
 
 // check if the signing keys exist, if not add it

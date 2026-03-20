@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,6 +64,14 @@ func (m *mockedStorage) UploadMirroredSigningKeys(ctx context.Context, hostname,
 
 func (m *mockedStorage) MirroredSha256Sum(ctx context.Context, provider *core.Provider) (*core.Sha256Sums, error) {
 	return m.mirroredSha256Sum(ctx, provider)
+}
+
+type mockedCopier struct {
+	customCopy func(provider *core.Provider) error
+}
+
+func (m *mockedCopier) copy(provider *core.Provider) error {
+	return m.customCopy(provider)
 }
 
 func Test_pullThroughMirror_ListProviderVersions(t *testing.T) {
@@ -604,14 +614,14 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		svc     pullThroughMirror
+		svc     *pullThroughMirror
 		args    args
 		want    *retrieveProviderArchiveResponse
 		wantErr bool
 	}{
 		{
 			name: "provider exists in the mirror",
-			svc: pullThroughMirror{
+			svc: &pullThroughMirror{
 				mirror: &mirror{
 					storage: &mockedStorage{
 						getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -637,7 +647,7 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 		},
 		{
 			name: "a non-core.ProviderError happened while looking up the provider in the mirror",
-			svc: pullThroughMirror{
+			svc: &pullThroughMirror{
 				mirror: &mirror{
 					storage: &mockedStorage{
 						getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
@@ -650,7 +660,7 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 		},
 		{
 			name: "error when retrieving the provider from upstram",
-			svc: pullThroughMirror{
+			svc: &pullThroughMirror{
 				upstream: &mockedUpstreamProvider{
 					customGetProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
 						return nil, errors.New("mocked error")
@@ -683,5 +693,73 @@ func Test_pullThroughCache_RetrieveProviderArchive(t *testing.T) {
 				t.Errorf("RetrieveProviderArchive() got = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func Test_pullThroughMirror_RetrieveProviderArchive_Singleflight(t *testing.T) {
+	var copyCount atomic.Int64
+
+	svc := &pullThroughMirror{
+		upstream: &mockedUpstreamProvider{
+			customGetProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
+				return &core.Provider{
+					Hostname:    "registry.terraform.io",
+					Namespace:   "integrations",
+					Name:        "github",
+					Version:     "5.45.0",
+					OS:          "linux",
+					Arch:        "amd64",
+					DownloadURL: "https://releases.hashicorp.com/terraform-provider-github/5.45.0/terraform-provider-github_5.45.0_linux_amd64.zip",
+				}, nil
+			},
+		},
+		mirror: &mirror{
+			storage: &mockedStorage{
+				getMirroredProvider: func(ctx context.Context, provider *core.Provider) (*core.Provider, error) {
+					// Provider is not in the mirror, triggering the copy path
+					return nil, &core.ProviderError{Reason: "not found"}
+				},
+			},
+		},
+		copier: &mockedCopier{
+			customCopy: func(provider *core.Provider) error {
+				copyCount.Add(1)
+				// Simulate a slow copy operation
+				time.Sleep(100 * time.Millisecond)
+				return nil
+			},
+		},
+	}
+
+	const concurrency = 10
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+
+	provider := &core.Provider{
+		Hostname:  "registry.terraform.io",
+		Namespace: "integrations",
+		Name:      "github",
+		Version:   "5.45.0",
+		OS:        "linux",
+		Arch:      "amd64",
+	}
+
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			defer wg.Done()
+			_, err := svc.RetrieveProviderArchive(context.Background(), provider)
+			if err != nil {
+				t.Errorf("RetrieveProviderArchive() unexpected error: %v", err)
+			}
+		}()
+	}
+
+	wg.Wait()
+	// Wait for the background singleflight goroutine to complete
+	time.Sleep(200 * time.Millisecond)
+
+	got := copyCount.Load()
+	if got != 1 {
+		t.Errorf("expected copier.copy to be called exactly 1 time, got %d", got)
 	}
 }
