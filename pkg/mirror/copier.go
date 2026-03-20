@@ -76,9 +76,15 @@ func (c *copier) copy(provider *core.Provider) {
 		}
 	}()
 
+	if resp.StatusCode != http.StatusOK {
+		c.logger.Error("failed to download provider archive", logKeyValues(provider), slog.Int("statusCode", resp.StatusCode))
+		return
+	}
+
 	fileName := provider.ArchiveFileName()
 	if err = c.storage.UploadMirroredFile(ctx, provider, fileName, resp.Body); err != nil {
 		c.logger.Error("failed to upload provider to mirror", logKeyValues(provider), slog.String("err", err.Error()))
+		return
 	}
 	c.logger.Info("successfully copied provider", logKeyValues(provider), slog.String("took", time.Since(begin).String()))
 }
