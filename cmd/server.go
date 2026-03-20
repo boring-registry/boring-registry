@@ -96,14 +96,14 @@ var serverCmd = &cobra.Command{
 		server := &http.Server{
 			Addr:         flagListenAddr,
 			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 5 * time.Second,
+			WriteTimeout: 60 * time.Second,
 			Handler:      mux,
 		}
 
 		telemetryServer := &http.Server{
 			Addr:         flagTelemetryListenAddr,
 			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 5 * time.Second,
+			WriteTimeout: 10 * time.Second,
 			Handler:      mux,
 		}
 
