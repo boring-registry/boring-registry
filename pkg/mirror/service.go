@@ -53,6 +53,14 @@ func (m *mirror) ListProviderInstallation(ctx context.Context, provider *core.Pr
 		return nil, err
 	}
 
+	if len(providers) == 0 {
+		return nil, &core.ProviderError{
+			Reason:     "no mirrored versions found for provider",
+			Provider:   provider,
+			StatusCode: http.StatusNotFound,
+		}
+	}
+
 	sha256Sums, err := m.storage.MirroredSha256Sum(ctx, providers[0])
 	if err != nil {
 		return nil, err

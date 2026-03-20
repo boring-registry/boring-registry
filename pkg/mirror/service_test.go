@@ -576,6 +576,33 @@ func Test_pullThroughMirror_ListProviderInstallation(t *testing.T) {
 				mirrorSource: mirrorSource{isMirror: true},
 			},
 		},
+		{
+			name: "empty providers from mirror returns error instead of panic",
+			svc: &pullThroughMirror{
+				upstream: &mockedUpstreamProvider{
+					customListProviderVersions: func(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
+						return nil, &url.Error{}
+					},
+				},
+				mirror: &mirror{
+					storage: &mockedStorage{
+						listMirrorProviders: func(ctx context.Context, provider *core.Provider) ([]*core.Provider, error) {
+							return []*core.Provider{}, nil
+						},
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				provider: &core.Provider{
+					Hostname:  "registry.example.com",
+					Namespace: "hashicorp",
+					Name:      "random",
+					Version:   "0.1.2",
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
