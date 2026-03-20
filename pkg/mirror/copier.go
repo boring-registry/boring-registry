@@ -183,14 +183,22 @@ func logKeyValues(provider *core.Provider) slog.Attr {
 }
 
 func mergeGPGPublicKeys(upstreamKeys, mirroredKeys []core.GPGPublicKey) ([]core.GPGPublicKey, bool) {
-	var merged []core.GPGPublicKey
+	// Start with all mirrored keys
+	merged := make([]core.GPGPublicKey, len(mirroredKeys))
+	copy(merged, mirroredKeys)
+
+	// Build a set of existing key IDs for fast lookup
+	existingKeyIDs := make(map[string]struct{}, len(mirroredKeys))
+	for _, key := range mirroredKeys {
+		existingKeyIDs[key.KeyID] = struct{}{}
+	}
+
+	// Append upstream keys that aren't already in the mirrored set
 	for _, upstreamKey := range upstreamKeys {
-		for _, storedKey := range mirroredKeys {
-			if storedKey.KeyID != upstreamKey.KeyID {
-				merged = append(merged, upstreamKey)
-			}
+		if _, exists := existingKeyIDs[upstreamKey.KeyID]; !exists {
+			merged = append(merged, upstreamKey)
 		}
 	}
 
-	return merged, len(merged) > len(upstreamKeys)
+	return merged, len(merged) > len(mirroredKeys)
 }
