@@ -95,7 +95,7 @@ func (p *Provider) Clone() *Provider {
 	}
 	if p.SigningKeys.GPGPublicKeys != nil {
 		r.SigningKeys = SigningKeys{GPGPublicKeys: make([]GPGPublicKey, len(p.SigningKeys.GPGPublicKeys))}
-		copy(p.SigningKeys.GPGPublicKeys, r.SigningKeys.GPGPublicKeys)
+		copy(r.SigningKeys.GPGPublicKeys, p.SigningKeys.GPGPublicKeys)
 	}
 	return r
 }
