@@ -91,6 +91,10 @@ func (u *upstreamProviderRegistry) shaSums(ctx context.Context, provider *core.P
 		_ = resp.Body.Close()
 	}()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download SHA256SUMS from upstream, status code: %d", resp.StatusCode)
+	}
+
 	sha256Sums, err := core.NewSha256Sums(provider.ShasumFileName(), resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse SHA256SUM: %w", err)

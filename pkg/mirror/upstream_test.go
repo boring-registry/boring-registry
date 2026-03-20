@@ -210,13 +210,15 @@ func Test_upstreamProviderRegistry_getProvider(t *testing.T) {
 
 func Test_upstreamProviderRegistry_shaSums(t *testing.T) {
 	tests := []struct {
-		name     string
-		provider *core.Provider
-		want     *core.Sha256Sums
-		wantErr  bool
+		name       string
+		statusCode int
+		provider   *core.Provider
+		want       *core.Sha256Sums
+		wantErr    bool
 	}{
 		{
-			name: "successfully retrieve SHASUMS file",
+			name:       "successfully retrieve SHASUMS file",
+			statusCode: http.StatusOK,
 			provider: &core.Provider{
 				Hostname:  "terraform.example.com",
 				Namespace: "hashicorp",
@@ -243,11 +245,24 @@ func Test_upstreamProviderRegistry_shaSums(t *testing.T) {
 				}(),
 			},
 		},
+		{
+			name:       "non-200 status code returns error",
+			statusCode: http.StatusNotFound,
+			provider: &core.Provider{
+				Hostname:  "terraform.example.com",
+				Namespace: "hashicorp",
+				Name:      "random",
+				Version:   "2.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				writer.WriteHeader(http.StatusOK)
+				writer.WriteHeader(tt.statusCode)
 				body := []byte(`5f9c7aa76b7c34d722fc9123208e26b22d60440cb47150dd04733b9b94f4541a  terraform-provider-random_2.0.0_linux_amd64.zip
 29df160b8b618227197cc9984c47412461ad66a300a8fc1db4052398bf5656ac  terraform-provider-random_2.0.0_linux_arm.zip`)
 				if _, err := writer.Write(body); err != nil {
