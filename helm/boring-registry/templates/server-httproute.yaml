@@ -1,0 +1,54 @@
+{{- if .Values.server.httpRoute.enabled -}}
+{{- $fullName := include "boring-registry.fullname" . -}}
+{{- $svcPort := .Values.server.service.port -}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ include "boring-registry.namespace" . }}
+  labels:
+    {{- include "boring-registry.labels" . | nindent 4 }}
+    {{- with .Values.server.httpRoute.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.server.httpRoute.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- with .Values.server.httpRoute.parentRefs }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  hostnames:
+    {{- range $hostname := $.Values.server.httpRoute.hostnames }}
+    - {{ $hostname }}
+    {{- end }}
+  rules:
+    {{- range $rule := .Values.server.httpRoute.rules }}
+    - backendRefs:
+        - kind: Service
+          name: {{ $fullName }}
+          port: {{ $svcPort }}
+      {{- with $rule.matches }}
+      matches:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $rule.filters }}
+      filters:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $rule.sessionPersistence }}
+      sessionPersistence:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $rule.timeouts }}
+      timeouts:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $rule.retry }}
+      retry:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+{{- end }}

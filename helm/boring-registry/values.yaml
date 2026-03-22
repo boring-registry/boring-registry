@@ -68,6 +68,14 @@ server:
         paths: []
     tls: []
 
+  httpRoute:
+    enabled: false
+    parentRefs: []
+    hostnames: []
+    rules: []
+    annotations: {}
+    labels: {}
+
   autoscaling:
     enabled: false
     minReplicas: 1
