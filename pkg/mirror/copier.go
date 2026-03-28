@@ -21,7 +21,7 @@ type copier struct {
 	// done is used to signal termination to potentially multiple goroutines at once
 	done chan struct{}
 
-	// sem limits the number of concurrent copy operations
+	// sem limits the number of concurrent copy operations through a semaphore
 	sem chan struct{}
 
 	storage Storage
@@ -34,8 +34,10 @@ func (c *copier) copy(provider *core.Provider) {
 	// Acquire a semaphore slot to limit concurrent copy operations.
 	// If the copier is shutting down, abort immediately.
 	select {
+
+	// Attempt to acquire a semaphore permit
 	case c.sem <- struct{}{}:
-		defer func() { <-c.sem }()
+		defer func() { <-c.sem }() // Release semaphore permit
 	case <-c.done:
 		c.logger.Warn("copier is shutting down, skipping copy", logKeyValues(provider))
 		return
