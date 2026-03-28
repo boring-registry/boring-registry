@@ -66,6 +66,7 @@ var (
 	flagAuthOidcClientId string
 	flagAuthOidcScopes   []string
 	flagAuthOidcAuthURL  string
+	flagAuthOidcAudience string
 
 	// Okta auth
 	flagAuthOktaIssuer   string
@@ -214,6 +215,7 @@ func init() {
 	serverCmd.Flags().StringVar(&flagAuthOidcClientId, "auth-oidc-clientid", "", "OIDC client identifier")
 	serverCmd.Flags().StringSliceVar(&flagAuthOidcScopes, "auth-oidc-scopes", nil, "List of OAuth2 scopes")
 	serverCmd.Flags().StringVar(&flagAuthOidcAuthURL, "auth-oidc-auth-url", "", "Override the OIDC authorization URL returned in .well-known/terraform.json. Defaults to the URL from OIDC discovery")
+	serverCmd.Flags().StringVar(&flagAuthOidcAudience, "auth-oidc-audience", "", "Override the expected audience (aud) claim for JWT verification. Defaults to --auth-oidc-clientid")
 
 	// Terraform Login Protocol options.
 	serverCmd.Flags().StringVar(&flagAuthOktaClientId, "login-client", "", "The client_id value to use when making requests")
@@ -307,7 +309,7 @@ func setupOidc(ctx context.Context) (auth.Provider, *discovery.LoginV1, error) {
 		slog.Any("scopes", flagAuthOidcScopes),
 	)
 
-	provider, err := auth.NewOidcProvider(authCtx, flagAuthOidcIssuer, flagAuthOidcClientId)
+	provider, err := auth.NewOidcProvider(authCtx, flagAuthOidcIssuer, flagAuthOidcClientId, flagAuthOidcAudience)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
 	}

@@ -35,7 +35,7 @@ func TestOidcProviderDiscovery(t *testing.T) {
 	defer s.Close()
 	issuer = s.URL
 
-	provider, err := NewOidcProvider(context.Background(), issuer, "boring-registry")
+	provider, err := NewOidcProvider(context.Background(), issuer, "boring-registry", "")
 	assert.NoError(t, err)
 	assert.NotEmpty(t, provider.AuthURL())
 	assert.NotEmpty(t, provider.TokenURL())
