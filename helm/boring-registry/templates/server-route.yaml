@@ -1,30 +1,30 @@
-{{- if .Values.server.httpRoute.enabled -}}
+{{- if .Values.server.route.enabled -}}
 {{- $fullName := include "boring-registry.fullname" . -}}
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
+apiVersion: {{ .Values.server.route.apiVersion }}
+kind: {{ .Values.server.route.kind }}
 metadata:
   name: {{ $fullName }}
   namespace: {{ include "boring-registry.namespace" . }}
   labels:
     {{- include "boring-registry.labels" . | nindent 4 }}
-    {{- with .Values.server.httpRoute.labels }}
+    {{- with .Values.server.route.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-  {{- with .Values.server.httpRoute.annotations }}
+  {{- with .Values.server.route.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   parentRefs:
-    {{- with .Values.server.httpRoute.parentRefs }}
+    {{- with .Values.server.route.parentRefs }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
   hostnames:
-    {{- range $hostname := $.Values.server.httpRoute.hostnames }}
+    {{- range $hostname := $.Values.server.route.hostnames }}
     - {{ $hostname }}
     {{- end }}
   rules:
-    {{- range $rule := .Values.server.httpRoute.rules }}
+    {{- range $rule := .Values.server.route.rules }}
     - backendRefs:
         - kind: Service
           name: {{ $fullName }}

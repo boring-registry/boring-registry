@@ -68,8 +68,10 @@ server:
         paths: []
     tls: []
 
-  httpRoute:
+  route:
     enabled: false
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
     parentRefs: []
     hostnames: []
     rules: []
