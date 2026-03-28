@@ -65,6 +65,7 @@ var (
 	flagAuthOidcIssuer   string
 	flagAuthOidcClientId string
 	flagAuthOidcScopes   []string
+	flagAuthOidcSkipClientIDCheck bool
 
 	// Okta auth
 	flagAuthOktaIssuer   string
@@ -212,6 +213,7 @@ func init() {
 	serverCmd.Flags().StringVar(&flagAuthOidcIssuer, "auth-oidc-issuer", "", "OIDC issuer URL")
 	serverCmd.Flags().StringVar(&flagAuthOidcClientId, "auth-oidc-clientid", "", "OIDC client identifier")
 	serverCmd.Flags().StringSliceVar(&flagAuthOidcScopes, "auth-oidc-scopes", nil, "List of OAuth2 scopes")
+	serverCmd.Flags().BoolVar(&flagAuthOidcSkipClientIDCheck, "auth-oidc-skip-client-id-check", false, "Skip client id check during JWT verification. (Default: false)")
 
 	// Terraform Login Protocol options.
 	serverCmd.Flags().StringVar(&flagAuthOktaClientId, "login-client", "", "The client_id value to use when making requests")
@@ -305,7 +307,13 @@ func setupOidc(ctx context.Context) (auth.Provider, *discovery.LoginV1, error) {
 		slog.Any("scopes", flagAuthOidcScopes),
 	)
 
-	provider, err := auth.NewOidcProvider(authCtx, flagAuthOidcIssuer, flagAuthOidcClientId)
+	var oidcProviderOptions []auth.OidcProviderOption
+
+	if (flagAuthOidcSkipClientIDCheck) {
+		oidcProviderOptions = append(oidcProviderOptions, auth.WithSkipClientIDCheck)
+	}
+
+	provider, err := auth.NewOidcProvider(authCtx, flagAuthOidcIssuer, flagAuthOidcClientId, oidcProviderOptions...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
 	}
