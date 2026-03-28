@@ -142,7 +142,7 @@ func (s *AzureStorage) getProvider(ctx context.Context, pt providerType, provide
 	if exists, err := s.objectExists(ctx, archivePath); err != nil {
 		return nil, err
 	} else if !exists {
-		return nil, noMatchingProviderFound(provider)
+		return nil, core.NoMatchingProviderFound(provider)
 	}
 
 	var err error
@@ -233,6 +233,10 @@ func (s *AzureStorage) listProviderVersions(ctx context.Context, pt providerType
 
 			providers = append(providers, &p)
 		}
+	}
+
+	if len(providers) == 0 {
+		return nil, core.NoMatchingProviderFound(provider)
 	}
 
 	return providers, nil

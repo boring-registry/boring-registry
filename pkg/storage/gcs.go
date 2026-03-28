@@ -129,7 +129,7 @@ func (s *GCSStorage) getProvider(ctx context.Context, pt providerType, provider 
 	if exists, err := s.objectExists(ctx, archivePath); err != nil {
 		return nil, err
 	} else if !exists {
-		return nil, noMatchingProviderFound(provider)
+		return nil, core.NoMatchingProviderFound(provider)
 	}
 
 	var err error
@@ -233,7 +233,7 @@ func (s *GCSStorage) listProviderVersions(ctx context.Context, pt providerType, 
 	}
 
 	if len(providers) == 0 {
-		return nil, noMatchingProviderFound(provider)
+		return nil, core.NoMatchingProviderFound(provider)
 	}
 
 	return providers, nil
