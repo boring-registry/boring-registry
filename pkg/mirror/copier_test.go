@@ -274,3 +274,76 @@ func Test_copier_sha256Sums(t *testing.T) {
 		})
 	}
 }
+
+func Test_mergeGPGPublicKeys(t *testing.T) {
+	keyA := core.GPGPublicKey{KeyID: "AAA", ASCIIArmor: "armor-a"}
+	keyB := core.GPGPublicKey{KeyID: "BBB", ASCIIArmor: "armor-b"}
+	keyC := core.GPGPublicKey{KeyID: "CCC", ASCIIArmor: "armor-c"}
+
+	tests := []struct {
+		name            string
+		upstreamKeys    []core.GPGPublicKey
+		mirroredKeys    []core.GPGPublicKey
+		wantKeys        []core.GPGPublicKey
+		wantNeedsUpdate bool
+	}{
+		{
+			name:            "no keys on either side",
+			upstreamKeys:    nil,
+			mirroredKeys:    nil,
+			wantKeys:        []core.GPGPublicKey{},
+			wantNeedsUpdate: false,
+		},
+		{
+			name:            "upstream keys only, no mirrored keys",
+			upstreamKeys:    []core.GPGPublicKey{keyA, keyB},
+			mirroredKeys:    nil,
+			wantKeys:        []core.GPGPublicKey{keyA, keyB},
+			wantNeedsUpdate: true,
+		},
+		{
+			name:            "mirrored keys only, no upstream keys",
+			upstreamKeys:    nil,
+			mirroredKeys:    []core.GPGPublicKey{keyA},
+			wantKeys:        []core.GPGPublicKey{keyA},
+			wantNeedsUpdate: false,
+		},
+		{
+			name:            "identical keys on both sides",
+			upstreamKeys:    []core.GPGPublicKey{keyA, keyB},
+			mirroredKeys:    []core.GPGPublicKey{keyA, keyB},
+			wantKeys:        []core.GPGPublicKey{keyA, keyB},
+			wantNeedsUpdate: false,
+		},
+		{
+			name:            "upstream has new key not in mirror",
+			upstreamKeys:    []core.GPGPublicKey{keyA, keyC},
+			mirroredKeys:    []core.GPGPublicKey{keyA, keyB},
+			wantKeys:        []core.GPGPublicKey{keyA, keyB, keyC},
+			wantNeedsUpdate: true,
+		},
+		{
+			name:            "mirror has key rotated out of upstream",
+			upstreamKeys:    []core.GPGPublicKey{keyB},
+			mirroredKeys:    []core.GPGPublicKey{keyA, keyB},
+			wantKeys:        []core.GPGPublicKey{keyA, keyB},
+			wantNeedsUpdate: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, needsUpdate := mergeGPGPublicKeys(tt.upstreamKeys, tt.mirroredKeys)
+			if needsUpdate != tt.wantNeedsUpdate {
+				t.Errorf("mergeGPGPublicKeys() needsUpdate = %v, want %v", needsUpdate, tt.wantNeedsUpdate)
+			}
+			if len(got) != len(tt.wantKeys) {
+				t.Fatalf("mergeGPGPublicKeys() returned %d keys, want %d", len(got), len(tt.wantKeys))
+			}
+			for i, key := range got {
+				if key.KeyID != tt.wantKeys[i].KeyID {
+					t.Errorf("mergeGPGPublicKeys()[%d].KeyID = %s, want %s", i, key.KeyID, tt.wantKeys[i].KeyID)
+				}
+			}
+		})
+	}
+}
