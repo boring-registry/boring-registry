@@ -21,6 +21,9 @@ type copier struct {
 	// done is used to signal termination to potentially multiple goroutines at once
 	done chan struct{}
 
+	// sem limits the number of concurrent copy operations
+	sem chan struct{}
+
 	storage Storage
 	client  *http.Client
 	logger  *slog.Logger
@@ -28,6 +31,16 @@ type copier struct {
 
 // copy should be started in a separate goroutine
 func (c *copier) copy(provider *core.Provider) {
+	// Acquire a semaphore slot to limit concurrent copy operations.
+	// If the copier is shutting down, abort immediately.
+	select {
+	case c.sem <- struct{}{}:
+		defer func() { <-c.sem }()
+	case <-c.done:
+		c.logger.Warn("copier is shutting down, skipping copy", logKeyValues(provider))
+		return
+	}
+
 	begin := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -166,6 +179,7 @@ func NewCopier(ctx context.Context, storage Storage) Copier {
 	logger := slog.Default().With(slog.String("component", "copier"))
 	m := &copier{
 		done:   make(chan struct{}),
+		sem:    make(chan struct{}, 10),
 		logger: logger,
 		client: &http.Client{
 			// This is also the timeout for reading the response body
