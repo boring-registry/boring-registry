@@ -19,10 +19,10 @@ spec:
     {{- with .Values.server.route.parentRefs }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+  {{- with .Values.server.route.hostnames }}
   hostnames:
-    {{- range $hostname := $.Values.server.route.hostnames }}
-    - {{ $hostname }}
-    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     {{- range $rule := .Values.server.route.rules }}
     - backendRefs:
