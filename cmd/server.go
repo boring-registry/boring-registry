@@ -65,6 +65,7 @@ var (
 	flagAuthOidcIssuer   string
 	flagAuthOidcClientId string
 	flagAuthOidcScopes   []string
+	flagAuthOidcAuthURL  string
 
 	// Okta auth
 	flagAuthOktaIssuer   string
@@ -212,6 +213,7 @@ func init() {
 	serverCmd.Flags().StringVar(&flagAuthOidcIssuer, "auth-oidc-issuer", "", "OIDC issuer URL")
 	serverCmd.Flags().StringVar(&flagAuthOidcClientId, "auth-oidc-clientid", "", "OIDC client identifier")
 	serverCmd.Flags().StringSliceVar(&flagAuthOidcScopes, "auth-oidc-scopes", nil, "List of OAuth2 scopes")
+	serverCmd.Flags().StringVar(&flagAuthOidcAuthURL, "auth-oidc-auth-url", "", "Override the OIDC authorization URL returned in .well-known/terraform.json. Defaults to the URL from OIDC discovery")
 
 	// Terraform Login Protocol options.
 	serverCmd.Flags().StringVar(&flagAuthOktaClientId, "login-client", "", "The client_id value to use when making requests")
@@ -310,10 +312,16 @@ func setupOidc(ctx context.Context) (auth.Provider, *discovery.LoginV1, error) {
 		return nil, nil, fmt.Errorf("failed to set up oidc provider: %w", err)
 	}
 
+	authURL := provider.AuthURL()
+	if flagAuthOidcAuthURL != "" {
+		// Allow overriding the authURL to allow customization, e.g. setting additional query params
+		authURL = flagAuthOidcAuthURL
+	}
+
 	login := &discovery.LoginV1{
 		Client:     flagAuthOidcClientId,
 		GrantTypes: flagLoginGrantTypes,
-		Authz:      provider.AuthURL(),
+		Authz:      authURL,
 		Token:      provider.TokenURL(),
 		Ports:      flagLoginPorts,
 		Scopes:     flagAuthOidcScopes,
