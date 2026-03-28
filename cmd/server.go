@@ -99,9 +99,11 @@ var serverCmd = &cobra.Command{
 		}
 
 		server := &http.Server{
-			Addr:         flagListenAddr,
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 5 * time.Second,
+			Addr:        flagListenAddr,
+			ReadTimeout: 10 * time.Second,
+
+			// WriteTimeout must exceed the longest per-handler context timeout.
+			WriteTimeout: 30 * time.Second,
 			Handler:      mux,
 		}
 
