@@ -67,6 +67,17 @@ func (p ProviderError) Error() string {
 	return message
 }
 
+// NoMatchingProviderFound returns a *ProviderError with a 404 status code.
+// Use it when a storage backend or service operation finds no providers
+// matching the requested attributes, instead of constructing ProviderError manually
+func NoMatchingProviderFound(provider *Provider) error {
+	return &ProviderError{
+		Reason:     "failed to find matching providers",
+		Provider:   provider,
+		StatusCode: http.StatusNotFound,
+	}
+}
+
 // GenericError returns the HTTP status code for module-agnostic boring-registry errors
 func GenericError(err error) int {
 	if errors.Is(err, ErrVarMissing) {
