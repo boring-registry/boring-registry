@@ -1,6 +1,6 @@
 module github.com/boring-registry/boring-registry
 
-go 1.25.6
+go 1.26.1
 
 require (
 	cloud.google.com/go/iam v1.5.3
