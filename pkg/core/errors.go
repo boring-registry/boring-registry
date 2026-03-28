@@ -43,24 +43,24 @@ type ProviderError struct {
 
 func (p ProviderError) Error() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%s: ", p.Reason))
+	fmt.Fprintf(&sb, "%s: ", p.Reason)
 	if p.Provider.Hostname != "" {
-		sb.WriteString(fmt.Sprintf("hostname=%s, ", p.Provider.Hostname))
+		fmt.Fprintf(&sb, "hostname=%s, ", p.Provider.Hostname)
 	}
 	if p.Provider.Namespace != "" {
-		sb.WriteString(fmt.Sprintf("namespace=%s, ", p.Provider.Namespace))
+		fmt.Fprintf(&sb, "namespace=%s, ", p.Provider.Namespace)
 	}
 	if p.Provider.Name != "" {
-		sb.WriteString(fmt.Sprintf("name=%s, ", p.Provider.Name))
+		fmt.Fprintf(&sb, "name=%s, ", p.Provider.Name)
 	}
 	if p.Provider.Version != "" {
-		sb.WriteString(fmt.Sprintf("version=%s, ", p.Provider.Version))
+		fmt.Fprintf(&sb, "version=%s, ", p.Provider.Version)
 	}
 	if p.Provider.OS != "" {
-		sb.WriteString(fmt.Sprintf("os=%s, ", p.Provider.OS))
+		fmt.Fprintf(&sb, "os=%s, ", p.Provider.OS)
 	}
 	if p.Provider.Arch != "" {
-		sb.WriteString(fmt.Sprintf("arch=%s, ", p.Provider.Arch))
+		fmt.Fprintf(&sb, "arch=%s, ", p.Provider.Arch)
 	}
 	message := sb.String()
 	message = strings.TrimSuffix(message, ", ")
