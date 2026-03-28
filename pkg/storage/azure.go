@@ -235,6 +235,10 @@ func (s *AzureStorage) listProviderVersions(ctx context.Context, pt providerType
 		}
 	}
 
+	if len(providers) == 0 {
+		return nil, noMatchingProviderFound(provider)
+	}
+
 	return providers, nil
 }
 
