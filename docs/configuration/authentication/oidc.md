@@ -20,6 +20,7 @@ The following configuration options are available:
 |`--auth-oidc-clientid`|`BORING_REGISTRY_AUTH_OIDC_CLIENTID`|OIDC client identifier|
 |`--auth-oidc-issuer`|`BORING_REGISTRY_AUTH_OIDC_ISSUER`|OIDC issuer URL|
 |`--auth-oidc-scopes`|`BORING_REGISTRY_AUTH_OIDC_SCOPES`|List of OAuth2 scopes|
+|`--auth-oidc-auth-url`|`BORING_REGISTRY_AUTH_OIDC_AUTH_URL`|Override the OIDC authorization URL returned in `.well-known/terraform.json`. Defaults to the URL from OIDC discovery|
 |`--login-grant-types`|`BORING_REGISTRY_LOGIN_GRANT_TYPES`|An array describing a set of OAuth 2.0 grant types (default `[authz_code]`)|
 |`--login-ports`|`BORING_REGISTRY_LOGIN_PORTS`|Inclusive range of TCP ports that the Terraform/OpenTofu CLI may use (default `[10000,10010]`)|
 
