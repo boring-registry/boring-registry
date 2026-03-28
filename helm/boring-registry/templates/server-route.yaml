@@ -28,7 +28,7 @@ spec:
     - backendRefs:
         - kind: Service
           name: {{ $fullName }}
-          port: {{ .Values.server.service.port }}
+          port: {{ $.Values.server.service.port }}
       {{- with $rule.matches }}
       matches:
         {{- toYaml . | nindent 8 }}
