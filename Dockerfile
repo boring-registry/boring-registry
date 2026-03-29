@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 go build -ldflags "-s -w \
     -X github.com/boring-registry/boring-registry/version.Commit=${GIT_COMMIT} \
     -X github.com/boring-registry/boring-registry/version.Date=${BUILD_TIMESTAMP}"
 
-FROM gcr.io/distroless/base:nonroot
+FROM gcr.io/distroless/static:nonroot
 
 ARG BASEDIR
 COPY --from=build ${BASEDIR}/boring-registry /
