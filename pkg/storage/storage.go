@@ -2,7 +2,6 @@ package storage
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/mirror"
@@ -37,11 +36,11 @@ func unmarshalSigningKeys(b []byte) (*core.SigningKeys, error) {
 		var gpgPublicKey core.GPGPublicKey
 		if gpgPublicKeyErr := json.Unmarshal(b, &gpgPublicKey); gpgPublicKeyErr != nil {
 			return nil, gpgPublicKeyErr
-		} else if gpgPublicKey.KeyID == "" || gpgPublicKey.ASCIIArmor == "" {
-			return nil, fmt.Errorf("the signing key key_ID or ascii_armor is empty")
+		} else if gpgPublicKey.KeyID != "" && gpgPublicKey.ASCIIArmor != "" {
+			signingKeys.GPGPublicKeys = append(signingKeys.GPGPublicKeys, gpgPublicKey)
 		}
+		signingKeys.GPGPublicKeys = []core.GPGPublicKey{}
 
-		signingKeys.GPGPublicKeys = append(signingKeys.GPGPublicKeys, gpgPublicKey)
 	}
 
 	return &signingKeys, nil
