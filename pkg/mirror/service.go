@@ -55,6 +55,11 @@ func (m *mirror) ListProviderInstallation(ctx context.Context, provider *core.Pr
 		return nil, err
 	}
 
+	if len(providers) == 0 {
+        // This is a safety against faulty storage implementations that don't return an error
+		return nil, core.NoMatchingProviderFound(provider)
+	}
+
 	sha256Sums, err := m.storage.MirroredSha256Sum(ctx, providers[0])
 	if err != nil {
 		return nil, err
