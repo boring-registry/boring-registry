@@ -8,31 +8,31 @@ docs_dir: docs
 nav:
   - README.md
   - Installation:
-    - Helm: installation/helm.md
-    - Docker: installation/docker.md
-    - Source: installation/source.md
+      - Helm: installation/helm.md
+      - Docker: installation/docker.md
+      - Source: installation/source.md
   - Configuration:
-    - Introduction: configuration/introduction.md
-    - Storage Layout: configuration/storage-layout.md
-    - Storage Backends:
-      - AWS S3: configuration/storage-backends/aws-s3.md
-      - Azure Blob Storage: configuration/storage-backends/azure-blob-storage.md
-      - Google Cloud Storage: configuration/storage-backends/google-cloud-storage.md
-      - MinIO: configuration/storage-backends/minio.md
-    - Authentication:
-      - API Token: configuration/authentication/api-token.md
-      - OIDC: configuration/authentication/oidc.md
-      - Okta: configuration/authentication/okta.md
-    - Download Proxy: configuration/download-proxy.md
-    - Provider Network Mirror: configuration/provider-network-mirror.md
-    - Caching Proxy: configuration/caching-proxy.md
+      - Introduction: configuration/introduction.md
+      - Storage Layout: configuration/storage-layout.md
+      - Storage Backends:
+          - AWS S3: configuration/storage-backends/aws-s3.md
+          - Azure Blob Storage: configuration/storage-backends/azure-blob-storage.md
+          - Google Cloud Storage: configuration/storage-backends/google-cloud-storage.md
+          - S3 Compatible: configuration/storage-backends/s3-compatible.md
+      - Authentication:
+          - API Token: configuration/authentication/api-token.md
+          - OIDC: configuration/authentication/oidc.md
+          - Okta: configuration/authentication/okta.md
+      - Download Proxy: configuration/download-proxy.md
+      - Provider Network Mirror: configuration/provider-network-mirror.md
+      - Caching Proxy: configuration/caching-proxy.md
   - Tasks:
-    - Publish Modules: tasks/publish-modules.md
-    - Publish Providers: tasks/publish-providers.md
+      - Publish Modules: tasks/publish-modules.md
+      - Publish Providers: tasks/publish-providers.md
 
 theme:
   theme:
-  palette: 
+  palette:
     # Palette toggle for light mode
     - scheme: default
       toggle:
