@@ -56,7 +56,7 @@ func (m *mirror) ListProviderInstallation(ctx context.Context, provider *core.Pr
 	}
 
 	if len(providers) == 0 {
-        // This is a safety against faulty storage implementations that don't return an error
+		// This is a safety against faulty storage implementations that don't return an error
 		return nil, core.NoMatchingProviderFound(provider)
 	}
 
