@@ -80,7 +80,7 @@ jobs:
         id: local-chart-version
         run: echo "VERSION=$(helm show chart helm/boring-registry | yq .version)" >> $GITHUB_ENV
 
-      - uses: octokit/request-action@v2.x
+      - uses: octokit/request-action@v2.4
         id: get_chart
         with:
           route: GET /orgs/tiermobility/packages/container/charts%2Fboring-registry/versions
