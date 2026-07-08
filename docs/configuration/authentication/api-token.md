@@ -6,7 +6,7 @@ Multiple API tokens can be configured by passing comma-separated tokens to the `
 
 ## OpenTofu
 
-The token can be passed to OpenTofu inside the [configuration file](https://developer.hashicorp.com/terraform/cli/config/config-file#credentials-1):
+The token can be passed to OpenTofu inside the [configuration file](https://opentofu.org/docs/cli/config/config-file/#locations):
 
 ```hcl
 credentials "boring-registry.example.com" {
@@ -16,7 +16,7 @@ credentials "boring-registry.example.com" {
 
 ## Terraform
 
-The token can be passed to Terraform inside the [`~/.terraformrc` configuration file](https://opentofu.org/docs/cli/config/config-file/#locations):
+The token can be passed to Terraform inside the [configuration file](https://developer.hashicorp.com/terraform/cli/config/config-file#credentials-1):
 
 ```hcl
 credentials "boring-registry.example.com" {
