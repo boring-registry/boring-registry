@@ -50,6 +50,9 @@ var (
 
 func init() {
 	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive module discovery.")
+	uploadModuleCmd.PersistentFlags().StringSliceVar(&flagExcludePatterns, "exclude", []string{}, `Exclude files or directories matching the given patterns from the module archive.
+Patterns can be exact names (e.g., ".terraform") or glob patterns (e.g., "*.log").
+Can be specified multiple times to exclude multiple patterns.`)
 }
 
 type ModuleUploadConfig struct {
