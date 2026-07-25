@@ -51,13 +51,8 @@ var (
 
 func init() {
 	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive module discovery.")
-	uploadModuleCmd.PersistentFlags().StringSliceVar(&flagExcludePatterns, "exclude", []string{}, `Exclude files or directories matching the given patterns from the module archive.
-Patterns follow .gitignore syntax:
-  - Unrooted patterns (e.g., ".terraform", "*.log") match at any depth
-  - Rooted patterns (e.g., "/vendor") match only at the module root
-  - Use "**" for explicit recursive matching (e.g., "**/test_*.go")
-  - Trailing "/" matches directories only (e.g., "build/")
-Can be specified multiple times or as comma-separated values.`)
+	uploadModuleCmd.PersistentFlags().StringArrayVar(&flagExcludePatterns, "exclude", []string{}, `Exclude files and directories from the module archive with .gitignore-style patterns relative to the module root.
+Can be passed multiple times. See docs/tasks/publish-modules.md for the supported pattern syntax`)
 }
 
 type ModuleUploadConfig struct {
@@ -132,8 +127,9 @@ func NewModuleUploadConfigFromFlags() (*ModuleUploadConfig, error) {
 		patterns, err := parseExcludePatterns(flagExcludePatterns)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to parse exclude patterns: %w", err))
+		} else {
+			opts = append(opts, WithModuleUploadConfigExcludePatterns(patterns))
 		}
-		opts = append(opts, WithModuleUploadConfigExcludePatterns(patterns))
 	}
 
 	if len(errs) > 0 {
@@ -388,19 +384,15 @@ func archiveModule(root string, excludePatterns []gitignore.Pattern) (io.Reader,
 			return err
 		}
 
-		// Check if the path should be excluded
-		if len(excludePatterns) > 0 {
-			if relativePath != "." {
-				// The ToSlash is necessary for windows-style paths
-				components := strings.Split(filepath.ToSlash(relativePath), "/")
-				for _, p := range excludePatterns {
-					if p.Match(components, fi.IsDir()) == gitignore.Exclude {
-						if fi.IsDir() {
-							return filepath.SkipDir
-						}
-						return nil
-					}
+		// The ToSlash is necessary for windows-style paths
+		components := strings.Split(filepath.ToSlash(relativePath), "/")
+		for _, p := range excludePatterns {
+			if p.Match(components, fi.IsDir()) == gitignore.Exclude {
+				if fi.IsDir() {
+					// by returning SkipDir, the walk can skip the entire directory
+					return filepath.SkipDir
 				}
+				return nil
 			}
 		}
 
@@ -415,8 +407,9 @@ func archiveModule(root string, excludePatterns []gitignore.Pattern) (io.Reader,
 			return err
 		}
 
-		// update the name to correctly reflect the desired destination when untaring
-		header.Name = relativePath
+		// update the name to correctly reflect the desired destination when untaring.
+		// The tar format mandates forward slashes, therefore windows-style paths have to be converted
+		header.Name = filepath.ToSlash(relativePath)
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
@@ -446,8 +439,9 @@ func archiveModule(root string, excludePatterns []gitignore.Pattern) (io.Reader,
 func parseExcludePatterns(unparsedPatterns []string) ([]gitignore.Pattern, error) {
 	var patterns []gitignore.Pattern
 	for _, unparsed := range unparsedPatterns {
-		unparsed = strings.TrimSpace(unparsed)
-		if unparsed == "" {
+		// The pattern itself must not be trimmed, as gitignore.ParsePattern handles trailing spaces
+		// and preserves them when they are escaped, as in `foo\ `
+		if strings.TrimSpace(unparsed) == "" {
 			continue
 		}
 		if strings.HasPrefix(unparsed, "!") {
