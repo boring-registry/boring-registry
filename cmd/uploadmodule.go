@@ -17,6 +17,7 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/module"
 	"github.com/boring-registry/boring-registry/pkg/storage"
 
+	gitignore "github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 )
@@ -51,8 +52,12 @@ var (
 func init() {
 	uploadModuleCmd.PersistentFlags().StringVar(&flagModuleVersion, "version", "", "Specify the version of the module to upload. Mutually exclusive with --recursive module discovery.")
 	uploadModuleCmd.PersistentFlags().StringSliceVar(&flagExcludePatterns, "exclude", []string{}, `Exclude files or directories matching the given patterns from the module archive.
-Patterns can be exact names (e.g., ".terraform") or glob patterns (e.g., "*.log").
-Can be specified multiple times to exclude multiple patterns.`)
+Patterns follow .gitignore syntax:
+  - Unrooted patterns (e.g., ".terraform", "*.log") match at any depth
+  - Rooted patterns (e.g., "/vendor") match only at the module root
+  - Use "**" for explicit recursive matching (e.g., "**/test_*.go")
+  - Trailing "/" matches directories only (e.g., "build/")
+Can be specified multiple times or as comma-separated values.`)
 }
 
 type ModuleUploadConfig struct {
@@ -61,6 +66,7 @@ type ModuleUploadConfig struct {
 	VersionConstraintsRegex  *regexp.Regexp
 	VersionConstraintsSemver version.Constraints
 	ModuleVersion            *version.Version
+	ExcludePatterns          []gitignore.Pattern
 }
 
 func (m *ModuleUploadConfig) Validate() error {
@@ -122,6 +128,14 @@ func NewModuleUploadConfigFromFlags() (*ModuleUploadConfig, error) {
 		opts = append(opts, WithModuleUploadConfigModuleVersion(v))
 	}
 
+	if len(flagExcludePatterns) > 0 {
+		patterns, err := parseExcludePatterns(flagExcludePatterns)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to parse exclude patterns: %w", err))
+		}
+		opts = append(opts, WithModuleUploadConfigExcludePatterns(patterns))
+	}
+
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
@@ -161,6 +175,12 @@ func WithModuleUploadConfigModuleVersion(v *version.Version) ModuleUploadConfigO
 	}
 }
 
+func WithModuleUploadConfigExcludePatterns(patterns []gitignore.Pattern) ModuleUploadConfigOption {
+	return func(m *ModuleUploadConfig) {
+		m.ExcludePatterns = patterns
+	}
+}
+
 // The main idea of ModuleUploadRunner is to have a struct that can be mocked more easily in tests
 type ModuleUploadRunner struct {
 	storage module.Storage
@@ -168,7 +188,7 @@ type ModuleUploadRunner struct {
 
 	// The following functions can be overridden for mocking
 	Discover func(string) error
-	Archive  func(string, []string) (io.Reader, error)
+	Archive  func(string, []gitignore.Pattern) (io.Reader, error)
 	Process  func(string) error
 }
 
@@ -294,7 +314,7 @@ func (m *ModuleUploadRunner) processModule(path string) error {
 
 	moduleRoot := filepath.Dir(path)
 
-	buf, err := m.Archive(moduleRoot, flagExcludePatterns)
+	buf, err := m.Archive(moduleRoot, m.config.ExcludePatterns)
 	if err != nil {
 		return err
 	}
@@ -335,7 +355,7 @@ func moduleUploadPreRun(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func archiveModule(root string, excludePatterns []string) (io.Reader, error) {
+func archiveModule(root string, excludePatterns []gitignore.Pattern) (io.Reader, error) {
 	buf := new(bytes.Buffer)
 	// ensure the src actually exists before trying to tar it
 	if _, err := os.Stat(root); err != nil {
@@ -363,13 +383,21 @@ func archiveModule(root string, excludePatterns []string) (io.Reader, error) {
 		}
 
 		// Check if the path should be excluded
-		if shouldExclude(path, root, fi.IsDir(), excludePatterns) {
-			if fi.IsDir() {
-				slog.Debug("excluding directory from archive", slog.String("path", path))
-				return filepath.SkipDir
+		if len(excludePatterns) > 0 {
+			relPath := archiveFileHeaderName(path, root) //TODO: refactor the function to make it more generic
+			if relPath != "" {
+				components := strings.Split(filepath.ToSlash(relPath), "/") // The ToSlash is necessary for windows-style paths
+				for _, p := range excludePatterns {
+					if p.Match(components, fi.IsDir()) == gitignore.Exclude {
+						if fi.IsDir() {
+							// Since we know that this is a dir that should be excluded, we can return SkipDir to the caller so that the entire
+							// directory is skipped
+							return filepath.SkipDir
+						}
+						return nil
+					}
+				}
 			}
-			slog.Debug("excluding file from archive", slog.String("path", path))
-			return nil
 		}
 
 		// return on non-regular files
@@ -411,48 +439,19 @@ func archiveModule(root string, excludePatterns []string) (io.Reader, error) {
 	return buf, err
 }
 
-// shouldExclude checks if a path matches any of the exclusion patterns.
-// It supports both exact directory/file name matching and glob patterns.
-func shouldExclude(path, root string, isDir bool, patterns []string) bool {
-	if len(patterns) == 0 {
-		return false
+func parseExcludePatterns(unparsedPatterns []string) ([]gitignore.Pattern, error) {
+	var patterns []gitignore.Pattern
+	for _, unparsed := range unparsedPatterns {
+		unparsed = strings.TrimSpace(unparsed)
+		if unparsed == "" {
+			continue
+		}
+		if strings.HasPrefix(unparsed, "!") {
+			return nil, fmt.Errorf("negation patterns are not supported: %q", unparsed)
+		}
+		patterns = append(patterns, gitignore.ParsePattern(unparsed, nil))
 	}
-
-	// Get the relative path from root
-	relativePath := archiveFileHeaderName(path, root)
-	if relativePath == "" {
-		return false
-	}
-
-	// Get just the base name for simple pattern matching
-	baseName := filepath.Base(path)
-
-	for _, pattern := range patterns {
-		// Check if the base name matches the pattern exactly (e.g., ".terraform")
-		if baseName == pattern {
-			return true
-		}
-
-		// Check if any path component matches the pattern
-		// This handles cases like "modules/.terraform/providers"
-		for _, component := range strings.Split(relativePath, string(filepath.Separator)) {
-			if component == pattern {
-				return true
-			}
-		}
-
-		// Check glob pattern match against the relative path
-		if matched, _ := filepath.Match(pattern, relativePath); matched {
-			return true
-		}
-
-		// Check glob pattern match against the base name
-		if matched, _ := filepath.Match(pattern, baseName); matched {
-			return true
-		}
-	}
-
-	return false
+	return patterns, nil
 }
 
 func archiveFileHeaderName(path, root string) string {

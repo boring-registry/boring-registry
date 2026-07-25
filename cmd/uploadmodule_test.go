@@ -14,6 +14,7 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/module"
+	gitignore "github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/hashicorp/go-version"
 
 	"github.com/spf13/cobra"
@@ -312,31 +313,31 @@ func TestArchiveModuleWithExclusions(t *testing.T) {
 		{
 			name: "exclude .terraform directory",
 			files: map[string]file{
-				"main.tf":                                           {content: "test content"},
-				"variables.tf":                                      {content: "test content"},
-				".terraform/providers/provider.exe":                 {content: "binary content"},
-				".terraform/modules/modules.json":                   {content: "json content"},
-				".terraform/terraform.tfstate":                      {content: "state content"},
-				"modules/submodule/.terraform/providers/cached.exe": {content: "nested binary"},
+				"main.tf":                                       {content: "test content"},
+				"variables.tf":                                  {content: "test content"},
+				".terraform/providers/provider":                 {content: "binary content"},
+				".terraform/modules/modules.json":               {content: "json content"},
+				".terraform/terraform.tfstate":                  {content: "state content"},
+				"modules/submodule/.terraform/providers/cached": {content: "nested binary"},
 			},
 			excludePatterns: []string{".terraform"},
 			expectedFiles:   []string{"main.tf", "variables.tf"},
-			excludedFiles:   []string{".terraform/providers/provider.exe", ".terraform/modules/modules.json", ".terraform/terraform.tfstate", "modules/submodule/.terraform/providers/cached.exe"},
+			excludedFiles:   []string{".terraform/providers/provider", ".terraform/modules/modules.json", ".terraform/terraform.tfstate", "modules/submodule/.terraform/providers/cached"},
 		},
 		{
 			name: "exclude multiple patterns",
 			files: map[string]file{
-				"main.tf":                      {content: "test content"},
-				"variables.tf":                 {content: "test content"},
-				".terraform/providers/p.exe":   {content: "binary"},
-				"debug.log":                    {content: "log content"},
-				"nested/error.log":             {content: "nested log"},
-				".git/config":                  {content: "git config"},
-				"modules/example/terraform.tf": {content: "example"},
+				"main.tf":                       {content: "test content"},
+				"variables.tf":                  {content: "test content"},
+				".terraform/providers/provider": {content: "binary"},
+				"debug.log":                     {content: "log content"},
+				"nested/error.log":              {content: "nested log"},
+				".git/config":                   {content: "git config"},
+				"modules/example/terraform.tf":  {content: "example"},
 			},
 			excludePatterns: []string{".terraform", "*.log", ".git"},
 			expectedFiles:   []string{"main.tf", "variables.tf", "modules/example/terraform.tf"},
-			excludedFiles:   []string{".terraform/providers/p.exe", "debug.log", "nested/error.log", ".git/config"},
+			excludedFiles:   []string{".terraform/providers/provider", "debug.log", "nested/error.log", ".git/config"},
 		},
 		{
 			name: "exclude with glob pattern",
@@ -370,14 +371,54 @@ func TestArchiveModuleWithExclusions(t *testing.T) {
 			expectedFiles:   []string{"main.tf", "variables.tf"},
 			excludedFiles:   []string{},
 		},
+		{
+			name: "doublestar recursive pattern",
+			files: map[string]file{
+				"main.tf":                       {content: "test content"},
+				"terraform.tfstate":             {content: "state"},
+				"nested/deep/terraform.tfstate": {content: "nested state"},
+				"nested/deep/other.tf":          {content: "other"},
+			},
+			excludePatterns: []string{"**/*.tfstate"},
+			expectedFiles:   []string{"main.tf", "nested/deep/other.tf"},
+			excludedFiles:   []string{"terraform.tfstate", "nested/deep/terraform.tfstate"},
+		},
+		{
+			name: "rooted pattern matches only at root",
+			files: map[string]file{
+				"main.tf":               {content: "test content"},
+				"vendor/lib/dep.go":     {content: "dep"},
+				"modules/vendor/lib.go": {content: "nested vendor"},
+			},
+			excludePatterns: []string{"/vendor"},
+			expectedFiles:   []string{"main.tf", "modules/vendor/lib.go"},
+			excludedFiles:   []string{"vendor/lib/dep.go"},
+		},
+		{
+			name: "trailing slash matches only directories",
+			files: map[string]file{
+				"main.tf":             {content: "test content"},
+				"build/out.bin":       {content: "binary"},
+				"build/build/out.bin": {content: "binary"},
+				"build.txt":           {content: "file with build prefix"},
+			},
+			excludePatterns: []string{"build/"},
+			expectedFiles:   []string{"main.tf", "build.txt"},
+			excludedFiles:   []string{"build/out.bin"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			var patterns []gitignore.Pattern
+			for _, p := range tt.excludePatterns {
+				patterns = append(patterns, gitignore.ParsePattern(p, nil))
+			}
+
 			dir := createModuleDirStructure(t, "", tt.files)
-			reader, err := archiveModule(dir, tt.excludePatterns)
+			reader, err := archiveModule(dir, patterns)
 			assert.NoError(t, err)
 			assert.NotNil(t, reader)
 
@@ -413,112 +454,62 @@ func TestArchiveModuleWithExclusions(t *testing.T) {
 	}
 }
 
-func TestShouldExclude(t *testing.T) {
+func TestParseExcludePatterns(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		path     string
-		root     string
-		isDir    bool
-		patterns []string
-		expected bool
+		name        string
+		raw         []string
+		wantCount   int
+		wantErr     bool
+		errContains string
 	}{
 		{
-			name:     "exact directory name match",
-			path:     "/tmp/module/.terraform",
-			root:     "/tmp/module",
-			isDir:    true,
-			patterns: []string{".terraform"},
-			expected: true,
+			name:      "valid patterns",
+			raw:       []string{".terraform", "*.log", "/vendor"},
+			wantCount: 3,
 		},
 		{
-			name:     "nested directory match",
-			path:     "/tmp/module/submodule/.terraform",
-			root:     "/tmp/module",
-			isDir:    true,
-			patterns: []string{".terraform"},
-			expected: true,
+			name:      "empty strings are skipped",
+			raw:       []string{".terraform", "", "  ", "*.log"},
+			wantCount: 2,
 		},
 		{
-			name:     "file inside excluded directory",
-			path:     "/tmp/module/.terraform/providers/file.exe",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{".terraform"},
-			expected: true,
+			name:        "negation pattern rejected",
+			raw:         []string{"!important.tf"},
+			wantErr:     true,
+			errContains: "negation patterns are not supported",
 		},
 		{
-			name:     "glob pattern match",
-			path:     "/tmp/module/debug.log",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{"*.log"},
-			expected: true,
+			name:      "doublestar pattern",
+			raw:       []string{"**/*.tfstate"},
+			wantCount: 1,
 		},
 		{
-			name:     "no match",
-			path:     "/tmp/module/main.tf",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{".terraform", "*.log"},
-			expected: false,
+			name:      "nil input",
+			raw:       nil,
+			wantCount: 0,
 		},
 		{
-			name:     "empty patterns",
-			path:     "/tmp/module/.terraform",
-			root:     "/tmp/module",
-			isDir:    true,
-			patterns: []string{},
-			expected: false,
-		},
-		{
-			name:     "nil patterns",
-			path:     "/tmp/module/.terraform",
-			root:     "/tmp/module",
-			isDir:    true,
-			patterns: nil,
-			expected: false,
-		},
-		{
-			name:     "path component match in nested path",
-			path:     "/tmp/module/modules/auth/.terraform/cache/file.json",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{".terraform"},
-			expected: true,
-		},
-		{
-			name:     "partial name should not match",
-			path:     "/tmp/module/terraform.tf",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{".terraform"},
-			expected: false,
-		},
-		{
-			name:     "multiple patterns first matches",
-			path:     "/tmp/module/.git/config",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{".git", ".terraform", "*.log"},
-			expected: true,
-		},
-		{
-			name:     "multiple patterns last matches",
-			path:     "/tmp/module/app.log",
-			root:     "/tmp/module",
-			isDir:    false,
-			patterns: []string{".git", ".terraform", "*.log"},
-			expected: true,
+			name:      "empty input",
+			raw:       []string{},
+			wantCount: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := shouldExclude(tt.path, tt.root, tt.isDir, tt.patterns)
-			assert.Equal(t, tt.expected, result)
+			patterns, err := parseExcludePatterns(tt.raw)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, patterns, tt.wantCount)
+			}
 		})
 	}
 }
@@ -571,7 +562,8 @@ func TestArchiveModuleIntegration(t *testing.T) {
 	sizeWithout := bufWithout.Len()
 
 	// Archive WITH .terraform exclusion
-	readerWithExclude, err := archiveModule(dir, []string{".terraform"})
+	excludePatterns := []gitignore.Pattern{gitignore.ParsePattern(".terraform", nil)}
+	readerWithExclude, err := archiveModule(dir, excludePatterns)
 	assert.NoError(t, err)
 
 	bufWith := new(bytes.Buffer)
@@ -615,14 +607,14 @@ func TestArchiveModuleIntegration(t *testing.T) {
 
 // These tests cannot run in parallel because they modify global state
 func TestModuleUploadRunner_ProcessModule(t *testing.T) {
-	validArchive := func(string, []string) (io.Reader, error) {
+	validArchive := func(string, []gitignore.Pattern) (io.Reader, error) {
 		return bytes.NewReader([]byte("foo-bar")), nil
 	}
 	tests := []struct {
 		name                     string
 		specContent              string
 		storage                  module.Storage
-		setupArchive             func(string, []string) (io.Reader, error)
+		setupArchive             func(string, []gitignore.Pattern) (io.Reader, error)
 		ignoreExistingModule     bool
 		versionConstraintsSemver string
 		versionConstraintsRegex  string
@@ -714,7 +706,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 			storage: &mockModuleStorage{
 				getModuleErr: module.ErrModuleNotFound,
 			},
-			setupArchive: func(string, []string) (io.Reader, error) {
+			setupArchive: func(string, []gitignore.Pattern) (io.Reader, error) {
 				return nil, fmt.Errorf("failed to create archive")
 			},
 			wantErr: true,
