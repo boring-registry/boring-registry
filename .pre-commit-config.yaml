@@ -6,8 +6,11 @@ repos:
       - id: go-fmt
         args: [-w]
       - id: go-vet-mod
-      - id: golangci-lint-mod
-        args: [--build-tags=integration]
       - id: go-mod-tidy
       - id: go-test-mod
         args: [-v]
+  - repo: https://github.com/golangci/golangci-lint
+    rev: v2.12.2
+    hooks:
+      - id: golangci-lint
+        args: [--build-tags=integration]
