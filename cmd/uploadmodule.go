@@ -382,16 +382,20 @@ func archiveModule(root string, excludePatterns []gitignore.Pattern) (io.Reader,
 			return err
 		}
 
+		// the relative path of the file from the module root
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
 		// Check if the path should be excluded
 		if len(excludePatterns) > 0 {
-			relPath := archiveFileHeaderName(path, root) //TODO: refactor the function to make it more generic
-			if relPath != "" {
-				components := strings.Split(filepath.ToSlash(relPath), "/") // The ToSlash is necessary for windows-style paths
+			if relativePath != "." {
+				// The ToSlash is necessary for windows-style paths
+				components := strings.Split(filepath.ToSlash(relativePath), "/")
 				for _, p := range excludePatterns {
 					if p.Match(components, fi.IsDir()) == gitignore.Exclude {
 						if fi.IsDir() {
-							// Since we know that this is a dir that should be excluded, we can return SkipDir to the caller so that the entire
-							// directory is skipped
 							return filepath.SkipDir
 						}
 						return nil
@@ -412,7 +416,7 @@ func archiveModule(root string, excludePatterns []gitignore.Pattern) (io.Reader,
 		}
 
 		// update the name to correctly reflect the desired destination when untaring
-		header.Name = archiveFileHeaderName(path, root)
+		header.Name = relativePath
 
 		if err := tw.WriteHeader(header); err != nil {
 			return err
@@ -452,21 +456,4 @@ func parseExcludePatterns(unparsedPatterns []string) ([]gitignore.Pattern, error
 		patterns = append(patterns, gitignore.ParsePattern(unparsed, nil))
 	}
 	return patterns, nil
-}
-
-func archiveFileHeaderName(path, root string) string {
-	// Check if the module is uploaded non-recursively from the current directory
-	if root == "." {
-		return path
-	}
-
-	// Remove the root prefix from the path
-	if strings.HasPrefix(path, root) {
-		relativePath := strings.TrimPrefix(path, root)
-
-		// the leading slash needs to be removed
-		return strings.TrimPrefix(relativePath, "/")
-	}
-
-	return path
 }
