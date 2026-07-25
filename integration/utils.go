@@ -48,7 +48,7 @@ func (s *storageHarness) setupClient(ctx context.Context, t *testing.T) {
 
 func (s *storageHarness) createAzuriteContainer(ctx context.Context, t *testing.T) func() {
 	azuriteContainer, err := azurite.Run(ctx,
-		"mcr.microsoft.com/azure-storage/azurite:3.35.0",
+		"mcr.microsoft.com/azure-storage/azurite:3.36.0",
 
 		// The Azurite release schedule sometimes lags behind the release schedule of azure-sdk-for-go.
 		// This can result in situations where the API schema in azure-sdk-for-go is more recent as azurite's.
