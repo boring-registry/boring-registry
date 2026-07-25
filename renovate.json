@@ -16,6 +16,17 @@
       "automerge": true
     },
     {
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "minimumReleaseAge": "60 days",
+      "automerge": true
+    },
+    {
       "schedule": [
         "on monday"
       ],
