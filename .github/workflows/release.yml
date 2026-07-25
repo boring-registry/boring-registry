@@ -80,10 +80,10 @@ jobs:
         id: local-chart-version
         run: echo "VERSION=$(helm show chart helm/boring-registry | yq .version)" >> $GITHUB_ENV
 
-      - uses: octokit/request-action@v2.x
+      - uses: octokit/request-action@b91aabaa861c777dcdb14e2387e30eddf04619ae # v3.0.0
         id: get_chart
         with:
-          route: GET /orgs/tiermobility/packages/container/charts%2Fboring-registry/versions
+          route: GET /orgs/tiermobility/packages/container/charts%2Fboring-registry/versions # TODO(oliviermichaelis): fix URL
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -112,7 +112,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
 
       - name: Helm login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | helm registry login ghcr.io --username boring-registry --password-stdin

@@ -5,10 +5,8 @@
   ],
   "packageRules": [
     {
-      "matchPackageNames": [
-        "actions/checkout",
-        "actions/setup-go",
-        "actions/setup-python"
+      "matchManagers": [
+        "github-actions"
       ],
       "matchUpdateTypes": [
         "minor",
