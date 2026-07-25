@@ -3,6 +3,7 @@
   "extends": [
     "config:recommended"
   ],
+  "prConcurrentLimit": 5,
   "packageRules": [
     {
       "matchManagers": [
