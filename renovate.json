@@ -5,6 +5,17 @@
   ],
   "packageRules": [
     {
+      "matchPackageNames": [
+        "actions/checkout"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "minimumReleaseAge": "30 days",
+      "automerge": true
+    },
+    {
       "schedule": [
         "on monday"
       ],
