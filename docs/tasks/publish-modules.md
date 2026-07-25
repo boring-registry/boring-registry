@@ -61,6 +61,41 @@ This is convenient for uploading multiple modules at once.
 
 Use `--recursive=false` to disable recursive discovery and only upload the module in the specified directory.
 
+## Excluding files from the archive
+
+The `--exclude` flag omits files and directories from the module archive.
+Only the files that a module needs to be consumed have to be published, everything else can be excluded.
+Common candidates are local provider caches, state files, test fixtures, CI configuration, and documentation assets.
+
+The flag can be passed multiple times and every pattern is matched relative to the root directory of the module:
+
+```bash
+boring-registry upload module --exclude=".terraform" --exclude="*.tfstate*" ./modules/
+```
+
+Patterns follow the [`.gitignore` syntax](https://git-scm.com/docs/gitignore#_pattern_format):
+
+| Pattern                | Matches                                                                          |
+|------------------------|----------------------------------------------------------------------------------|
+| `.terraform`           | a file or directory named `.terraform` at any depth                              |
+| `*.tfstate*`           | any state file or state backup at any depth                                      |
+| `/examples`            | the `examples` directory in the module root only, not `modules/vpc/examples`      |
+| `**/*.tfvars`          | variable definition files at any depth                                           |
+| `.terraform.lock.hcl`  | the dependency lock file, which is resolved by the consumer of the module         |
+| `tests/`               | directories named `tests`, but not a file named `tests`                          |
+
+Negated patterns starting with `!` are not supported and are rejected with an error.
+
+!!! note
+
+    The patterns only filter the contents of the archives, they don't affect the recursive discovery of modules.
+    Take `boring-registry upload module --exclude="foo*" ./modules`, where `modules/foo` and `modules/bar`
+    both contain a `boring-registry.hcl` file.
+    Both modules are still discovered and published, as `foo*` doesn't prevent `modules/foo` from being uploaded.
+    The pattern is matched relative to the root of each module, therefore it excludes `modules/bar/foo.hcl`
+    from the archive of `modules/bar`, while the archive of `modules/foo` contains all of its files.
+    Use `--recursive=false` to upload only the module in the given directory.
+
 ## Handling Existing Module Versions
 
 By default, the `upload module` command will silently skip modules that already exist in the registry.

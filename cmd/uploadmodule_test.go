@@ -14,6 +14,7 @@ import (
 
 	"github.com/boring-registry/boring-registry/pkg/core"
 	"github.com/boring-registry/boring-registry/pkg/module"
+	gitignore "github.com/go-git/go-git/v5/plumbing/format/gitignore"
 	"github.com/hashicorp/go-version"
 
 	"github.com/spf13/cobra"
@@ -176,55 +177,6 @@ func TestNewModuleUploadConfigFromFlags(t *testing.T) {
 	flagRecursive = true
 }
 
-func TestArchiveFileHeaderName(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name   string
-		root   string
-		path   string
-		result string
-	}{
-		{
-			name:   "top-level file in a module",
-			root:   "/tmp/boring-registry/modules/example",
-			path:   "/tmp/boring-registry/modules/example/main.tf",
-			result: "main.tf",
-		},
-		{
-			name:   "nested file in a module",
-			root:   "/tmp/boring-registry/modules/example",
-			path:   "/tmp/boring-registry/modules/example/modules/auth/main.tf",
-			result: "modules/auth/main.tf",
-		},
-		{
-			name:   "hidden file without file extension",
-			root:   "/tmp/boring-registry/modules/example",
-			path:   "/tmp/boring-registry/modules/example/.hidden",
-			result: ".hidden",
-		},
-		{
-			name:   "hidden file without recursive walk",
-			root:   ".",
-			path:   ".hidden",
-			result: ".hidden",
-		},
-		{
-			name:   "file path with parent directory",
-			root:   "../../tmp/boring-registry/modules/example",
-			path:   "../../tmp/boring-registry/modules/example/main.tf",
-			result: "main.tf",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.result, archiveFileHeaderName(tc.path, tc.root))
-		})
-	}
-
-}
-
 func TestArchiveModule(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -262,7 +214,7 @@ func TestArchiveModule(t *testing.T) {
 			t.Parallel()
 
 			dir := createModuleDirStructure(t, tt.root, tt.files)
-			reader, err := archiveModule(dir)
+			reader, err := archiveModule(dir, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -288,6 +240,8 @@ func TestArchiveModule(t *testing.T) {
 					break
 				}
 				assert.NoError(t, err)
+				// The tar format mandates forward slashes as separator on all platforms
+				assert.NotContains(t, header.Name, `\`, "archive entry must not contain windows-style separators")
 				foundFiles[header.Name] = true
 			}
 
@@ -299,15 +253,239 @@ func TestArchiveModule(t *testing.T) {
 	}
 }
 
+func TestArchiveModuleWithExclusions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		files           map[string]file
+		excludePatterns []string
+		expectedFiles   []string
+		excludedFiles   []string
+	}{
+		{
+			name: "exclude .terraform directory",
+			files: map[string]file{
+				"main.tf":                                       {content: "test content"},
+				"variables.tf":                                  {content: "test content"},
+				".terraform/providers/provider":                 {content: "binary content"},
+				".terraform/modules/modules.json":               {content: "json content"},
+				".terraform/terraform.tfstate":                  {content: "state content"},
+				"modules/submodule/.terraform/providers/cached": {content: "nested binary"},
+			},
+			excludePatterns: []string{".terraform"},
+			expectedFiles:   []string{"main.tf", "variables.tf"},
+			excludedFiles:   []string{".terraform/providers/provider", ".terraform/modules/modules.json", ".terraform/terraform.tfstate", "modules/submodule/.terraform/providers/cached"},
+		},
+		{
+			name: "exclude multiple patterns",
+			files: map[string]file{
+				"main.tf":                       {content: "test content"},
+				"variables.tf":                  {content: "test content"},
+				".terraform/providers/provider": {content: "binary"},
+				"debug.log":                     {content: "log content"},
+				"nested/error.log":              {content: "nested log"},
+				".git/config":                   {content: "git config"},
+				"modules/example/terraform.tf":  {content: "example"},
+			},
+			excludePatterns: []string{".terraform", "*.log", ".git"},
+			expectedFiles:   []string{"main.tf", "variables.tf", "modules/example/terraform.tf"},
+			excludedFiles:   []string{".terraform/providers/provider", "debug.log", "nested/error.log", ".git/config"},
+		},
+		{
+			name: "exclude with glob pattern",
+			files: map[string]file{
+				"main.tf":       {content: "test content"},
+				"test_main.go":  {content: "test file"},
+				"test_utils.go": {content: "test utils"},
+				"utils.go":      {content: "utils"},
+			},
+			excludePatterns: []string{"test_*.go"},
+			expectedFiles:   []string{"main.tf", "utils.go"},
+			excludedFiles:   []string{"test_main.go", "test_utils.go"},
+		},
+		{
+			name: "no exclusions",
+			files: map[string]file{
+				"main.tf":      {content: "test content"},
+				"variables.tf": {content: "test content"},
+			},
+			excludePatterns: nil,
+			expectedFiles:   []string{"main.tf", "variables.tf"},
+			excludedFiles:   []string{},
+		},
+		{
+			name: "empty exclusion list",
+			files: map[string]file{
+				"main.tf":      {content: "test content"},
+				"variables.tf": {content: "test content"},
+			},
+			excludePatterns: []string{},
+			expectedFiles:   []string{"main.tf", "variables.tf"},
+			excludedFiles:   []string{},
+		},
+		{
+			name: "doublestar recursive pattern",
+			files: map[string]file{
+				"main.tf":                       {content: "test content"},
+				"terraform.tfstate":             {content: "state"},
+				"nested/deep/terraform.tfstate": {content: "nested state"},
+				"nested/deep/other.tf":          {content: "other"},
+			},
+			excludePatterns: []string{"**/*.tfstate"},
+			expectedFiles:   []string{"main.tf", "nested/deep/other.tf"},
+			excludedFiles:   []string{"terraform.tfstate", "nested/deep/terraform.tfstate"},
+		},
+		{
+			name: "rooted pattern matches only at root",
+			files: map[string]file{
+				"main.tf":               {content: "test content"},
+				"vendor/lib/dep.go":     {content: "dep"},
+				"modules/vendor/lib.go": {content: "nested vendor"},
+			},
+			excludePatterns: []string{"/vendor"},
+			expectedFiles:   []string{"main.tf", "modules/vendor/lib.go"},
+			excludedFiles:   []string{"vendor/lib/dep.go"},
+		},
+		{
+			name: "trailing slash matches only directories",
+			files: map[string]file{
+				"main.tf":             {content: "test content"},
+				"build/out.bin":       {content: "binary"},
+				"build/build/out.bin": {content: "binary"},
+				"build.txt":           {content: "file with build prefix"},
+			},
+			excludePatterns: []string{"build/"},
+			expectedFiles:   []string{"main.tf", "build.txt"},
+			excludedFiles:   []string{"build/out.bin"},
+		},
+		{
+			name: "escaped trailing space matches a file name ending in a space",
+			files: map[string]file{
+				"main.tf":     {content: "test content"},
+				"trailing ":   {content: "file name with a trailing space"},
+				"trailing.tf": {content: "unrelated file"},
+			},
+			excludePatterns: []string{`trailing\ `},
+			expectedFiles:   []string{"main.tf", "trailing.tf"},
+			excludedFiles:   []string{"trailing "},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			patterns, err := parseExcludePatterns(tt.excludePatterns)
+			assert.NoError(t, err)
+
+			dir := createModuleDirStructure(t, "", tt.files)
+			reader, err := archiveModule(dir, patterns)
+			assert.NoError(t, err)
+			assert.NotNil(t, reader)
+
+			// Verify archive contents
+			gzr, err := gzip.NewReader(reader)
+			assert.NoError(t, err)
+			defer func() {
+				assert.NoError(t, gzr.Close())
+			}()
+
+			tr := tar.NewReader(gzr)
+			foundFiles := make(map[string]bool)
+
+			for {
+				header, err := tr.Next()
+				if err == io.EOF {
+					break
+				}
+				assert.NoError(t, err)
+				foundFiles[header.Name] = true
+			}
+
+			// Verify expected files are in archive
+			for _, expectedFile := range tt.expectedFiles {
+				assert.True(t, foundFiles[expectedFile], "expected file %s not found in archive", expectedFile)
+			}
+
+			// Verify excluded files are NOT in archive
+			for _, excludedFile := range tt.excludedFiles {
+				assert.False(t, foundFiles[excludedFile], "excluded file %s should not be in archive", excludedFile)
+			}
+		})
+	}
+}
+
+func TestParseExcludePatterns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		raw         []string
+		wantCount   int
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "valid patterns",
+			raw:       []string{".terraform", "*.log", "/vendor"},
+			wantCount: 3,
+		},
+		{
+			name:      "empty strings are skipped",
+			raw:       []string{".terraform", "", "  ", "*.log"},
+			wantCount: 2,
+		},
+		{
+			name:        "negation pattern rejected",
+			raw:         []string{"!important.tf"},
+			wantErr:     true,
+			errContains: "negation patterns are not supported",
+		},
+		{
+			name:      "doublestar pattern",
+			raw:       []string{"**/*.tfstate"},
+			wantCount: 1,
+		},
+		{
+			name:      "nil input",
+			raw:       nil,
+			wantCount: 0,
+		},
+		{
+			name:      "empty input",
+			raw:       []string{},
+			wantCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			patterns, err := parseExcludePatterns(tt.raw)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, patterns, tt.wantCount)
+			}
+		})
+	}
+}
+
+// These tests cannot run in parallel because they modify global state
 func TestModuleUploadRunner_ProcessModule(t *testing.T) {
-	validArchive := func(string) (io.Reader, error) {
+	validArchive := func(string, []gitignore.Pattern) (io.Reader, error) {
 		return bytes.NewReader([]byte("foo-bar")), nil
 	}
 	tests := []struct {
 		name                     string
 		specContent              string
 		storage                  module.Storage
-		setupArchive             func(string) (io.Reader, error)
+		setupArchive             func(string, []gitignore.Pattern) (io.Reader, error)
 		ignoreExistingModule     bool
 		versionConstraintsSemver string
 		versionConstraintsRegex  string
@@ -399,7 +577,7 @@ func TestModuleUploadRunner_ProcessModule(t *testing.T) {
 			storage: &mockModuleStorage{
 				getModuleErr: module.ErrModuleNotFound,
 			},
-			setupArchive: func(string) (io.Reader, error) {
+			setupArchive: func(string, []gitignore.Pattern) (io.Reader, error) {
 				return nil, fmt.Errorf("failed to create archive")
 			},
 			wantErr: true,
