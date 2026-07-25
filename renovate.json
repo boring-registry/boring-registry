@@ -4,6 +4,22 @@
     "config:recommended"
   ],
   "prConcurrentLimit": 5,
+  "pre-commit": {
+    "enabled": true
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^integration/utils\\.go$/"
+      ],
+      "matchStrings": [
+        "\"mcr\\.microsoft\\.com/azure-storage/azurite:(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "mcr.microsoft.com/azure-storage/azurite",
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "matchManagers": [
