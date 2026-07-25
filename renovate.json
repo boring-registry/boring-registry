@@ -6,7 +6,9 @@
   "packageRules": [
     {
       "matchPackageNames": [
-        "actions/checkout"
+        "actions/checkout",
+        "actions/setup-go",
+        "actions/setup-python"
       ],
       "matchUpdateTypes": [
         "minor",
