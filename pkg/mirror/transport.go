@@ -62,7 +62,11 @@ func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.MirrorMetr
 		),
 	)
 
-	// If static auth is
+	// The archive download accepts the token from either the Authorization header or the
+	// `token` query parameter. The header is the usual way to authenticate and is all the
+	// endpoints above accept, but the archive URLs handed out by addAuthToken carry the
+	// token as a query parameter, so both have to work here. The query parameter is applied
+	// last so that it keeps taking precedence when a request supplies both.
 	r.Methods("GET").Path(`/{hostname}/{namespace}/{name}/terraform-provider-{nameplaceholder}_{version}_{os}_{architecture}.zip`).Handler(
 		instrumentation.WrapHandler(
 			httptransport.NewServer(
@@ -72,6 +76,7 @@ func MakeHandler(svc Service, auth endpoint.Middleware, metrics *o11y.MirrorMetr
 				append(
 					options,
 					httptransport.ServerBefore(extractMuxVars(varHostname, varNamespace, varName, varVersion, varOS, varArchitecture)),
+					httptransport.ServerBefore(jwt.HTTPToContext()),
 					httptransport.ServerBefore(tokenQueryParamToContext()),
 				)...,
 			),
