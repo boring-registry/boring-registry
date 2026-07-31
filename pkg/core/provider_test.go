@@ -454,10 +454,16 @@ func TestProvider_Clone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Save original values before cloning to detect mutation.
+			// Note: This uses shallow assignment and won't detect mutations to internal
+			// slices like GPGPublicKeys or Platforms, since they share the same underlying
+			// array. For comprehensive mutation detection, a deep clone utility would be needed.
+			originalProvider := tt.provider
 			cloned := tt.provider.Clone()
-			assertion.Equalf(t, tt.provider, *cloned, "Clone()")
-			assertion.Equal(t, tt.provider.Platforms, cloned.Platforms)
-			assertion.Equal(t, tt.provider.SigningKeys.GPGPublicKeys, cloned.SigningKeys.GPGPublicKeys)
+			assertion.Equalf(t, originalProvider, tt.provider, "Clone() must not mutate the original")
+			assertion.Equalf(t, originalProvider, *cloned, "Clone()")
+			assertion.Equal(t, originalProvider.Platforms, cloned.Platforms)
+			assertion.Equal(t, originalProvider.SigningKeys.GPGPublicKeys, cloned.SigningKeys.GPGPublicKeys)
 		})
 	}
 }
