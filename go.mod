@@ -12,7 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.31
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.35
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.0
-	github.com/aws/smithy-go v1.27.4
+	github.com/aws/smithy-go v1.27.7
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/go-kit/kit v0.13.0
