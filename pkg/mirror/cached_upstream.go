@@ -21,10 +21,16 @@ type CacheConfig struct {
 	MaxSizeMB int
 }
 
+// revalidationCooldown bounds how often a cached version list is revalidated against
+// upstream when a requested version is absent from it. Without it, repeated requests for
+// a version that genuinely doesn't exist would bypass the cache on every call.
+const revalidationCooldown = 30 * time.Second
+
 // Represents a cache entry
 type cacheEntry struct {
 	data      any
 	sizeBytes int
+	storedAt  time.Time
 }
 
 // Wraps an upstreamProvider with caching
@@ -63,6 +69,19 @@ func estimateSize(data any) (int, error) {
 	return len(bytes), nil
 }
 
+// isStaleFor reports whether a cached version list has to be revalidated against upstream.
+// A cached list is only authoritative for the versions it contains: when a specific version is
+// requested and is absent, the list may simply predate that version's publication upstream.
+// Treating that as a definitive answer makes the pull-through mirror reject a provider until the
+// entry expires, so the list is revalidated instead, rate-limited by revalidationCooldown.
+func (c *cachedUpstreamProvider) isStaleFor(provider *core.Provider, versions *core.ProviderVersions, entry *cacheEntry) bool {
+	if provider.Version == "" || versionExists(provider.Version, versions) {
+		return false
+	}
+
+	return time.Since(entry.storedAt) >= revalidationCooldown
+}
+
 // Implements upstreamProvider's listProviderVersions method, with caching
 func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provider *core.Provider) (*core.ProviderVersions, error) {
 	key := buildVersionsKey(provider)
@@ -70,12 +89,20 @@ func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provi
 	// Try to get from cache
 	if entry, ok := c.cache.GetIfPresent(key); ok {
 		if versions, ok := entry.data.(*core.ProviderVersions); ok {
-			c.metrics.ListProviderVersionsCacheHit.With(prometheus.Labels{
-				o11y.HostnameLabel:  provider.Hostname,
-				o11y.NamespaceLabel: provider.Namespace,
-				o11y.NameLabel:      provider.Name,
-			}).Inc()
-			return versions, nil
+			if !c.isStaleFor(provider, versions, entry) {
+				c.metrics.ListProviderVersionsCacheHit.With(prometheus.Labels{
+					o11y.HostnameLabel:  provider.Hostname,
+					o11y.NamespaceLabel: provider.Namespace,
+					o11y.NameLabel:      provider.Name,
+				}).Inc()
+				return versions, nil
+			}
+
+			slog.Debug("cached version list does not contain the requested version, revalidating against upstream",
+				slog.String("hostname", provider.Hostname),
+				slog.String("namespace", provider.Namespace),
+				slog.String("name", provider.Name),
+				slog.String("version", provider.Version))
 		}
 	}
 
@@ -96,6 +123,7 @@ func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provi
 	entry := &cacheEntry{
 		data:      versions,
 		sizeBytes: sizeBytes,
+		storedAt:  time.Now(),
 	}
 	c.cache.Set(key, entry)
 
@@ -138,6 +166,7 @@ func (c *cachedUpstreamProvider) getProvider(ctx context.Context, provider *core
 	entry := &cacheEntry{
 		data:      prov,
 		sizeBytes: sizeBytes,
+		storedAt:  time.Now(),
 	}
 	c.cache.Set(key, entry)
 
@@ -178,6 +207,7 @@ func (c *cachedUpstreamProvider) shaSums(ctx context.Context, provider *core.Pro
 	entry := &cacheEntry{
 		data:      sums,
 		sizeBytes: sizeBytes,
+		storedAt:  time.Now(),
 	}
 	c.cache.Set(key, entry)
 
