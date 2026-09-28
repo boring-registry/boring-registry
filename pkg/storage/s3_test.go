@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -94,6 +95,13 @@ func (m *mockS3PresignClient) PresignGetObject(ctx context.Context, params *s3.G
 
 func headExistingObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 	return &s3.HeadObjectOutput{}, nil
+}
+
+func headObjectExceptSigningKeys(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
+	if path.Base(*params.Key) == SigningKeyFileName {
+		return headNonExistingObject(ctx, params, optFns...)
+	}
+	return headExistingObject(ctx, params, optFns...)
 }
 
 func headNonExistingObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
@@ -395,6 +403,68 @@ func TestS3Storage_getProvider(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "mirrored provider exists without signing keys",
+			fields: fields{
+				client: &mockS3Client{
+					headObject: headObjectExceptSigningKeys,
+				},
+				downloader: &mockS3Downloader{
+					data: map[string][]byte{
+						"mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS": []byte("10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89  terraform-provider-dummy_1.0.0_linux_amd64.zip"),
+					},
+				},
+			},
+			args: args{
+				pt: mirrorProviderType,
+				provider: &core.Provider{
+					Hostname:  "terraform.example.com",
+					Namespace: "example",
+					Name:      "dummy",
+					Version:   "1.0.0",
+					OS:        "linux",
+					Arch:      "amd64",
+				},
+			},
+			want: &core.Provider{
+				Hostname:            "terraform.example.com",
+				Namespace:           "example",
+				Name:                "dummy",
+				Version:             "1.0.0",
+				OS:                  "linux",
+				Arch:                "amd64",
+				Filename:            "terraform-provider-dummy_1.0.0_linux_amd64.zip",
+				DownloadURL:         "mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_linux_amd64.zip?presigned=true",
+				Shasum:              "10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89",
+				SHASumsURL:          "mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS?presigned=true",
+				SHASumsSignatureURL: "mirror/providers/terraform.example.com/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS.sig?presigned=true",
+				SigningKeys:         core.SigningKeys{},
+			},
+		},
+		{
+			name: "internal provider exists without signing keys",
+			fields: fields{
+				client: &mockS3Client{
+					headObject: headObjectExceptSigningKeys,
+				},
+				downloader: &mockS3Downloader{
+					data: map[string][]byte{
+						"providers/example/dummy/terraform-provider-dummy_1.0.0_SHA256SUMS": []byte("10488a12525ed674359585f83e3ee5e74818b5c98e033798351678b21b2f7d89  terraform-provider-dummy_1.0.0_linux_amd64.zip"),
+					},
+				},
+			},
+			args: args{
+				pt: internalProviderType,
+				provider: &core.Provider{
+					Namespace: "example",
+					Name:      "dummy",
+					Version:   "1.0.0",
+					OS:        "linux",
+					Arch:      "amd64",
+				},
+			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {

@@ -174,7 +174,7 @@ func (s *AzureStorage) getProvider(ctx context.Context, pt providerType, provide
 	case internalProviderType:
 		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
 	case mirrorProviderType:
-		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
+		signingKeys, err = ignoreMissingSigningKeys(s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace))
 	}
 	if err != nil {
 		return nil, err
