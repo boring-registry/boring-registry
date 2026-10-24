@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/boring-registry/boring-registry/pkg/auth"
 	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
@@ -27,6 +28,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, provider *
 	defer func(begin time.Time) {
 		logger := slog.Default().With(
 			slog.String("op", "ListProviderVersions"),
+			auth.LogAttr(ctx),
 			slog.Group("provider",
 				slog.String("hostname", provider.Hostname),
 				slog.String("namespace", provider.Namespace),
@@ -49,6 +51,7 @@ func (mw loggingMiddleware) ListProviderInstallation(ctx context.Context, provid
 	defer func(begin time.Time) {
 		logger := slog.Default().With(
 			slog.String("op", "ListProviderInstallation"),
+			auth.LogAttr(ctx),
 			slog.Group("provider",
 				slog.String("hostname", provider.Hostname),
 				slog.String("namespace", provider.Namespace),
@@ -71,6 +74,7 @@ func (mw loggingMiddleware) RetrieveProviderArchive(ctx context.Context, provide
 	defer func(begin time.Time) {
 		logger := slog.Default().With(
 			slog.String("op", "RetrieveProviderArchive"),
+			auth.LogAttr(ctx),
 			slog.Group("provider",
 				slog.String("hostname", provider.Hostname),
 				slog.String("namespace", provider.Namespace),

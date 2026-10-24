@@ -34,7 +34,7 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 					continue
 				} else {
 					slog.Debug("successfully verified token", slog.String("provider", provider.String()))
-					return next(ctx, request)
+					return next(withCaller(ctx, provider, token), request)
 				}
 			}
 
@@ -42,4 +42,19 @@ func Middleware(providers ...Provider) endpoint.Middleware {
 			return nil, core.ErrUnauthorized
 		}
 	}
+}
+
+// withCaller attaches the verified token's caller to ctx. Identification never
+// affects access: a provider that can't identify still lets the request through.
+func withCaller(ctx context.Context, p Provider, token string) context.Context {
+	caller := Caller{Provider: p.String()}
+	if id, ok := p.(Identifier); ok {
+		if c, err := id.Identify(ctx, token); err == nil {
+			caller = c
+			caller.Provider = p.String()
+		} else {
+			slog.Debug("failed to identify caller", slog.String("provider", p.String()), slog.String("err", err.Error()))
+		}
+	}
+	return WithCaller(ctx, caller)
 }
