@@ -3,6 +3,7 @@ package testcontainers
 import (
 	"archive/tar"
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -586,8 +587,29 @@ func (c *DockerContainer) Exec(ctx context.Context, cmd []string, options ...tce
 	if err != nil {
 		return 0, nil, fmt.Errorf("container exec attach: %w", err)
 	}
+	defer hijack.Close()
 
-	processOptions.Reader = hijack.Reader
+	// A not-yet-started exec inspects as {Running:false, ExitCode:null->0}, which
+	// is indistinguishable from "exited 0". The daemon closes the stream only once
+	// the process ends, so drain to EOF before inspecting; buffer it so callers
+	// can still read the output from the returned reader.
+	var buf bytes.Buffer
+	drained := make(chan error, 1) // buffered so the goroutine can finish after we return on ctx cancel
+	go func() {
+		_, copyErr := io.Copy(&buf, hijack.Reader)
+		drained <- copyErr
+	}()
+
+	select {
+	case copyErr := <-drained:
+		if copyErr != nil {
+			return 0, nil, fmt.Errorf("container exec read: %w", copyErr)
+		}
+	case <-ctx.Done():
+		return 0, nil, ctx.Err()
+	}
+
+	processOptions.Reader = bytes.NewReader(buf.Bytes())
 
 	// second loop to process the multiplexed option, as now we have a reader
 	// from the created exec response.
@@ -595,6 +617,9 @@ func (c *DockerContainer) Exec(ctx context.Context, cmd []string, options ...tce
 		o.Apply(processOptions)
 	}
 
+	// The daemon marks the exec stopped asynchronously after closing the stream,
+	// so a single immediate inspect can still observe Running:true; poll until it
+	// reports terminal.
 	var exitCode int
 	for {
 		execResp, err := cli.ExecInspect(ctx, response.ID, client.ExecInspectOptions{})
@@ -607,7 +632,11 @@ func (c *DockerContainer) Exec(ctx context.Context, cmd []string, options ...tce
 			break
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return 0, nil, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 
 	return exitCode, processOptions.Reader, nil
@@ -981,7 +1010,7 @@ func (c *DockerContainer) connectReaper(ctx context.Context) error {
 		return nil
 	}
 
-	reaper, err := spawner.reaper(context.WithValue(ctx, core.DockerHostContextKey, c.provider.host), core.SessionID(), c.provider)
+	reaper, err := spawner.reaper(context.WithValue(ctx, core.DockerHostContextKey, c.provider.host), c.provider.config.SessionID, c.provider)
 	if err != nil {
 		return fmt.Errorf("reaper: %w", err)
 	}
@@ -1030,6 +1059,7 @@ func (n *DockerNetwork) SetTerminationSignal(signal chan bool) {
 // DockerProvider implements the ContainerProvider interface
 type DockerProvider struct {
 	*DockerProviderOptions
+	runtime   RuntimeConfig
 	client    client.APIClient
 	host      string
 	hostCache string
@@ -1040,6 +1070,12 @@ type DockerProvider struct {
 // Client gets the docker client used by the provider
 func (p *DockerProvider) Client() client.APIClient {
 	return p.client
+}
+
+// RuntimeConfig returns the selected runtime's connection settings. Modules that
+// construct additional Docker clients must use its endpoint when DockerHost is set.
+func (p *DockerProvider) RuntimeConfig() RuntimeConfig {
+	return p.runtime
 }
 
 // Close closes the docker client used by the provider
@@ -1353,7 +1389,7 @@ func (p *DockerProvider) findContainerByName(ctx context.Context, name string) (
 	// Note that, 'name' filter will use regex to find the containers
 	containers, err := p.client.ContainerList(ctx, client.ContainerListOptions{
 		All:     true,
-		Filters: make(client.Filters).Add("name", fmt.Sprintf("^%s$", name)),
+		Filters: make(client.Filters).Add("name", fmt.Sprintf("^%s$", regexp.QuoteMeta(name))),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("container list: %w", err)
@@ -1583,6 +1619,9 @@ func (p *DockerProvider) DaemonHost(ctx context.Context) (string, error) {
 }
 
 func (p *DockerProvider) daemonHostLocked(ctx context.Context) (string, error) {
+	if p.runtime.PublishedHost != "" {
+		return p.runtime.PublishedHost, nil
+	}
 	if p.hostCache != "" {
 		return p.hostCache, nil
 	}
@@ -1755,17 +1794,31 @@ func (p *DockerProvider) ensureDefaultNetworkLocked(ctx context.Context) (string
 	// TODO: remove once we have docker context support via #2810
 	// Prefer the default bridge network if it exists.
 	// This makes the results stable as network list order is not guaranteed.
+	var fallbackNetwork string
 	for _, nw := range networkResources.Items {
 		switch nw.Name {
 		case p.defaultBridgeNetworkName:
 			p.defaultNetwork = p.defaultBridgeNetworkName
 			return p.defaultNetwork, nil
 		case ReaperDefault:
-			p.defaultNetwork = ReaperDefault
+			fallbackNetwork = ReaperDefault
 		}
 	}
 
-	if p.defaultNetwork != "" {
+	// A compatible runtime may list the default network under an alias: Podman
+	// lists "bridge", but container creation requires its native name "podman".
+	// Inspect the configured name before choosing or creating a fallback.
+	if p.defaultBridgeNetworkName != Bridge {
+		if _, err := p.client.NetworkInspect(ctx, p.defaultBridgeNetworkName, client.NetworkInspectOptions{}); err == nil {
+			p.defaultNetwork = p.defaultBridgeNetworkName
+			return p.defaultNetwork, nil
+		} else if !errdefs.IsNotFound(err) {
+			return "", fmt.Errorf("inspect default network: %w", err)
+		}
+	}
+
+	if fallbackNetwork != "" {
+		p.defaultNetwork = fallbackNetwork
 		return p.defaultNetwork, nil
 	}
 
