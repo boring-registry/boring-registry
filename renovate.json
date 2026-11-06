@@ -7,6 +7,9 @@
   "pre-commit": {
     "enabled": true
   },
+  "vulnerabilityAlerts": {
+    "automerge": true
+  },
   "customManagers": [
     {
       "customType": "regex",
