@@ -8,7 +8,8 @@
     "enabled": true
   },
   "vulnerabilityAlerts": {
-    "automerge": true
+    "automerge": true,
+    "prConcurrentLimit": 0
   },
   "customManagers": [
     {
