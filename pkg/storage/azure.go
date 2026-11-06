@@ -9,6 +9,7 @@ import (
 	"io"
 	"path"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
@@ -22,6 +23,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service"
 )
 
+const (
+	// azureUDCMinValidity is how long a user delegation key stays usable after the longest signed URL it signs expires
+	azureUDCMinValidity = 4 * time.Hour
+	// azureUDCMaxValidity is the maximum validity of a user delegation key allowed by Azure
+	azureUDCMaxValidity = 7 * 24 * time.Hour
+	// azureUDCClockSkew accounts for clock differences between the registry and Azure
+	azureUDCClockSkew = 5 * time.Minute
+)
+
 // AzureStorage is a Storage implementation backed by Azure Blob Storage.
 // AzureStorage implements module.Storage, provider.Storage, and mirror.Storage
 type AzureStorage struct {
@@ -31,6 +41,12 @@ type AzureStorage struct {
 	prefix              string
 	moduleArchiveFormat string
 	signedURLExpiry     time.Duration
+
+	// getUDC fetches a user delegation credential. Defaults to the service client; overridden in tests.
+	getUDC    func(ctx context.Context, info service.KeyInfo, o *service.GetUserDelegationCredentialOptions) (*service.UserDelegationCredential, error)
+	udcMu     sync.Mutex
+	udc       *service.UserDelegationCredential
+	udcExpiry time.Time
 
 	// sharedKeyCred is used to connect to Azurite in integration tests.
 	// This should only be set for testing!
@@ -336,12 +352,34 @@ func (s *AzureStorage) UploadMirroredFile(ctx context.Context, provider *core.Pr
 	return s.upload(ctx, key, reader, true)
 }
 
-func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, error) {
-	info := service.KeyInfo{
-		Start:  to.Ptr(time.Now().UTC().Format(sas.TimeFormat)),
-		Expiry: to.Ptr(time.Now().UTC().Add(4 * time.Hour).Format(sas.TimeFormat)),
+// userDelegationCredential returns a cached user delegation credential, and fetches a new one
+// if the cached credential would expire before a URL signed now.
+func (s *AzureStorage) userDelegationCredential(ctx context.Context) (*service.UserDelegationCredential, error) {
+	s.udcMu.Lock()
+	defer s.udcMu.Unlock()
+
+	now := time.Now().UTC()
+	if s.udc != nil && now.Add(s.signedURLExpiry+azureUDCClockSkew).Before(s.udcExpiry) {
+		return s.udc, nil
 	}
 
+	expiry := now.Add(min(s.signedURLExpiry+azureUDCMinValidity, azureUDCMaxValidity))
+	info := service.KeyInfo{
+		Start:  to.Ptr(now.Add(-azureUDCClockSkew).Format(sas.TimeFormat)),
+		Expiry: to.Ptr(expiry.Format(sas.TimeFormat)),
+	}
+
+	udc, err := s.getUDC(ctx, info, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user delegation credentials: %w", err)
+	}
+
+	s.udc = udc
+	s.udcExpiry = expiry
+	return udc, nil
+}
+
+func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, error) {
 	blobSignatureValues := sas.BlobSignatureValues{
 		Protocol:      sas.ProtocolHTTPS,
 		ExpiryTime:    time.Now().Add(s.signedURLExpiry),
@@ -352,9 +390,9 @@ func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, er
 
 	var params sas.QueryParameters
 	if s.sharedKeyCred == nil {
-		udc, err := s.client.ServiceClient().GetUserDelegationCredential(ctx, info, nil)
+		udc, err := s.userDelegationCredential(ctx)
 		if err != nil {
-			return "", fmt.Errorf("failed to get user delegation credentials: %w", err)
+			return "", err
 		}
 		params, err = blobSignatureValues.SignWithUserDelegation(udc)
 		if err != nil {
@@ -457,6 +495,11 @@ func NewAzureStorage(account string, container string, options ...AzureStorageOp
 		option(s)
 	}
 
+	// A signed URL must not outlive the user delegation key that signs it
+	if s.signedURLExpiry > azureUDCMaxValidity {
+		return nil, fmt.Errorf("signed URL expiry %s exceeds the Azure user delegation key maximum of %s", s.signedURLExpiry, azureUDCMaxValidity)
+	}
+
 	url := fmt.Sprintf("https://%s.blob.core.windows.net/", account)
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
@@ -470,6 +513,7 @@ func NewAzureStorage(account string, container string, options ...AzureStorageOp
 	}
 
 	s.client = client
+	s.getUDC = client.ServiceClient().GetUserDelegationCredential
 
 	return s, nil
 }
@@ -485,5 +529,6 @@ func NewAzuriteStorage(client *azblob.Client, sharedKeyCred *azblob.SharedKeyCre
 		moduleArchiveFormat: moduleArchiveFormat,
 		signedURLExpiry:     signedURLExpiry,
 		sharedKeyCred:       sharedKeyCred,
+		getUDC:              client.ServiceClient().GetUserDelegationCredential,
 	}
 }
