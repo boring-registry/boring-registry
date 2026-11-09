@@ -102,9 +102,9 @@ func TestAzureStorage_userDelegationCredential_KeyValidity(t *testing.T) {
 			wantValidity:    10*time.Hour + azureUDCMinValidity,
 		},
 		{
-			name:            "validity is clamped to the Azure maximum of 7 days",
+			name:            "validity is clamped below the Azure maximum of 7 days by the clock skew",
 			signedURLExpiry: 200 * time.Hour,
-			wantValidity:    azureUDCMaxValidity,
+			wantValidity:    azureUDCMaxValidity - azureUDCClockSkew,
 		},
 	}
 
@@ -137,8 +137,24 @@ func TestNewAzuriteStorage_SetsUserDelegationCredentialFetcher(t *testing.T) {
 }
 
 func TestNewAzureStorage_RejectsSignedURLExpiryAboveKeyMaximum(t *testing.T) {
-	assert := assertion.New(t)
+	tests := []struct {
+		name            string
+		signedURLExpiry time.Duration
+	}{
+		{
+			name:            "above the Azure maximum of 7 days",
+			signedURLExpiry: azureUDCMaxValidity + time.Hour,
+		},
+		{
+			name:            "within twice the clock skew of the Azure maximum",
+			signedURLExpiry: azureUDCMaxValidity - 2*azureUDCClockSkew + time.Second,
+		},
+	}
 
-	_, err := NewAzureStorage("example", "container", WithAzureStorageSignedUrlExpiry(azureUDCMaxValidity+time.Hour))
-	assert.ErrorContains(err, "exceeds the Azure user delegation key maximum")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewAzureStorage("example", "container", WithAzureStorageSignedUrlExpiry(tc.signedURLExpiry))
+			assertion.New(t).ErrorContains(err, "exceeds the Azure user delegation key maximum")
+		})
+	}
 }

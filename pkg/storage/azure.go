@@ -363,7 +363,7 @@ func (s *AzureStorage) userDelegationCredential(ctx context.Context) (*service.U
 		return s.udc, nil
 	}
 
-	expiry := now.Add(min(s.signedURLExpiry+azureUDCMinValidity, azureUDCMaxValidity))
+	expiry := now.Add(min(s.signedURLExpiry+azureUDCMinValidity, azureUDCMaxValidity-azureUDCClockSkew))
 	info := service.KeyInfo{
 		Start:  to.Ptr(now.Add(-azureUDCClockSkew).Format(sas.TimeFormat)),
 		Expiry: to.Ptr(expiry.Format(sas.TimeFormat)),
@@ -495,9 +495,10 @@ func NewAzureStorage(account string, container string, options ...AzureStorageOp
 		option(s)
 	}
 
-	// A signed URL must not outlive the user delegation key that signs it
-	if s.signedURLExpiry > azureUDCMaxValidity {
-		return nil, fmt.Errorf("signed URL expiry %s exceeds the Azure user delegation key maximum of %s", s.signedURLExpiry, azureUDCMaxValidity)
+	// A signed URL must not outlive the user delegation key that signs it. The key is requested
+	// for at most the maximum minus the clock skew, and the cache keeps it for a signed URL expiry plus the clock skew.
+	if maxExpiry := azureUDCMaxValidity - 2*azureUDCClockSkew; s.signedURLExpiry > maxExpiry {
+		return nil, fmt.Errorf("signed URL expiry %s exceeds the Azure user delegation key maximum of %s", s.signedURLExpiry, maxExpiry)
 	}
 
 	url := fmt.Sprintf("https://%s.blob.core.windows.net/", account)
