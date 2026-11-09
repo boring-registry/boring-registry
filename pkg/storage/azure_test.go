@@ -146,8 +146,8 @@ func TestNewAzureStorage_RejectsSignedURLExpiryAboveKeyMaximum(t *testing.T) {
 			signedURLExpiry: azureUDCMaxValidity + time.Hour,
 		},
 		{
-			name:            "within twice the clock skew of the Azure maximum",
-			signedURLExpiry: azureUDCMaxValidity - 2*azureUDCClockSkew + time.Second,
+			name:            "too long for the key to stay usable for the minimum validity",
+			signedURLExpiry: azureUDCMaxValidity - azureUDCClockSkew - azureUDCMinValidity + time.Second,
 		},
 	}
 

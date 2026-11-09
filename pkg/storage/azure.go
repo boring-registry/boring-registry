@@ -495,9 +495,10 @@ func NewAzureStorage(account string, container string, options ...AzureStorageOp
 		option(s)
 	}
 
-	// A signed URL must not outlive the user delegation key that signs it. The key is requested
-	// for at most the maximum minus the clock skew, and the cache keeps it for a signed URL expiry plus the clock skew.
-	if maxExpiry := azureUDCMaxValidity - 2*azureUDCClockSkew; s.signedURLExpiry > maxExpiry {
+	// A signed URL must not outlive the user delegation key that signs it. The key is requested for the signed URL expiry
+	// plus azureUDCMinValidity, capped at the Azure maximum minus the clock skew. Rejecting expiries that would hit the cap
+	// keeps every key usable for azureUDCMinValidity minus the clock skew, instead of a lifetime that shrinks to zero.
+	if maxExpiry := azureUDCMaxValidity - azureUDCClockSkew - azureUDCMinValidity; s.signedURLExpiry > maxExpiry {
 		return nil, fmt.Errorf("signed URL expiry %s exceeds the Azure user delegation key maximum of %s", s.signedURLExpiry, maxExpiry)
 	}
 
