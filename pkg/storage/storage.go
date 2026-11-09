@@ -2,6 +2,7 @@ package storage
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/boring-registry/boring-registry/pkg/core"
@@ -20,6 +21,16 @@ type Storage interface {
 	module.Storage
 	mirror.Storage
 	proxy.Storage
+}
+
+// ignoreMissingSigningKeys returns empty core.SigningKeys in case the signing keys don't exist in the storage backend.
+// The provider network mirror protocol doesn't serve signing keys, so a missing signing-keys.json must not break the download of mirrored providers.
+func ignoreMissingSigningKeys(signingKeys *core.SigningKeys, err error) (*core.SigningKeys, error) {
+	var objectNotFoundErr *core.ObjectNotFoundError
+	if errors.As(err, &objectNotFoundErr) {
+		return &core.SigningKeys{}, nil
+	}
+	return signingKeys, err
 }
 
 // unmarshalSigningKeys tries to unmarshal the byte-array into core.SigningKeys, and if that fails into core.GPGPublicKey.

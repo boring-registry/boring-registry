@@ -208,7 +208,7 @@ func (s *S3Storage) getProvider(ctx context.Context, pt providerType, provider *
 	case internalProviderType:
 		signingKeys, err = s.SigningKeys(ctx, provider.Namespace)
 	case mirrorProviderType:
-		signingKeys, err = s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace)
+		signingKeys, err = ignoreMissingSigningKeys(s.MirroredSigningKeys(ctx, provider.Hostname, provider.Namespace))
 	}
 	if err != nil {
 		return nil, err
