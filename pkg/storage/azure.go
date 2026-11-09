@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/bloberror"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -30,6 +32,8 @@ const (
 	azureUDCMaxValidity = 7 * 24 * time.Hour
 	// azureUDCClockSkew accounts for clock differences between the registry and Azure
 	azureUDCClockSkew = 5 * time.Minute
+	// azureUDCFetchTimeout bounds a user delegation key fetch, which is shared by all callers waiting on it
+	azureUDCFetchTimeout = 30 * time.Second
 )
 
 // AzureStorage is a Storage implementation backed by Azure Blob Storage.
@@ -43,10 +47,12 @@ type AzureStorage struct {
 	signedURLExpiry     time.Duration
 
 	// getUDC fetches a user delegation credential. Defaults to the service client; overridden in tests.
-	getUDC    func(ctx context.Context, info service.KeyInfo, o *service.GetUserDelegationCredentialOptions) (*service.UserDelegationCredential, error)
-	udcMu     sync.Mutex
-	udc       *service.UserDelegationCredential
-	udcExpiry time.Time
+	getUDC       func(ctx context.Context, info service.KeyInfo, o *service.GetUserDelegationCredentialOptions) (*service.UserDelegationCredential, error)
+	udcMu        sync.Mutex // guards udc, udcExpiry, and udcRefreshAt only, never held across I/O
+	udc          *service.UserDelegationCredential
+	udcExpiry    time.Time
+	udcRefreshAt time.Time // after this, the cached credential is still used but refreshed in the background
+	udcGroup     singleflight.Group
 
 	// sharedKeyCred is used to connect to Azurite in integration tests.
 	// This should only be set for testing!
@@ -352,31 +358,77 @@ func (s *AzureStorage) UploadMirroredFile(ctx context.Context, provider *core.Pr
 	return s.upload(ctx, key, reader, true)
 }
 
-// userDelegationCredential returns a cached user delegation credential, and fetches a new one
-// if the cached credential would expire before a URL signed now.
-func (s *AzureStorage) userDelegationCredential(ctx context.Context) (*service.UserDelegationCredential, error) {
+// cachedUDC returns the cached user delegation credential, or nil if it would expire before a URL signed at now.
+// refresh reports whether a usable credential is due to be replaced in the background.
+func (s *AzureStorage) cachedUDC(now time.Time) (udc *service.UserDelegationCredential, refresh bool) {
 	s.udcMu.Lock()
 	defer s.udcMu.Unlock()
-
-	now := time.Now().UTC()
 	if s.udc != nil && now.Add(s.signedURLExpiry+azureUDCClockSkew).Before(s.udcExpiry) {
-		return s.udc, nil
+		return s.udc, !now.Before(s.udcRefreshAt)
+	}
+	return nil, false
+}
+
+// userDelegationCredential returns a cached user delegation credential, and fetches a new one
+// if the cached credential would expire before a URL signed now.
+// Halfway through the credential's usable lifetime, a single background fetch replaces it while callers keep using it.
+// Callers only wait on a fetch when there is no usable credential; concurrent callers then share a single fetch,
+// and each stops waiting when its own context is done.
+func (s *AzureStorage) userDelegationCredential(ctx context.Context) (*service.UserDelegationCredential, error) {
+	udc, refresh := s.cachedUDC(time.Now().UTC())
+	if udc != nil {
+		if refresh {
+			ch := s.udcGroup.DoChan("udc", s.fetchUDC(ctx))
+			go func() {
+				if r := <-ch; r.Err != nil {
+					slog.Warn("failed to refresh user delegation credential, the cached credential is used until it expires", slog.String("error", r.Err.Error()))
+				}
+			}()
+		}
+		return udc, nil
 	}
 
-	expiry := now.Add(min(s.signedURLExpiry+azureUDCMinValidity, azureUDCMaxValidity-azureUDCClockSkew))
-	info := service.KeyInfo{
-		Start:  to.Ptr(now.Add(-azureUDCClockSkew).Format(sas.TimeFormat)),
-		Expiry: to.Ptr(expiry.Format(sas.TimeFormat)),
+	select {
+	case r := <-s.udcGroup.DoChan("udc", s.fetchUDC(ctx)):
+		if r.Err != nil {
+			return nil, r.Err
+		}
+		return r.Val.(*service.UserDelegationCredential), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
+}
 
-	udc, err := s.getUDC(ctx, info, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user delegation credentials: %w", err)
+// fetchUDC returns a singleflight function that fetches a user delegation credential and caches it.
+func (s *AzureStorage) fetchUDC(ctx context.Context) func() (any, error) {
+	return func() (any, error) {
+		now := time.Now().UTC()
+		// Another fetch may have finished between the cache check and this call
+		if udc, refresh := s.cachedUDC(now); udc != nil && !refresh {
+			return udc, nil
+		}
+
+		// Decouple from the caller's context, as the fetch is shared with every other waiting caller
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), azureUDCFetchTimeout)
+		defer cancel()
+
+		expiry := now.Add(min(s.signedURLExpiry+azureUDCMinValidity, azureUDCMaxValidity-azureUDCClockSkew))
+		info := service.KeyInfo{
+			Start:  to.Ptr(now.Add(-azureUDCClockSkew).Format(sas.TimeFormat)),
+			Expiry: to.Ptr(expiry.Format(sas.TimeFormat)),
+		}
+		udc, err := s.getUDC(fetchCtx, info, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get user delegation credentials: %w", err)
+		}
+
+		// The credential is usable until a URL signed with it would outlive it
+		usable := expiry.Sub(now) - s.signedURLExpiry - azureUDCClockSkew
+		s.udcMu.Lock()
+		s.udc, s.udcExpiry, s.udcRefreshAt = udc, expiry, now.Add(usable/2)
+		s.udcMu.Unlock()
+		return udc, nil
 	}
-
-	s.udc = udc
-	s.udcExpiry = expiry
-	return udc, nil
 }
 
 func (s *AzureStorage) presignedURL(ctx context.Context, key string) (string, error) {
