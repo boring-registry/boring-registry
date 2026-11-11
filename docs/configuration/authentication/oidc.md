@@ -51,6 +51,16 @@ With a command similar to `jq -r '.credentials."boring-registry.example.com:5601
 
 To aid debugging, the resulting JWT token can be inspected for example at [jwt.io](https://jwt.io/).
 
+### Caller in the logs
+
+Once a token is verified, the log line of every provider, module and mirror operation carries a `caller` group with the token's `sub`, `preferred_username`, `email` and the client it was issued to (`azp`, or `client_id`), when present:
+
+```
+level=INFO msg="get provider" op=GetProvider caller.provider=oidc caller.sub=4ea0f503-… caller.username=jdoe caller.email=jdoe@example.com caller.client=terraform-cli provider.namespace=hashicorp provider.name=random provider.version=3.6.0 …
+```
+
+Static API tokens are logged as `caller.provider=static`, without the token. Unauthenticated deployments log no caller.
+
 ## Authentik
 
 As the readers are most-likely familiar with Terraform, an example configuration for Authentik is given using the [Authentik provider](https://github.com/goauthentik/terraform-provider-authentik).
