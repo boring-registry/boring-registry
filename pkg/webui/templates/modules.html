@@ -1,0 +1,36 @@
+{{define "content"}}
+  <div class="page-head">
+    <h1>Modules</h1>
+    <p class="muted">Terraform modules published to this registry.</p>
+  </div>
+  <form method="get" action="/ui/modules" class="search" role="search">
+    {{template "search-icon"}}
+    <input type="search" name="q" value="{{.Query}}" placeholder="Search modules by namespace, name or provider" aria-label="Search" autocomplete="off"
+           hx-get="/ui/modules" hx-trigger="input changed delay:300ms, search"
+           hx-target="#results" hx-push-url="true">
+  </form>
+  <div id="results">{{template "results" .}}</div>
+{{end}}
+
+{{define "results"}}
+  {{if .Modules}}
+  <div class="card table-wrap">
+    <table class="table">
+      <thead><tr><th>Module</th><th>Provider</th><th>Latest</th><th class="num">Versions</th></tr></thead>
+      <tbody>
+        {{range .Modules}}
+        <tr>
+          <td><a class="entry" href="/ui/modules/{{.Namespace}}/{{.Name}}/{{.Provider}}/{{.Latest}}"><span class="entry-ns">{{.Namespace}}/</span><span class="entry-name">{{.Name}}</span></a></td>
+          <td><span class="pill">{{.Provider}}</span></td>
+          <td><span class="badge">{{.Latest}}</span></td>
+          <td class="num">{{len .Versions}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="result-count muted">{{len .Modules}} module{{if ne (len .Modules) 1}}s{{end}}</p>
+  {{else}}
+  <div class="card empty"><p>No modules found.</p></div>
+  {{end}}
+{{end}}

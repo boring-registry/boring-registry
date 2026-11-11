@@ -1,0 +1,50 @@
+{{define "layout"}}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
+  <title>{{.Title}} · boring-registry</title>
+  <link rel="stylesheet" href="/ui/static/style.css?v={{.AssetVersion}}">
+  <script src="/ui/static/htmx.min.js?v={{.AssetVersion}}" defer></script>
+  <script src="/ui/static/ui.js?v={{.AssetVersion}}" defer></script>
+</head>
+<body hx-boost="true" id="top">
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="/ui/modules">
+        <svg class="brand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3L18.7 8 12 11.7 5.3 8 12 4.3ZM5 9.7l6 3.3v6.6l-6-3.3V9.7Zm8 9.9V13l6-3.3v6.6l-6 3.3Z"/></svg>
+        <span>boring-registry</span>
+      </a>
+      <nav class="tabs" aria-label="Sections">
+        <a href="/ui/modules"{{if eq .Active "modules"}} class="active" aria-current="page"{{end}}>Modules</a>
+        <a href="/ui/providers"{{if eq .Active "providers"}} class="active" aria-current="page"{{end}}>Providers</a>
+        <a href="/ui/mirror"{{if eq .Active "mirror"}} class="active" aria-current="page"{{end}}>Mirror</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container page">
+    {{block "content" .}}{{end}}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-meta">
+        <span class="footer-brand">boring-registry</span>
+        {{with .AppVersion}}<span class="badge">{{.}}</span>{{end}}
+        <span class="muted">Read-only registry browser</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/boring-registry/boring-registry" target="_blank" rel="noopener" hx-boost="false">GitHub</a>
+        <a href="#top">Back to top ↑</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
+{{end}}
+
+{{define "search-icon"}}<svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.9 12.1l4.8 4.8-1.4 1.4-4.8-4.8A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>{{end}}
+
+{{define "copy"}}<button type="button" class="copy" data-copy>Copy</button>{{end}}
