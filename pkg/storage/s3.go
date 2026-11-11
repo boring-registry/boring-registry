@@ -593,3 +593,63 @@ func parseClientLogMode(rawClientLogMode string) aws.ClientLogMode {
 
 	return logMode
 }
+
+// listKeys returns every object key under the prefix
+func (s *S3Storage) listKeys(ctx context.Context, prefix string) ([]string, error) {
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	var keys []string
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range resp.Contents {
+			keys = append(keys, *obj.Key)
+		}
+	}
+	return keys, nil
+}
+
+// ListAllModules returns every module version in the storage
+func (s *S3Storage) ListAllModules(ctx context.Context) ([]core.Module, error) {
+	keys, err := s.listKeys(ctx, listPrefix(s.bucketPrefix, string(internalModuleType)))
+	if err != nil {
+		return nil, fmt.Errorf("%v: %w", module.ErrModuleListFailed, err)
+	}
+	return modulesFromKeys(keys, s.moduleArchiveFormat), nil
+}
+
+// ListAllProviders returns every internal provider archive in the storage
+func (s *S3Storage) ListAllProviders(ctx context.Context) ([]*core.Provider, error) {
+	keys, err := s.listKeys(ctx, listPrefix(s.bucketPrefix, string(internalProviderType)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers: %w", err)
+	}
+	return providersFromKeys(keys, s.bucketPrefix, internalProviderType), nil
+}
+
+// ListAllMirroredProviders returns every mirrored provider archive in the storage
+func (s *S3Storage) ListAllMirroredProviders(ctx context.Context) ([]*core.Provider, error) {
+	keys, err := s.listKeys(ctx, listPrefix(s.bucketPrefix, string(mirrorProviderType)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers: %w", err)
+	}
+	return providersFromKeys(keys, s.bucketPrefix, mirrorProviderType), nil
+}
+
+// ModuleArchive returns the raw module archive
+func (s *S3Storage) ModuleArchive(ctx context.Context, namespace, name, provider, version string) ([]byte, error) {
+	key := modulePath(s.bucketPrefix, namespace, name, provider, version, s.moduleArchiveFormat)
+	exists, err := s.objectExists(ctx, key)
+	if err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, module.ErrModuleNotFound
+	}
+	return s.download(ctx, key)
+}

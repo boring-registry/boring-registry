@@ -18,12 +18,14 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	assertion "github.com/stretchr/testify/assert"
 )
 
 type mockS3Client struct {
-	headObject func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	headObject    func(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	listObjectsV2 func(ctx context.Context, input *s3.ListObjectsV2Input, f ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 }
 
 func (m *mockS3Client) HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
@@ -31,6 +33,9 @@ func (m *mockS3Client) HeadObject(ctx context.Context, params *s3.HeadObjectInpu
 }
 
 func (m *mockS3Client) ListObjectsV2(ctx context.Context, input *s3.ListObjectsV2Input, f ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	if m.listObjectsV2 != nil {
+		return m.listObjectsV2(ctx, input, f...)
+	}
 	panic("not yet implemented, as we don't have tests using it")
 }
 
@@ -414,4 +419,90 @@ func TestS3Storage_getProvider(t *testing.T) {
 			}
 		})
 	}
+}
+
+func listObjectsFrom(keys []string) func(ctx context.Context, input *s3.ListObjectsV2Input, f ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	return func(_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+		out := &s3.ListObjectsV2Output{}
+		for _, k := range keys {
+			if strings.HasPrefix(k, *input.Prefix) {
+				out.Contents = append(out.Contents, s3types.Object{Key: &k})
+			}
+		}
+		return out, nil
+	}
+}
+
+func TestS3Storage_ListAllProvidersAndModules(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	keys := []string{
+		"modules/acme/vpc/aws/acme-vpc-aws-1.2.0.tar.gz",
+		"modules/acme/vpc/aws/acme-vpc-aws-1.3.0.tar.gz",
+		"modules/acme/vpc/aws/README.md",
+		"providers/acme/dummy/terraform-provider-dummy_0.1.0_linux_amd64.zip",
+		"providers/acme/dummy/terraform-provider-dummy_0.1.0_darwin_arm64.zip",
+		"providers/acme/dummy/terraform-provider-dummy_0.1.0_SHA256SUMS",
+		"providers/acme/dummy/terraform-provider-dummy_0.1.0_SHA256SUMS.sig",
+		"providers/acme/signing-keys.json",
+		"mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.6.0_linux_amd64.zip",
+		"mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.6.0_SHA256SUMS",
+		"mirror/providers/registry.terraform.io/hashicorp/signing-keys.json",
+	}
+	s := &S3Storage{
+		bucket:              "registry",
+		moduleArchiveFormat: DefaultModuleArchiveFormat,
+		client:              &mockS3Client{listObjectsV2: listObjectsFrom(keys)},
+	}
+
+	providers, err := s.ListAllProviders(ctx)
+	assertion.NoError(t, err)
+	var filenames []string
+	for _, p := range providers {
+		assertion.Equal(t, "acme", p.Namespace)
+		assertion.Empty(t, p.Hostname)
+		filenames = append(filenames, p.Filename)
+	}
+	assertion.Equal(t, []string{
+		"terraform-provider-dummy_0.1.0_linux_amd64.zip",
+		"terraform-provider-dummy_0.1.0_darwin_arm64.zip",
+	}, filenames)
+
+	mirrored, err := s.ListAllMirroredProviders(ctx)
+	assertion.NoError(t, err)
+	assertion.Equal(t, []*core.Provider{{
+		Hostname:  "registry.terraform.io",
+		Namespace: "hashicorp",
+		Name:      "random",
+		Version:   "3.6.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		Filename:  "terraform-provider-random_3.6.0_linux_amd64.zip",
+	}}, mirrored)
+
+	modules, err := s.ListAllModules(ctx)
+	assertion.NoError(t, err)
+	assertion.Equal(t, []core.Module{
+		{Namespace: "acme", Name: "vpc", Provider: "aws", Version: "1.2.0"},
+		{Namespace: "acme", Name: "vpc", Provider: "aws", Version: "1.3.0"},
+	}, modules)
+
+	empty := &S3Storage{
+		bucket:              "registry",
+		moduleArchiveFormat: DefaultModuleArchiveFormat,
+		client:              &mockS3Client{listObjectsV2: listObjectsFrom(nil)},
+	}
+	emptyModules, err := empty.ListAllModules(ctx)
+	assertion.NoError(t, err)
+	assertion.NotNil(t, emptyModules)
+	assertion.Empty(t, emptyModules)
+	emptyProviders, err := empty.ListAllProviders(ctx)
+	assertion.NoError(t, err)
+	assertion.NotNil(t, emptyProviders)
+	assertion.Empty(t, emptyProviders)
+	emptyMirrored, err := empty.ListAllMirroredProviders(ctx)
+	assertion.NoError(t, err)
+	assertion.NotNil(t, emptyMirrored)
+	assertion.Empty(t, emptyMirrored)
 }

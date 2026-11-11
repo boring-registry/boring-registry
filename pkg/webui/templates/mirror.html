@@ -1,0 +1,35 @@
+{{define "content"}}
+  <div class="page-head">
+    <h1>Mirrored providers</h1>
+    <p class="muted">Providers served by the network mirror.</p>
+  </div>
+  <form method="get" action="/ui/mirror" class="search" role="search">
+    {{template "search-icon"}}
+    <input type="search" name="q" value="{{.Query}}" placeholder="Search by hostname, namespace or name" aria-label="Search" autocomplete="off"
+           hx-get="/ui/mirror" hx-trigger="input changed delay:300ms, search"
+           hx-target="#results" hx-push-url="true">
+  </form>
+  <div id="results">{{template "results" .}}</div>
+{{end}}
+
+{{define "results"}}
+  {{if .Providers}}
+  <div class="card table-wrap">
+    <table class="table">
+      <thead><tr><th>Source</th><th>Latest</th><th class="num">Versions</th></tr></thead>
+      <tbody>
+        {{range .Providers}}
+        <tr>
+          <td><a class="entry" href="/ui/mirror/{{.Hostname}}/{{.Namespace}}/{{.Name}}"><span class="entry-ns">{{.Hostname}}/{{.Namespace}}/</span><span class="entry-name">{{.Name}}</span></a></td>
+          <td><span class="badge">{{.Latest}}</span></td>
+          <td class="num">{{len .Versions}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="result-count muted">{{len .Providers}} provider{{if ne (len .Providers) 1}}s{{end}}</p>
+  {{else}}
+  <div class="card empty"><p>No mirrored providers found.</p></div>
+  {{end}}
+{{end}}

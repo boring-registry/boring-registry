@@ -1,0 +1,111 @@
+{{define "content"}}
+  {{$m := .Module}}
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/ui/modules">Modules</a><span class="sep">/</span><span>{{$m.Namespace}}</span><span class="sep">/</span><a href="/ui/modules/{{$m.Namespace}}/{{$m.Name}}/{{$m.Provider}}">{{$m.Name}}</a><span class="sep">/</span><span>{{$m.Provider}}</span>
+  </nav>
+  <div class="page-head">
+    <h1>{{$m.Name}} <span class="badge badge-accent">{{.Version}}</span></h1>
+    <p class="muted"><code>{{$m.Namespace}}/{{$m.Name}}/{{$m.Provider}}</code></p>
+  </div>
+  {{if ne .Version $m.Latest}}
+  <div class="notice">This is not the latest stable version. <a href="/ui/modules/{{$m.Namespace}}/{{$m.Name}}/{{$m.Provider}}/{{$m.Latest}}">Go to {{$m.Latest}}</a></div>
+  {{end}}
+
+  <div class="split">
+    <div class="main-col">
+      {{if .DocsError}}
+      <div class="notice notice-warning">{{.DocsError}}</div>
+      {{else if .Docs}}
+      <nav class="section-nav" aria-label="On this page">
+        <a href="#doc-readme">README</a>
+        <a href="#doc-inputs">Inputs <span class="count">{{len .Docs.Variables}}</span></a>
+        <a href="#doc-outputs">Outputs <span class="count">{{len .Docs.Outputs}}</span></a>
+        {{if .Docs.Warnings}}<a href="#doc-warnings" class="warn">Warnings <span class="count">{{len .Docs.Warnings}}</span></a>{{end}}
+      </nav>
+
+      <section class="card" id="doc-readme">
+        <div class="card-head"><h2>README</h2></div>
+        {{if .Docs.ReadmeHTML}}
+        <article class="readme">{{.Docs.ReadmeHTML}}</article>
+        {{else}}
+        <div class="empty"><p>This module version has no README.md.</p></div>
+        {{end}}
+      </section>
+
+      <section class="card" id="doc-inputs">
+        <div class="card-head"><h2>Inputs <span class="count">{{len .Docs.Variables}}</span></h2></div>
+        {{if .Docs.Variables}}
+        <ul class="doc-list">
+          {{range .Docs.Variables}}
+          <li class="doc-item">
+            <div class="doc-item-head">
+              <code class="ident">{{.Name}}</code>
+              {{if .Required}}<span class="pill pill-required">required</span>{{end}}
+              {{if .Sensitive}}<span class="pill pill-sensitive">sensitive</span>{{end}}
+            </div>
+            {{if .Description}}<p class="doc-desc">{{.Description}}</p>{{end}}
+            <dl class="doc-meta">
+              <dt>Type</dt>
+              <dd>{{if .Type}}<pre class="hcl">{{.Type}}</pre>{{else}}<span class="muted">any</span>{{end}}</dd>
+              {{if .Default}}
+              <dt>Default</dt>
+              <dd><pre class="hcl">{{.Default}}</pre></dd>
+              {{end}}
+            </dl>
+          </li>
+          {{end}}
+        </ul>
+        {{else}}
+        <div class="empty"><p>No inputs.</p></div>
+        {{end}}
+      </section>
+
+      <section class="card" id="doc-outputs">
+        <div class="card-head"><h2>Outputs <span class="count">{{len .Docs.Outputs}}</span></h2></div>
+        {{if .Docs.Outputs}}
+        <ul class="doc-list">
+          {{range .Docs.Outputs}}
+          <li class="doc-item">
+            <div class="doc-item-head">
+              <code class="ident">{{.Name}}</code>
+              {{if .Sensitive}}<span class="pill pill-sensitive">sensitive</span>{{end}}
+            </div>
+            {{if .Description}}<p class="doc-desc">{{.Description}}</p>{{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{else}}
+        <div class="empty"><p>No outputs.</p></div>
+        {{end}}
+      </section>
+
+      {{if .Docs.Warnings}}
+      <section class="card" id="doc-warnings">
+        <div class="card-head"><h2>Warnings <span class="count">{{len .Docs.Warnings}}</span></h2></div>
+        <ul class="warnings">
+          {{range .Docs.Warnings}}<li><code>{{.}}</code></li>{{end}}
+        </ul>
+      </section>
+      {{end}}
+      {{end}}
+    </div>
+
+    <aside class="side-col">
+      <div class="card">
+        <div class="card-head"><h3>Usage</h3>{{template "copy"}}</div>
+        <pre class="snippet"><code>{{.Usage}}</code></pre>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>Versions <span class="count">{{len $m.Versions}}</span></h3></div>
+        <ul class="version-list">
+          {{range $m.Versions}}
+          <li{{if eq . $.Version}} class="current"{{end}}>
+            <a href="/ui/modules/{{$m.Namespace}}/{{$m.Name}}/{{$m.Provider}}/{{.}}"{{if eq . $.Version}} aria-current="page"{{end}}>{{.}}</a>
+            {{if eq . $m.Latest}}<span class="badge badge-accent">latest</span>{{end}}
+          </li>
+          {{end}}
+        </ul>
+      </div>
+    </aside>
+  </div>
+{{end}}

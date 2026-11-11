@@ -328,3 +328,92 @@ func TestModuleFromObject(t *testing.T) {
 		})
 	}
 }
+
+func TestProviderFromObject(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		key     string
+		prefix  string
+		pt      providerType
+		want    *core.Provider
+		wantErr bool
+	}{
+		{
+			name: "internal provider archive",
+			key:  "providers/acme/dummy/terraform-provider-dummy_0.1.0_linux_amd64.zip",
+			pt:   internalProviderType,
+			want: &core.Provider{Namespace: "acme", Name: "dummy", Version: "0.1.0", OS: "linux", Arch: "amd64", Filename: "terraform-provider-dummy_0.1.0_linux_amd64.zip"},
+		},
+		{
+			name:   "internal provider archive under prefix",
+			key:    "reg/providers/acme/dummy/terraform-provider-dummy_0.1.0_linux_amd64.zip",
+			prefix: "reg",
+			pt:     internalProviderType,
+			want:   &core.Provider{Namespace: "acme", Name: "dummy", Version: "0.1.0", OS: "linux", Arch: "amd64", Filename: "terraform-provider-dummy_0.1.0_linux_amd64.zip"},
+		},
+		{
+			name:    "prefix mismatch",
+			key:     "providers/acme/dummy/terraform-provider-dummy_0.1.0_linux_amd64.zip",
+			prefix:  "reg",
+			pt:      internalProviderType,
+			wantErr: true,
+		},
+		{
+			name:    "shasums file",
+			key:     "providers/acme/dummy/terraform-provider-dummy_0.1.0_SHA256SUMS",
+			pt:      internalProviderType,
+			wantErr: true,
+		},
+		{
+			name:    "shasums signature",
+			key:     "providers/acme/dummy/terraform-provider-dummy_0.1.0_SHA256SUMS.sig",
+			pt:      internalProviderType,
+			wantErr: true,
+		},
+		{
+			name:    "signing keys",
+			key:     "providers/acme/signing-keys.json",
+			pt:      internalProviderType,
+			wantErr: true,
+		},
+		{
+			name:    "name mismatch",
+			key:     "providers/acme/other/terraform-provider-dummy_0.1.0_linux_amd64.zip",
+			pt:      internalProviderType,
+			wantErr: true,
+		},
+		{
+			name: "mirrored provider archive",
+			key:  "mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.6.0_linux_amd64.zip",
+			pt:   mirrorProviderType,
+			want: &core.Provider{Hostname: "registry.terraform.io", Namespace: "hashicorp", Name: "random", Version: "3.6.0", OS: "linux", Arch: "amd64", Filename: "terraform-provider-random_3.6.0_linux_amd64.zip"},
+		},
+		{
+			name:    "mirrored provider without hostname",
+			key:     "mirror/providers/hashicorp/random/terraform-provider-random_3.6.0_linux_amd64.zip",
+			pt:      mirrorProviderType,
+			wantErr: true,
+		},
+		{
+			name:    "mirrored key parsed as internal",
+			key:     "mirror/providers/registry.terraform.io/hashicorp/random/terraform-provider-random_3.6.0_linux_amd64.zip",
+			pt:      internalProviderType,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := providerFromObject(tt.key, tt.prefix, tt.pt)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
