@@ -144,3 +144,73 @@ func moduleFromObject(key string, fileExtension string) (*core.Module, error) {
 		Version:   version,
 	}, nil
 }
+
+// listPrefix returns the <prefix>/<t>/ prefix used to list every object of a type
+func listPrefix(prefix, t string) string {
+	return path.Join(prefix, t) + "/"
+}
+
+// modulesFromKeys parses module object keys and silently skips keys that are not module archives
+func modulesFromKeys(keys []string, archiveFormat string) []core.Module {
+	modules := []core.Module{}
+	for _, key := range keys {
+		m, err := moduleFromObject(key, archiveFormat)
+		if err != nil {
+			continue
+		}
+		modules = append(modules, *m)
+	}
+	return modules
+}
+
+// providerFromObject parses a provider archive key in the form of <prefix>/providers/<namespace>/<name>/<file>
+// or <prefix>/mirror/providers/<hostname>/<namespace>/<name>/<file>
+func providerFromObject(key, prefix string, pt providerType) (*core.Provider, error) {
+	base := path.Join(prefix, string(pt)) + "/"
+	if !strings.HasPrefix(key, base) {
+		return nil, fmt.Errorf("provider key %q does not start with %q", key, base)
+	}
+
+	parts := strings.Split(strings.TrimPrefix(key, base), "/")
+	expected := 3
+	if pt == mirrorProviderType {
+		expected = 4
+	}
+	if len(parts) != expected {
+		return nil, fmt.Errorf("provider key is invalid: expected %d parts, but was %d", expected, len(parts))
+	}
+
+	file := parts[len(parts)-1]
+	name := parts[len(parts)-2]
+	namespace := parts[len(parts)-3]
+	if !strings.HasPrefix(file, core.ProviderPrefix) || !strings.HasSuffix(file, core.ProviderExtension) {
+		return nil, fmt.Errorf("%q is not a provider archive", file)
+	}
+
+	p, err := core.NewProviderFromArchive(file)
+	if err != nil {
+		return nil, err
+	}
+	if p.Name != name {
+		return nil, fmt.Errorf("provider archive name %q does not match directory %q", p.Name, name)
+	}
+
+	p.Namespace = namespace
+	if pt == mirrorProviderType {
+		p.Hostname = parts[0]
+	}
+	return &p, nil
+}
+
+// providersFromKeys parses provider object keys and silently skips keys that are not provider archives
+func providersFromKeys(keys []string, prefix string, pt providerType) []*core.Provider {
+	providers := []*core.Provider{}
+	for _, key := range keys {
+		p, err := providerFromObject(key, prefix, pt)
+		if err != nil {
+			continue
+		}
+		providers = append(providers, p)
+	}
+	return providers
+}

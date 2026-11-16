@@ -22,6 +22,8 @@ import (
 	"github.com/boring-registry/boring-registry/pkg/provider"
 	"github.com/boring-registry/boring-registry/pkg/proxy"
 	"github.com/boring-registry/boring-registry/pkg/storage"
+	"github.com/boring-registry/boring-registry/pkg/webui"
+	"github.com/boring-registry/boring-registry/version"
 
 	"github.com/go-kit/kit/endpoint"
 	httptransport "github.com/go-kit/kit/transport/http"
@@ -53,6 +55,8 @@ var (
 	flagListenAddr          string
 	flagTelemetryListenAddr string
 	flagModuleArchiveFormat string
+	flagWebUIEnabled        bool
+	flagWebUICacheTTL       time.Duration
 
 	// Login options
 	flagLoginGrantTypes []string
@@ -198,6 +202,8 @@ func init() {
 	serverCmd.Flags().StringVar(&flagListenAddr, "listen-address", ":5601", "Address to listen on")
 	serverCmd.Flags().StringVar(&flagTelemetryListenAddr, "listen-telemetry-address", ":7801", "Telemetry address to listen on")
 	serverCmd.Flags().StringVar(&flagModuleArchiveFormat, "storage-module-archive-format", storage.DefaultModuleArchiveFormat, "Archive file format for modules, specified without the leading dot")
+	serverCmd.Flags().BoolVar(&flagWebUIEnabled, "web-ui", false, "Enable the read-only web UI under /ui/. The web UI does not enforce authentication")
+	serverCmd.Flags().DurationVar(&flagWebUICacheTTL, "web-ui-cache-ttl", time.Minute, "Duration the web UI caches the storage listing, 0 disables caching")
 
 	// Proxy options.
 	serverCmd.PersistentFlags().BoolVar(&flagProxy, "download-proxy", false, "Enable proxying download request to remote storage")
@@ -291,6 +297,12 @@ func serveMux(ctx context.Context) (*http.ServeMux, error) {
 
 		if err := registerMirror(mux, s, svc, authMiddleware, metrics.Mirror, instrumentation); err != nil {
 			return nil, err
+		}
+	}
+
+	if flagWebUIEnabled {
+		if err := registerWebUI(mux, s, instrumentation); err != nil {
+			return nil, fmt.Errorf("failed to register web UI: %w", err)
 		}
 	}
 
@@ -532,6 +544,27 @@ func registerProxy(mux *http.ServeMux, storage storage.Storage, metrics *o11y.Pr
 			),
 		),
 	)
+
+	return nil
+}
+
+func registerWebUI(mux *http.ServeMux, s storage.Storage, instrumentation o11y.Middleware) error {
+	h, err := webui.NewHandler(s, webui.Options{
+		ModuleArchiveFormat: flagModuleArchiveFormat,
+		CatalogTTL:          flagWebUICacheTTL,
+		Version:             version.Version,
+	})
+	if err != nil {
+		return err
+	}
+
+	mux.Handle("/ui/", instrumentation.WrapHandler(h))
+	mux.Handle("GET /{$}", http.RedirectHandler("/ui/", http.StatusFound))
+
+	slog.Info("web UI enabled", slog.String("path", "/ui/"))
+	if flagAuthStaticTokens != nil || flagAuthOidcIssuer != "" || flagAuthOktaIssuer != "" {
+		slog.Warn("the web UI does not enforce the configured authentication, restrict access to /ui/ externally")
+	}
 
 	return nil
 }

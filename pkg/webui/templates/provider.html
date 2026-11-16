@@ -1,0 +1,56 @@
+{{define "content"}}
+  {{$p := .Provider}}
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/ui/providers">Providers</a><span class="sep">/</span><span>{{$p.Namespace}}</span><span class="sep">/</span><span>{{$p.Name}}</span>
+  </nav>
+  <div class="page-head">
+    <h1>{{$p.Name}} <span class="badge badge-accent">{{$p.Latest}}</span></h1>
+    <p class="muted"><code>{{$p.Namespace}}/{{$p.Name}}</code></p>
+  </div>
+
+  <div class="split">
+    <div class="main-col">
+      <section class="card">
+        <div class="card-head"><h2>Versions <span class="count">{{len .Provider.Versions}}</span></h2></div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Version</th><th>Platforms</th></tr></thead>
+            <tbody>
+              {{range .Provider.Versions}}
+              <tr>
+                <td class="nowrap"><code>{{.Version}}</code>{{if eq .Version $.Provider.Latest}} <span class="badge badge-accent">latest</span>{{end}}</td>
+                <td><div class="platforms">{{range .Platforms}}<span class="pill">{{.}}</span>{{end}}</div></td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>Signing keys</h2></div>
+        {{if .SigningKeys}}
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Key ID</th><th>Source</th></tr></thead>
+            <tbody>
+              {{range .SigningKeys}}
+              <tr><td><code>{{.KeyID}}</code></td><td>{{if .Source}}{{.Source}}{{else}}<span class="muted">—</span>{{end}}</td></tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{else}}
+        <div class="empty"><p>No signing keys found for this namespace.</p></div>
+        {{end}}
+      </section>
+    </div>
+
+    <aside class="side-col">
+      <div class="card">
+        <div class="card-head"><h3>Usage</h3>{{template "copy"}}</div>
+        <pre class="snippet"><code>{{.Usage}}</code></pre>
+      </div>
+    </aside>
+  </div>
+{{end}}

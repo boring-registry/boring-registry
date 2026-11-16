@@ -586,3 +586,60 @@ func NewAzuriteStorage(client *azblob.Client, sharedKeyCred *azblob.SharedKeyCre
 		getUDC:              client.ServiceClient().GetUserDelegationCredential,
 	}
 }
+
+// listKeys returns every object key under the prefix
+func (s *AzureStorage) listKeys(ctx context.Context, prefix string) ([]string, error) {
+	var keys []string
+	pager := s.client.NewListBlobsFlatPager(s.container, &azblob.ListBlobsFlatOptions{
+		Prefix: &prefix,
+	})
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range page.Segment.BlobItems {
+			keys = append(keys, *obj.Name)
+		}
+	}
+	return keys, nil
+}
+
+// ListAllModules returns every module version in the storage
+func (s *AzureStorage) ListAllModules(ctx context.Context) ([]core.Module, error) {
+	keys, err := s.listKeys(ctx, listPrefix(s.prefix, string(internalModuleType)))
+	if err != nil {
+		return nil, fmt.Errorf("%v: %w", module.ErrModuleListFailed, err)
+	}
+	return modulesFromKeys(keys, s.moduleArchiveFormat), nil
+}
+
+// ListAllProviders returns every internal provider archive in the storage
+func (s *AzureStorage) ListAllProviders(ctx context.Context) ([]*core.Provider, error) {
+	keys, err := s.listKeys(ctx, listPrefix(s.prefix, string(internalProviderType)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers: %w", err)
+	}
+	return providersFromKeys(keys, s.prefix, internalProviderType), nil
+}
+
+// ListAllMirroredProviders returns every mirrored provider archive in the storage
+func (s *AzureStorage) ListAllMirroredProviders(ctx context.Context) ([]*core.Provider, error) {
+	keys, err := s.listKeys(ctx, listPrefix(s.prefix, string(mirrorProviderType)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list providers: %w", err)
+	}
+	return providersFromKeys(keys, s.prefix, mirrorProviderType), nil
+}
+
+// ModuleArchive returns the raw module archive
+func (s *AzureStorage) ModuleArchive(ctx context.Context, namespace, name, provider, version string) ([]byte, error) {
+	key := modulePath(s.prefix, namespace, name, provider, version, s.moduleArchiveFormat)
+	exists, err := s.objectExists(ctx, key)
+	if err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, module.ErrModuleNotFound
+	}
+	return s.download(ctx, key)
+}

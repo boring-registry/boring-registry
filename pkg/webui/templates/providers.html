@@ -1,0 +1,35 @@
+{{define "content"}}
+  <div class="page-head">
+    <h1>Providers</h1>
+    <p class="muted">Terraform providers published to this registry.</p>
+  </div>
+  <form method="get" action="/ui/providers" class="search" role="search">
+    {{template "search-icon"}}
+    <input type="search" name="q" value="{{.Query}}" placeholder="Search providers by namespace or name" aria-label="Search" autocomplete="off"
+           hx-get="/ui/providers" hx-trigger="input changed delay:300ms, search"
+           hx-target="#results" hx-push-url="true">
+  </form>
+  <div id="results">{{template "results" .}}</div>
+{{end}}
+
+{{define "results"}}
+  {{if .Providers}}
+  <div class="card table-wrap">
+    <table class="table">
+      <thead><tr><th>Provider</th><th>Latest</th><th class="num">Versions</th></tr></thead>
+      <tbody>
+        {{range .Providers}}
+        <tr>
+          <td><a class="entry" href="/ui/providers/{{.Namespace}}/{{.Name}}"><span class="entry-ns">{{.Namespace}}/</span><span class="entry-name">{{.Name}}</span></a></td>
+          <td><span class="badge">{{.Latest}}</span></td>
+          <td class="num">{{len .Versions}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="result-count muted">{{len .Providers}} provider{{if ne (len .Providers) 1}}s{{end}}</p>
+  {{else}}
+  <div class="card empty"><p>No providers found.</p></div>
+  {{end}}
+{{end}}
