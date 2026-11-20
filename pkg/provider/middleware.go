@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/boring-registry/boring-registry/pkg/auth"
 	"github.com/boring-registry/boring-registry/pkg/core"
 )
 
@@ -28,6 +29,7 @@ func (mw loggingMiddleware) ListProviderVersions(ctx context.Context, namespace,
 	defer func(begin time.Time) {
 		logger := slog.Default().With(
 			slog.String("op", "ListProviderVersions"),
+			auth.LogAttr(ctx),
 			slog.Group("provider",
 				slog.String("namespace", namespace),
 				slog.String("name", name),
@@ -49,6 +51,7 @@ func (mw loggingMiddleware) GetProvider(ctx context.Context, namespace, name, ve
 	defer func(begin time.Time) {
 		logger := slog.Default().With(
 			slog.String("op", "GetProvider"),
+			auth.LogAttr(ctx),
 			slog.Group("provider",
 				slog.String("namespace", namespace),
 				slog.String("name", name),

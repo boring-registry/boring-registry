@@ -40,6 +40,38 @@ func (o *OidcProvider) Verify(ctx context.Context, token string) error {
 	return err
 }
 
+// Identify reads the identifying claims of a token Verify has accepted. It
+// verifies the token again rather than trusting an unverified payload.
+func (o *OidcProvider) Identify(ctx context.Context, token string) (Caller, error) {
+	expectedAudience := o.clientIdentifier
+	if o.audience != "" {
+		expectedAudience = o.audience
+	}
+	idToken, err := o.provider.VerifierContext(ctx, &oidc.Config{ClientID: expectedAudience}).Verify(ctx, token)
+	if err != nil {
+		return Caller{}, err
+	}
+	var claims struct {
+		Username string `json:"preferred_username"`
+		Email    string `json:"email"`
+		Azp      string `json:"azp"`
+		ClientID string `json:"client_id"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		return Caller{}, err
+	}
+	client := claims.Azp
+	if client == "" {
+		client = claims.ClientID
+	}
+	return Caller{
+		Subject:  idToken.Subject,
+		Username: claims.Username,
+		Email:    claims.Email,
+		Client:   client,
+	}, nil
+}
+
 func (o *OidcProvider) AuthURL() string {
 	return o.provider.Endpoint().AuthURL
 }
