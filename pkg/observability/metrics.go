@@ -32,8 +32,13 @@ type MirrorMetrics struct {
 	ListProviderInstallation     *prometheus.CounterVec
 	RetrieveProviderArchive      *prometheus.CounterVec
 	ListProviderVersionsCacheHit *prometheus.CounterVec
-	GetProviderCacheHit          *prometheus.CounterVec
-	GetShaSumsCacheHit           *prometheus.CounterVec
+	// Lookups that missed the cache and went to the upstream registry. Hits
+	// and misses together count every versions lookup, index.json and
+	// {version}.json requests alike, so hits / (hits + misses) is the cache
+	// hit ratio. ListProviderVersions counts index.json requests only.
+	ListProviderVersionsCacheMiss *prometheus.CounterVec
+	GetProviderCacheHit           *prometheus.CounterVec
+	GetShaSumsCacheHit            *prometheus.CounterVec
 }
 type ModuleMetrics struct {
 	ListVersions *prometheus.CounterVec
@@ -86,6 +91,15 @@ func NewMetrics(buckets []float64) *ServerMetrics {
 					Subsystem: mirrorsSubsystem,
 					Name:      "list_provider_versions_cache_hit_total",
 					Help:      "The total number of cache hit for provider versions requests by mirror",
+				},
+				[]string{HostnameLabel, NamespaceLabel, NameLabel},
+			),
+			ListProviderVersionsCacheMiss: promauto.NewCounterVec(
+				prometheus.CounterOpts{
+					Namespace: boringNamespace,
+					Subsystem: mirrorsSubsystem,
+					Name:      "list_provider_versions_cache_miss_total",
+					Help:      "The total number of cache miss for provider versions lookups by mirror, sent to the upstream registry",
 				},
 				[]string{HostnameLabel, NamespaceLabel, NameLabel},
 			),

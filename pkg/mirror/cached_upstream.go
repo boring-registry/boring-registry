@@ -80,6 +80,11 @@ func (c *cachedUpstreamProvider) listProviderVersions(ctx context.Context, provi
 	}
 
 	// Cache miss - call upstream
+	c.metrics.ListProviderVersionsCacheMiss.With(prometheus.Labels{
+		o11y.HostnameLabel:  provider.Hostname,
+		o11y.NamespaceLabel: provider.Namespace,
+		o11y.NameLabel:      provider.Name,
+	}).Inc()
 	versions, err := c.upstream.listProviderVersions(ctx, provider)
 	if err != nil {
 		return nil, err
